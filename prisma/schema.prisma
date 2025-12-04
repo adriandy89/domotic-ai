@@ -1,0 +1,303 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Organization {
+  id          String    @id(map: "pk_organization_id") @default(uuid())
+  created_at  DateTime  @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at  DateTime? @updatedAt @db.Timestamptz(6)
+  name        String
+  attributes  Json?     @db.JsonB
+  is_active   Boolean   @default(true)
+  max_homes   Int       @default(2)
+  max_users   Int       @default(2)
+  max_devices Int       @default(10)
+  homes       Home[]
+  users       User[]
+  devices     Device[]
+
+  @@map("organizations")
+}
+
+model Home {
+  id              String       @id(map: "pk_home_id") @default(uuid())
+  unique_id       String       @unique @default(uuid()) @db.VarChar(128)
+  name            String       @db.VarChar(128)
+  mqtt_password   String?      @db.VarChar(256)
+  mqtt_username   String?      @db.VarChar(256)
+  mqtt_id         String?      @db.VarChar(256)
+  description     String?      @db.VarChar(512)
+  icon            String?      @db.VarChar(512)
+  image           String?      @db.VarChar(512)
+  attributes      Json?        @db.JsonB
+  disabled        Boolean?     @default(false)
+  connected       Boolean?     @default(false)
+  created_at      DateTime     @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at      DateTime?    @updatedAt @db.Timestamptz(6)
+  last_update     DateTime?    @db.Timestamptz(6)
+  organization_id String
+  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  devices         Device[]
+  users           UserHome[]
+  rules           Rule[]
+  schedules       Schedule[]
+
+  @@index([name], map: "idx_home_name")
+  @@index([unique_id], map: "idx_home_uniqueid")
+  @@index([organization_id], map: "idx_home_organization")
+  @@map("homes")
+}
+
+model User {
+  id                         String                @id(map: "pk_user_id") @default(uuid())
+  is_org_admin               Boolean               @default(false)
+  email                      String                @unique(map: "uq_user_email") @db.VarChar
+  is_email_verified          Boolean               @default(false)
+  password                   String                @db.VarChar(128)
+  name                       String                @db.VarChar(128)
+  phone                      String?               @db.VarChar(128)
+  is_active                  Boolean               @default(false)
+  created_at                 DateTime              @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at                 DateTime?             @updatedAt @db.Timestamptz(6)
+  attributes                 Json?
+  role                       Role                  @default(USER)
+  expiration_time            DateTime?             @db.Timestamptz(6)
+  notification_batch_minutes Int?                  @default(5)
+  fmc_tokens                 String[]
+  telegram_chat_id           String?               @db.VarChar(128)
+  organization_id            String
+  homes                      UserHome[]
+  rules                      Rule[]
+  schedules                  Schedule[]
+  channels                   NotificationChannel[]
+  organization               Organization          @relation(fields: [organization_id], references: [id])
+
+  @@index([name], map: "idx_user_name")
+  @@index([email], map: "idx_user_email")
+  @@index([organization_id], map: "idx_user_organization")
+  @@map("users")
+}
+
+model Device {
+  id               String                  @id(map: "pk_device_id") @default(uuid())
+  unique_id        String                  @unique @db.VarChar(128)
+  name             String                  @db.VarChar(128)
+  model            String?                 @db.VarChar(128)
+  category         String?                 @db.VarChar(128)
+  description      String?                 @db.VarChar(512)
+  icon             String?                 @db.VarChar(512)
+  attributes       Json?                   @db.JsonB
+  disabled         Boolean?                @default(false)
+  created_at       DateTime                @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at       DateTime?               @updatedAt @db.Timestamptz(6)
+  organization_id  String
+  x                Float?                  @default(0)
+  y                Float?                  @default(0)
+  show_on_map      Boolean?                @default(false)
+  sensor_data      SensorData[]
+  home_id          String?
+  home             Home?                   @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  conditions       Condition[]
+  results          Result[]
+  schedules        ScheduleAction[]
+  learned_commands DeviceLearnedCommands[]
+  organization     Organization            @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sensorDataLasts  SensorDataLast[]
+
+  @@index([unique_id], map: "idx_devices_uniqueid")
+  @@index([organization_id], map: "idx_device_organization")
+  @@map("devices")
+}
+
+model SensorData {
+  id        String   @default(uuid())
+  data      Json     @db.JsonB
+  timestamp DateTime @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  device_id String
+  device    Device   @relation(fields: [device_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([timestamp, id], map: "uq_sensor_data_timestamp_id")
+  @@index([id], map: "idx_sensor_data_id")
+  @@index([device_id], map: "idx_sensor_data_device")
+  @@index([timestamp], map: "idx_sensor_data_timestamp")
+  @@index([device_id, timestamp], map: "idx_sensor_data_device_timestamp")
+  @@map("sensor_data")
+}
+
+model SensorDataLast {
+  data      Json     @db.JsonB
+  timestamp DateTime @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  device_id String
+  device    Device   @relation(fields: [device_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([device_id], map: "pk_sensor_data_last_device")
+  @@index([timestamp], map: "idx_sensor_data_last_timestamp")
+  @@index([device_id, timestamp], map: "idx_sensor_data_last_device_timestamp")
+  @@map("sensor_data_last")
+}
+
+model UserHome {
+  user_id String
+  user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  home_id String
+  home    Home   @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, home_id])
+  @@index([user_id], map: "idx_user_home_user")
+  @@index([home_id], map: "idx_user_home_home")
+  @@map("users_homes")
+}
+
+model Rule {
+  id          String      @id(map: "pk_rule_id") @default(uuid())
+  type        RuleType    @default(RECURRENT)
+  name        String      @default("Rule") @db.VarChar(128)
+  description String?     @db.VarChar(512)
+  active      Boolean     @default(false)
+  all         Boolean     @default(true)
+  interval    Int         @default(0)
+  timestamp   DateTime?   @db.Timestamptz(6)
+  created_at  DateTime    @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at  DateTime?   @updatedAt @db.Timestamptz(6)
+  conditions  Condition[]
+  results     Result[]
+  user_id     String
+  user        User        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  home_id     String
+  home        Home        @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("rules")
+}
+
+model Condition {
+  id        String    @id(map: "pk_condition_id") @default(uuid())
+  operation Operation
+  attribute String
+  data      Json      @db.JsonB
+  device_id String
+  device    Device    @relation(fields: [device_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  rule_id   String
+  rule      Rule      @relation(fields: [rule_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("conditions")
+}
+
+model Result {
+  id           String                @id(map: "pk_result_id") @default(uuid())
+  event        String                @db.VarChar(1024)
+  type         ResultType            @default(COMMAND)
+  attribute    String?               @db.VarChar(254)
+  resend_after Int?                  @default(10)
+  channel      NotificationChannel[]
+  data         Json?                 @db.JsonB
+  device_id    String?
+  device       Device?               @relation(fields: [device_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  rule_id      String
+  rule         Rule                  @relation(fields: [rule_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("results")
+}
+
+model Schedule {
+  id         String                @id(map: "pk_schedule_id") @default(uuid())
+  name       String                @db.VarChar(128)
+  active     Boolean               @default(false)
+  date       DateTime?             @db.Timestamptz(6)
+  frequency  ScheduleFrequency
+  days       ScheduleDays[]
+  channel    NotificationChannel[]
+  actions    ScheduleAction[]
+  created_at DateTime              @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at DateTime?             @updatedAt @db.Timestamptz(6)
+  user_id    String
+  user       User                  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  home_id    String
+  home       Home                  @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("schedules")
+}
+
+model ScheduleAction {
+  id          String   @id(map: "pk_schedule_action_id") @default(uuid())
+  device_id   String?
+  device      Device?  @relation(fields: [device_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  attribute   String
+  data        Json     @db.JsonB
+  schedule_id String
+  schedule    Schedule @relation(fields: [schedule_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("schedule_actions")
+}
+
+model DeviceLearnedCommands {
+  id         String    @id(map: "pk_device_learned_commands_id") @default(uuid())
+  name       String    @db.VarChar(128)
+  command    String    @db.VarChar(2048)
+  created_at DateTime  @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at DateTime? @updatedAt @db.Timestamptz(6)
+  device_id  String
+  device     Device    @relation(fields: [device_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@map("device_learned_commands")
+}
+
+enum Role {
+  GUEST
+  USER
+  MANAGER
+  ADMIN
+}
+
+enum Operation {
+  EQ
+  GT
+  GTE
+  LT
+  LTE
+}
+
+enum RuleType {
+  ONCE
+  RECURRENT
+  SPECIFIC
+}
+
+enum ResultType {
+  COMMAND
+  NOTIFICATION
+}
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  PUSH
+  WHATSAPP
+}
+
+enum ScheduleFrequency {
+  ONCE
+  DAILY
+  CUSTOM
+}
+
+enum ScheduleDays {
+  SUNDAY
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+}
