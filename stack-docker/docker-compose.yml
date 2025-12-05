@@ -1,0 +1,44 @@
+name: stack-domotic-ai
+
+services:
+  redis:
+    container_name: redis
+    image: redis:8.4.0-alpine
+    restart: always
+    ports:
+      - '6379:6379'
+    command: redis-server --save 20 1 --loglevel warning --requirepass Data_Redis_p6379
+    volumes:
+      - redis-data:/data
+
+  timescaledb:
+    container_name: timescaledb
+    image: timescale/timescaledb-ha:pg17
+    restart: always
+    environment:
+      POSTGRES_DB: domoticdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - '5433:5432'
+    volumes:
+      - timescaledb:/var/lib/postgresql/data
+    command: ['-c', 'max_connections=200']
+
+  nats:
+    container_name: nats
+    image: nats:latest
+    restart: always
+    ports:
+      - '4222:4222'
+    volumes:
+      - ./nats.conf:/etc/nats/nats.conf
+    command: ['-c', '/etc/nats/nats.conf']
+
+volumes:
+  timescaledb:
+  redis-data:
+
+networks:
+  default:
+    name: domotic-network
