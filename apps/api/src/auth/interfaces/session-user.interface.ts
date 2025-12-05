@@ -1,3 +1,5 @@
+import { Role } from "generated/prisma/enums";
+
 export interface SessionUser {
     id: string;
     email: string;
@@ -5,7 +7,7 @@ export interface SessionUser {
     is_org_admin: boolean;
     organization_id: string;
     is_active: boolean;
-    role: string;
+    role: Role;
     phone: string | null;
     attributes: any;
     telegram_chat_id: string | null;

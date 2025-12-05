@@ -1,8 +1,9 @@
 import { Controller, Get, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
-import { AuthenticatedGuard } from './guards';
-import { GetUserInfo } from './decorators';
+import { AuthenticatedGuard, PermissionsGuard } from './guards';
+import { GetUserInfo, Permissions } from './decorators';
+import { Role } from 'generated/prisma/enums';
 
 @Controller('auth')
 export class AuthController {
@@ -98,6 +99,15 @@ export class AuthController {
     @UseGuards(AuthenticatedGuard)
     async getCurrentUser(@GetUserInfo() user) {
         // Return current user from session
+        return {
+            user
+        };
+    }
+
+    @Get('test-permissions')
+    @Permissions([Role.ADMIN])
+    @UseGuards(AuthenticatedGuard, PermissionsGuard)
+    async testPermissions(@GetUserInfo() user) {
         return {
             user
         };
