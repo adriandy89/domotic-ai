@@ -64,8 +64,7 @@ model User {
   id                         String                @id(map: "pk_user_id") @default(uuid())
   is_org_admin               Boolean               @default(false)
   email                      String                @unique(map: "uq_user_email") @db.VarChar
-  is_email_verified          Boolean               @default(false)
-  password                   String                @db.VarChar(128)
+  password                   String?               @db.VarChar(128)
   name                       String                @db.VarChar(128)
   phone                      String?               @db.VarChar(128)
   is_active                  Boolean               @default(false)
@@ -82,6 +81,7 @@ model User {
   rules                      Rule[]
   schedules                  Schedule[]
   channels                   NotificationChannel[]
+  oauth_accounts             OAuthAccount[]
   organization               Organization          @relation(fields: [organization_id], references: [id])
 
   @@index([name], map: "idx_user_name")
@@ -300,4 +300,21 @@ enum ScheduleDays {
   THURSDAY
   FRIDAY
   SATURDAY
+}
+
+model OAuthAccount {
+  id            String    @id(map: "pk_oauth_account_id") @default(uuid())
+  provider      String    @db.VarChar(50) // 'google', 'microsoft', 'github'
+  provider_id   String    @db.VarChar(255) // Unique ID from the provider
+  access_token  String?   @db.Text
+  refresh_token String?   @db.Text
+  token_expiry  DateTime? @db.Timestamptz(6)
+  created_at    DateTime  @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at    DateTime? @updatedAt @db.Timestamptz(6)
+  user_id       String
+  user          User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([provider, provider_id], map: "uq_oauth_provider_id")
+  @@index([user_id], map: "idx_oauth_user")
+  @@map("oauth_accounts")
 }
