@@ -5,10 +5,8 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { OAuthAccountsService } from './oauth-accounts.service';
 import { SessionSerializer } from './session.serializer';
-import { GoogleStrategy } from './strategies/google.strategy';
-import { MicrosoftStrategy } from './strategies/microsoft.strategy';
-import { GitHubStrategy } from './strategies/github.strategy';
 import { DbModule } from '@app/db';
+import { GitHubStrategy, GoogleStrategy, MicrosoftStrategy } from './strategies';
 
 @Module({
     imports: [

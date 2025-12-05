@@ -1,10 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { DbService } from '@app/db';
-import { User } from 'generated/prisma/client';
 import { OAuthUserDto } from './dto/oauth-user.dto';
 import { OAuthAccountsService } from './oauth-accounts.service';
 import { SessionUser } from './interfaces/session-user.interface';
-import { UserSelect } from 'generated/prisma/models';
 
 export const SELECT_USER_SESSION = {
     id: true,

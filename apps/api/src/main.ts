@@ -4,6 +4,8 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import session from 'express-session';
 import passport from 'passport';
+import { RedisStore } from 'connect-redis';
+import * as redis from 'redis';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
@@ -20,20 +22,28 @@ async function bootstrap() {
     allowedHeaders: 'Content-Type, Accept, Authorization',
   });
 
+  app.setGlobalPrefix('api/v1');
 
   const configService = app.get(ConfigService);
-  const port = configService.get<number>('API_PORT') || 3017;
+  const redisUrl = configService.get<string>('REDIS_URL') || 'redis://localhost:6379';
+  const redisPassword = configService.get<string>('REDIS_PASSWORD') || undefined;
+  // Set up Redis client
+  const redisClient = redis.createClient({
+    url: redisUrl,
+    password: redisPassword,
+  });
+  redisClient.connect().then(() => {
+    logger.verbose('✅ Connected to Redis for session storage');
+  }).catch((error) => {
+    logger.error('❌ Redis connection error:', error);
+  });
 
-  app.setGlobalPrefix('api/v1');
-  // Configure session middleware
-  const pgSession = require('connect-pg-simple')(session);
-
+  // Configure session middleware with Redis
   app.use(
     session({
-      store: new pgSession({
-        conString: configService.get<string>('DATABASE_URL'),
-        tableName: 'sessions',
-        createTableIfMissing: true, // Auto-create sessions table
+      store: new RedisStore({
+        client: redisClient,
+        prefix: 'sess:',
       }),
       secret: configService.get<string>('SESSION_SECRET') || 'default-secret-change-in-production',
       resave: false,
@@ -68,6 +78,8 @@ async function bootstrap() {
       },
     });
   }
+
+  const port = configService.get<number>('API_PORT') || 3017;
 
   await app.listen(port, () => {
     logger.verbose(`Server on port: ${port}`);

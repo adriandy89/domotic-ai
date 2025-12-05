@@ -1,7 +1,8 @@
 import { Controller, Get, Req, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import type { Request, Response } from 'express';
-import { AuthenticatedGuard } from './guards/authenticated.guard';
+import { AuthenticatedGuard } from './guards';
+import { GetUserInfo } from './decorators';
 
 @Controller('auth')
 export class AuthController {
@@ -95,11 +96,10 @@ export class AuthController {
 
     @Get('me')
     @UseGuards(AuthenticatedGuard)
-    async getCurrentUser(@Req() req: Request) {
+    async getCurrentUser(@GetUserInfo() user) {
         // Return current user from session
         return {
-            user: req.user,
-            isAuthenticated: req.isAuthenticated(),
+            user
         };
     }
 }
