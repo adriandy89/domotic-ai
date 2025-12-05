@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-microsoft';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
-import { User } from 'generated/prisma/client';
+import { SessionUser } from '../interfaces/session-user.interface';
 
 @Injectable()
 export class MicrosoftStrategy extends PassportStrategy(Strategy, 'microsoft') {
@@ -29,7 +29,7 @@ export class MicrosoftStrategy extends PassportStrategy(Strategy, 'microsoft') {
         const { id, emails, displayName, name } = profile;
 
         try {
-            const user: User = await this.authService.validateOAuthUser({
+            const user: SessionUser = await this.authService.validateOAuthUser({
                 provider: 'microsoft',
                 providerId: id,
                 email: emails?.[0]?.value || profile.userPrincipalName,

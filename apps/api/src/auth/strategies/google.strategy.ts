@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-google-oauth20';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
-import { User } from 'generated/prisma/client';
+import { SessionUser } from '../interfaces/session-user.interface';
 
 @Injectable()
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
@@ -28,7 +28,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
         const { id, emails, name, photos } = profile;
 
         try {
-            const user: User = await this.authService.validateOAuthUser({
+            const user: SessionUser = await this.authService.validateOAuthUser({
                 provider: 'google',
                 providerId: id,
                 email: emails[0].value,

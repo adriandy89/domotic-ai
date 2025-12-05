@@ -3,7 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, Profile } from 'passport-github2';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
-import { User } from 'generated/prisma/client';
+import { SessionUser } from '../interfaces/session-user.interface';
 
 @Injectable()
 export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
@@ -31,7 +31,7 @@ export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
             // GitHub might not provide email if not public
             const email = emails?.[0]?.value || `${profile.username}@github.local`;
 
-            const user: User = await this.authService.validateOAuthUser({
+            const user: SessionUser = await this.authService.validateOAuthUser({
                 provider: 'github',
                 providerId: id,
                 email: email,

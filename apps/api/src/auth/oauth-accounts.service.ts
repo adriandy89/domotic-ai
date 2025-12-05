@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { DbService } from '@app/db';
-import { OAuthAccount, User } from 'generated/prisma/client';
+import { OAuthAccount } from 'generated/prisma/client';
 import { OAuthUserDto } from './dto/oauth-user.dto';
+import { SELECT_USER_SESSION } from './auth.service';
+import { SessionUser } from './interfaces/session-user.interface';
 
 @Injectable()
 export class OAuthAccountsService {
@@ -10,7 +12,7 @@ export class OAuthAccountsService {
     async findByProvider(
         provider: string,
         providerId: string,
-    ): Promise<(OAuthAccount & { user: User }) | null> {
+    ): Promise<(OAuthAccount & { user: SessionUser }) | null> {
         return this.prisma.oAuthAccount.findUnique({
             where: {
                 provider_provider_id: {
@@ -19,7 +21,9 @@ export class OAuthAccountsService {
                 },
             },
             include: {
-                user: true,
+                user: {
+                    select: SELECT_USER_SESSION,
+                },
             },
         });
     }
@@ -33,7 +37,7 @@ export class OAuthAccountsService {
     async create(
         provider: string,
         oauthUser: OAuthUserDto,
-        user: User,
+        user: SessionUser,
     ): Promise<OAuthAccount> {
         return this.prisma.oAuthAccount.create({
             data: {

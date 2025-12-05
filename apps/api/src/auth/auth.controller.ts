@@ -102,12 +102,4 @@ export class AuthController {
             isAuthenticated: req.isAuthenticated(),
         };
     }
-
-    @Get('status')
-    async getAuthStatus(@Req() req: Request) {
-        return {
-            isAuthenticated: req.isAuthenticated(),
-            user: req.user || null,
-        };
-    }
 }
