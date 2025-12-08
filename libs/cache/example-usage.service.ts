@@ -5,7 +5,7 @@ import {
     getSessionKeySessionUser,
     getDataKeyDeviceUniqueId,
     getPhoneKeyUserId
-} from '@domotic-ai/cache';
+} from '@app/cache';
 
 interface UserSession {
     userId: string;

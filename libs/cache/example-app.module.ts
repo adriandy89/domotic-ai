@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { CacheModule } from '@domotic-ai/cache';
-import { AuthModule } from './auth';
+import { CacheModule } from '@app/cache';
 
 @Module({
     imports: [
@@ -10,7 +9,7 @@ import { AuthModule } from './auth';
         }),
         // Importar el módulo de cache
         CacheModule.forRootAsync(),
-        AuthModule,
+        // others modules
     ],
     controllers: [],
     providers: [],
