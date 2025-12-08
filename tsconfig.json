@@ -22,11 +22,29 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
+      "@app/cache": [
+        "libs/cache/src"
+      ],
+      "@app/cache/*": [
+        "libs/cache/src/*"
+      ],
       "@app/db": [
         "libs/db/src"
       ],
       "@app/db/*": [
         "libs/db/src/*"
+      ],
+      "@app/models": [
+        "libs/models/src"
+      ],
+      "@app/models/*": [
+        "libs/models/src/*"
+      ],
+      "@app/nats-client": [
+        "libs/nats-client/src"
+      ],
+      "@app/nats-client/*": [
+        "libs/nats-client/src/*"
       ]
     }
   }

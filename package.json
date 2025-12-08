@@ -26,11 +26,15 @@
     "@nestjs/microservices": "^11.1.9",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/schedule": "^6.1.0",
     "@nestjs/swagger": "^11.2.3",
     "@prisma/adapter-pg": "^7.1.0",
     "@prisma/client": "^7.1.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.3",
     "connect-redis": "^9.0.0",
     "express-session": "^1.18.2",
+    "nats": "^2.29.3",
     "passport": "^0.7.0",
     "passport-github2": "^0.1.12",
     "passport-google-oauth20": "^2.0.0",
@@ -92,7 +96,10 @@
       "<rootDir>/apps/"
     ],
     "moduleNameMapper": {
-      "^@app/db(|/.*)$": "<rootDir>/libs/db/src/$1"
+      "^@app/cache(|/.*)$": "<rootDir>/libs/cache/src/$1",
+      "^@app/db(|/.*)$": "<rootDir>/libs/db/src/$1",
+      "^@app/models(|/.*)$": "<rootDir>/libs/models/src/$1",
+      "^@app/nats-client(|/.*)$": "<rootDir>/libs/nats-client/src/$1"
     }
   }
 }

@@ -9,6 +9,24 @@
     "tsConfigPath": "apps/api/tsconfig.app.json"
   },
   "projects": {
+    "api": {
+      "type": "application",
+      "root": "apps/api",
+      "entryFile": "main",
+      "sourceRoot": "apps/api/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/api/tsconfig.app.json"
+      }
+    },
+    "cache": {
+      "type": "library",
+      "root": "libs/cache",
+      "entryFile": "index",
+      "sourceRoot": "libs/cache/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/cache/tsconfig.lib.json"
+      }
+    },
     "db": {
       "type": "library",
       "root": "libs/db",
@@ -18,13 +36,31 @@
         "tsConfigPath": "libs/db/tsconfig.lib.json"
       }
     },
-    "api": {
+    "init": {
       "type": "application",
-      "root": "apps/api",
+      "root": "apps/init",
       "entryFile": "main",
-      "sourceRoot": "apps/api/src",
+      "sourceRoot": "apps/init/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/api/tsconfig.app.json"
+        "tsConfigPath": "apps/init/tsconfig.app.json"
+      }
+    },
+    "models": {
+      "type": "library",
+      "root": "libs/models",
+      "entryFile": "index",
+      "sourceRoot": "libs/models/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/models/tsconfig.lib.json"
+      }
+    },
+    "nats-client": {
+      "type": "library",
+      "root": "libs/nats-client",
+      "entryFile": "index",
+      "sourceRoot": "libs/nats-client/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/nats-client/tsconfig.lib.json"
       }
     },
     "notifications": {
