@@ -11,19 +11,19 @@ services:
     volumes:
       - redis-data:/data
 
-  timescaledb:
-    container_name: timescaledb
-    image: timescale/timescaledb-ha:pg17
-    restart: always
-    environment:
-      POSTGRES_DB: domotic
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - '5433:5432'
-    volumes:
-      - timescaledb:/var/lib/postgresql/data
-    command: ['-c', 'max_connections=200']
+  # timescaledb:
+  #   container_name: timescaledb
+  #   image: timescale/timescaledb-ha:pg17
+  #   restart: always
+  #   environment:
+  #     POSTGRES_DB: domotic
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
+  #   ports:
+  #     - '5433:5432'
+  #   volumes:
+  #     - timescaledb:/var/lib/postgresql/data
+  #   command: ['-c', 'max_connections=200']
 
   nats:
     container_name: nats
@@ -36,7 +36,7 @@ services:
     command: ['-c', '/etc/nats/nats.conf']
 
 volumes:
-  timescaledb:
+  # timescaledb:
   redis-data:
 
 networks:
