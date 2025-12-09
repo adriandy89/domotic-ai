@@ -38,6 +38,7 @@ async function bootstrap() {
     logger.error('❌ Redis connection error:', error);
   });
 
+  const environment = configService.get<string>('NODE_ENV') || 'development';
   // Configure session middleware with Redis
   app.use(
     session({
@@ -46,14 +47,17 @@ async function bootstrap() {
         prefix: 'sess:',
       }),
       secret: configService.get<string>('SESSION_SECRET') || 'default-secret-change-in-production',
-      resave: false,
-      saveUninitialized: false,
+      resave: true, // Renew session on each request
+      saveUninitialized: false, // Don't create sessions for unauthenticated users
+      rolling: true, // Reset expiration on each request
       cookie: {
-        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-        httpOnly: true, // Prevent XSS attacks
-        secure: configService.get<string>('NODE_ENV') === 'production', // HTTPS only in production
-        sameSite: 'lax', // CSRF protection
+        maxAge: 1000 * 60 * 60 * 24 * 3, // 3 days (rolling window)
+        httpOnly: true, // Prevents JavaScript access to cookies
+        secure: environment === 'production', // Use secure cookies in production
+        sameSite: environment === 'production' ? 'none' : 'lax', // 'none' for cross-site cookies in production, 'lax' otherwise
+        domain: environment === 'production' ? configService.get('COOKIE_DOMAIN') : undefined, // Set domain for production
       },
+      proxy: environment === 'production', // Trust proxy in production
     }),
   );
 

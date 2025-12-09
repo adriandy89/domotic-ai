@@ -1,0 +1,60 @@
+name: domotic-ai
+
+services:
+  prisma-migrate:
+    container_name: prisma-migrate
+    build:
+      context: .
+      target: prisma-migrate
+    env_file:
+      - ./.env.local
+
+  init:
+    container_name: init
+    env_file:
+      - ./.env.local
+    build:
+      context: .
+      target: production
+      args:
+        - SERVICE_NAME=init
+    restart: always
+    depends_on:
+      prisma-migrate:
+        condition: service_completed_successfully
+
+  api:
+    container_name: api
+    env_file:
+      - ./.env.local
+    build:
+      context: .
+      target: production
+      args:
+        - SERVICE_NAME=api
+    restart: always
+    ports:
+      - 3003:3003
+    depends_on:
+      init:
+        condition: service_started
+
+  notifications:
+    container_name: notifications
+    env_file:
+      - ./.env.local
+    build:
+      context: .
+      target: production
+      args:
+        - SERVICE_NAME=notifications
+    restart: always
+    depends_on:
+      init:
+        condition: service_started
+
+
+networks:
+  default:
+    external: true
+    name: domotic-network

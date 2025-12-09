@@ -16,7 +16,7 @@ services:
     image: timescale/timescaledb-ha:pg17
     restart: always
     environment:
-      POSTGRES_DB: domoticdb
+      POSTGRES_DB: domotic
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
