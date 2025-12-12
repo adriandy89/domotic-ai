@@ -54,6 +54,24 @@
         "tsConfigPath": "libs/models/tsconfig.lib.json"
       }
     },
+    "mqtt": {
+      "type": "library",
+      "root": "libs/mqtt",
+      "entryFile": "index",
+      "sourceRoot": "libs/mqtt/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/mqtt/tsconfig.lib.json"
+      }
+    },
+    "mqtt-core": {
+      "type": "application",
+      "root": "apps/mqtt-core",
+      "entryFile": "main",
+      "sourceRoot": "apps/mqtt-core/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/mqtt-core/tsconfig.app.json"
+      }
+    },
     "nats-client": {
       "type": "library",
       "root": "libs/nats-client",

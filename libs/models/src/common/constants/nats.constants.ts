@@ -3,7 +3,7 @@ export const NATS_QUEUE = {
   API_GATEWAY: 'api_gateway_queue',
   AUTH: 'auth_queue',
   DEVICES: 'devices_queue',
-  CORE_ENGINE: 'core_engine_queue2',
+  CORE_MQTT: 'core_mqtt_queue',
   GEOFENCES: 'geofences_queue',
   NOTIFICATIONS: 'notifications_queue',
   RULE_ENGINE: 'rule_engine_queue',

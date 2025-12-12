@@ -40,6 +40,12 @@
       "@app/models/*": [
         "libs/models/src/*"
       ],
+      "@app/mqtt": [
+        "libs/mqtt/src"
+      ],
+      "@app/mqtt/*": [
+        "libs/mqtt/src/*"
+      ],
       "@app/nats-client": [
         "libs/nats-client/src"
       ],
