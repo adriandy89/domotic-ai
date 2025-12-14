@@ -8,6 +8,7 @@ import { CacheModule } from '@app/cache';
 import { NatsClientModule } from '@app/nats-client';
 import { DbModule } from '@app/db';
 import { HttpModule } from '@nestjs/axios';
+import { MqttModule } from '@app/mqtt';
 
 @Module({
   imports: [
@@ -15,9 +16,11 @@ import { HttpModule } from '@nestjs/axios';
       isGlobal: true,
     }),
     CacheModule.forRootAsync(),
+    MqttModule.forRootAsync(),
     NatsClientModule,
     DbModule,
     HttpModule.register({
+      global: true,
       timeout: 15_000,
       maxRedirects: 5,
       // baseURL: process.env.TRACCAR_BASE_URL || 'http://localhost:8082/api/',

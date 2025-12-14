@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { UserOrderBy } from '../enums/user-order-by.enum';
 import { IUserPageMetaParametersDto } from '../interfaces/user-page-meta-parameters.interface';
 import { PageMetaDto } from '@app/models/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'generated/prisma/client';
 
 export class UserPageMetaDto extends PageMetaDto {
   @ApiProperty({ enum: UserOrderBy })

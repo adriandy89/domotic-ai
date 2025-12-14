@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { DeviceOrderBy } from '../enums/device-order-by.enum';
 import { IDevicePageMetaParametersDto } from '../interfaces/device-page-meta-parameters.interface';
 import { PageMetaDto } from '@app/models/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'generated/prisma/client';
 
 export class DevicePageMetaDto extends PageMetaDto {
   @ApiProperty({ nullable: true })

@@ -2,7 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { HomeOrderBy } from '../enums/home-order-by.enum';
 import { IHomePageMetaParametersDto } from '../interfaces/home-page-meta-parameters.interface';
 import { PageMetaDto } from '@app/models/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from 'generated/prisma/client';
 
 export class HomePageMetaDto extends PageMetaDto {
   @ApiProperty({ nullable: true })
