@@ -1,10 +1,9 @@
 import { Module } from '@nestjs/common';
 import { DeviceService } from './device.service';
 import { DeviceController } from './device.controller';
-import { DbModule } from '@app/db';
 
 @Module({
-  imports: [DbModule],
+  imports: [],
   controllers: [DeviceController],
   providers: [DeviceService],
   exports: [DeviceService],

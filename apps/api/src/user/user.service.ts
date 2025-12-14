@@ -1,99 +1,90 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Inject, Injectable } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
+import { Injectable } from '@nestjs/common';
+import bcrypt from 'bcrypt';
 import {
-  ClientProxyRMQ,
   CreateUserDto,
   IUser,
-  LinksIdsDto,
-  PrismaService,
-  RabbitMQ,
-  RulesEngineMsg,
-  SchedulesEngineMsg,
+  LinksUUIDsDto,
   UpdateUserAttributesDto,
   UpdateUserDto,
   UpdateUserFmcTokenDto,
   UserPageMetaDto,
   UserPageOptionsDto,
-} from '@app/shared';
-import { Prisma } from '@prisma/client';
-import { RedisClientType } from '@redis/client';
+} from '@app/models';
+import { DbService } from '@app/db';
+import { Prisma } from 'generated/prisma/client';
+import { CacheService } from '@app/cache';
+import { NatsClientService } from '@app/nats-client';
 
 @Injectable()
 export class UserService {
   readonly prismaUserSelect: Prisma.UserSelect = {
     id: true,
-    username: true,
+    email: true,
     phone: true,
     name: true,
     attributes: true,
-    isActive: true,
-    organizationId: true,
-    updatedAt: true,
-    createdAt: true,
+    is_active: true,
+    organization_id: true,
+    updated_at: true,
+    created_at: true,
     role: true,
-    expirationTime: true,
-    channels: true,
+    expiration_time: true,
+    notification_batch_minutes: true,
   };
-  private clientProxyRules = this.clientProxy.clientProxyRMQ(
-    RabbitMQ.RulesEngine,
-  );
-  private clientProxySchedules = this.clientProxy.clientProxyRMQ(
-    RabbitMQ.Schedules,
-  );
 
   constructor(
-    private prismaService: PrismaService,
-    @Inject('REDIS_CLIENT') private readonly redisClient: RedisClientType,
-    private readonly clientProxy: ClientProxyRMQ,
-  ) {}
+    private dbService: DbService,
+    private readonly cacheService: CacheService,
+    private readonly natsClient: NatsClientService,
+  ) { }
 
-  async verifyOrganizationUsersAccess(userHomeIds: number[], meta: IUser) {
-    const users = await this.prismaService.user.findMany({
+  async verifyOrganizationUsersAccess(userIds: string[], meta: IUser) {
+    const users = await this.dbService.user.findMany({
       where: {
         id: {
-          in: userHomeIds,
+          in: userIds,
         },
-        organizationId: meta.organizationId,
+        organization_id: meta.organization_id,
       },
       select: { id: true },
     });
-    if (users.length !== userHomeIds.length) {
+    if (users.length !== userIds.length) {
       throw new Error('User not found');
     }
     return { ok: true };
   }
 
-  async verifyOrganizationHomesAccess(homeIds: number[], meta: IUser) {
-    const users = await this.prismaService.home.findMany({
+  async verifyOrganizationHomesAccess(homeIds: string[], meta: IUser) {
+    const homes = await this.dbService.home.findMany({
       where: {
         id: {
           in: homeIds,
         },
-        organizationId: meta.organizationId,
+        organization_id: meta.organization_id,
       },
       select: { id: true },
     });
-    if (users.length !== homeIds.length) {
-      throw new Error('User not found');
+    if (homes.length !== homeIds.length) {
+      throw new Error('Home not found');
     }
     return { ok: true };
   }
 
   async countTotalOrganizationUsers(meta: IUser) {
-    const count = await this.prismaService.user.count({
-      where: { organizationId: meta.organizationId },
+    const count = await this.dbService.user.count({
+      where: { organization_id: meta.organization_id },
     });
     return { organizationTotalUsers: count ?? 0 };
   }
 
-  async statisticsOrgUsers(organizationId: number) {
+  async statisticsOrgUsers(organizationId: string) {
     const [countEnabledUsers, countDisabledUsers] = await Promise.all([
-      this.prismaService.user.count({
-        where: { organizationId, isActive: true },
+      this.dbService.user.count({
+        where: { organization_id: organizationId, is_active: true },
       }),
-      this.prismaService.user.count({
-        where: { organizationId, isActive: false },
+      this.dbService.user.count({
+        where: { organization_id: organizationId, is_active: false },
       }),
     ]);
     const totalUsers = (countEnabledUsers ?? 0) + (countDisabledUsers ?? 0);
@@ -104,14 +95,14 @@ export class UserService {
     };
   }
 
-  async validateUser(username: string, password: string) {
-    const user = await this.prismaService.user.findUnique({
-      where: { username },
+  async validateUser(email: string, password: string) {
+    const user = await this.dbService.user.findUnique({
+      where: { email },
       select: { ...this.prismaUserSelect, password: true },
     });
     if (!user) return null;
 
-    const isValidPassword = await this.checkPassword(password, user.password);
+    const isValidPassword = user.password ? await this.checkPassword(password, user.password) : false;
 
     if (user && isValidPassword) {
       const { password, ...result } = user;
@@ -131,19 +122,19 @@ export class UserService {
   }
 
   async create(userDTO: CreateUserDto, meta: IUser) {
-    const organizationId = meta?.organizationId;
-    if (!organizationId) throw new Error('Organization not found');
+    const organization_id = meta?.organization_id;
+    if (!organization_id) throw new Error('Organization not found');
     const hash = await this.hashPassword(userDTO.password);
-    const { password, ...newUser } = await this.prismaService.user.create({
+    const { password, ...newUser } = await this.dbService.user.create({
       data: {
         ...userDTO,
         password: hash,
-        organizationId,
+        organization_id,
       },
     });
     // ! Add to cache
     const redisKeyAllUsersIds = `h-users-ids`;
-    await this.redisClient.sAdd(redisKeyAllUsersIds, newUser.id.toString());
+    await this.cacheService.sAdd(redisKeyAllUsersIds, newUser.id.toString());
     return { user: newUser };
   }
 
@@ -151,41 +142,27 @@ export class UserService {
     const { search, take, page, orderBy, sortOrder } = optionsDto;
     const skip = (page - 1) * take;
 
-    let where: Prisma.UserWhereInput = search && {
+    let where: Prisma.UserWhereInput = search ? {
       OR: [
-        { username: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
         { name: { contains: search, mode: 'insensitive' } },
       ],
-    };
-    if (meta.organizationId) {
-      where = {
-        ...where,
-        AND: meta.organizationId && {
-          organizationId: meta.organizationId,
-        },
-      };
+    } : {};
+
+    if (meta.organization_id) {
+      where.organization_id = meta.organization_id;
     }
 
-    const [itemCount, users] = await this.prismaService.$transaction([
-      this.prismaService.user.count({ where }),
-      this.prismaService.user.findMany({
+    const [itemCount, users] = await this.dbService.$transaction([
+      this.dbService.user.count({ where }),
+      this.dbService.user.findMany({
         skip,
         take,
         select: this.prismaUserSelect,
         where,
-        orderBy:
-          orderBy === 'id' ||
-          orderBy === 'name' ||
-          orderBy === 'username' ||
-          orderBy === 'phone' ||
-          orderBy === 'isActive' ||
-          orderBy === 'createdAt' ||
-          orderBy === 'updatedAt' ||
-          orderBy === 'expirationTime' ||
-          orderBy === 'role' ||
-          orderBy === 'organizationId'
-            ? { [orderBy]: <Prisma.SortOrder>sortOrder }
-            : undefined,
+        orderBy: orderBy
+          ? { [orderBy]: sortOrder }
+          : undefined,
       }),
     ]);
 
@@ -196,26 +173,26 @@ export class UserService {
     return { data: users, meta: userPaginatedMeta };
   }
 
-  async findOne(id: number, meta: IUser) {
-    return await this.prismaService.user.findUnique({
-      where: { id, organizationId: meta.organizationId },
+  async findOne(id: string, meta: IUser) {
+    return await this.dbService.user.findUnique({
+      where: { id, organization_id: meta.organization_id },
       select: this.prismaUserSelect,
     });
   }
 
   // only update attributes from home app by logged user
   async updateAttributes(userDTO: UpdateUserAttributesDto, meta: IUser) {
-    const organizationId = meta?.organizationId;
-    if (!organizationId) throw new Error('Organization not found');
+    const organization_id = meta?.organization_id;
+    if (!organization_id) throw new Error('Organization not found');
     try {
-      const updated = await this.prismaService.user.update({
+      const updated = await this.dbService.user.update({
         data: { attributes: userDTO.attributes },
         select: this.prismaUserSelect,
-        where: { id: meta.id, organizationId },
+        where: { id: meta.id, organization_id },
       });
       // update user attributes in cache
       const redisKey = `h-user-id:${meta.id}:attributes`;
-      await this.redisClient.set(redisKey, JSON.stringify(updated.attributes));
+      await this.cacheService.set(redisKey, JSON.stringify(updated.attributes));
       return { ok: true, data: updated };
     } catch (error) {
       if (error.code === 'P2025') throw new Error('not found');
@@ -224,19 +201,19 @@ export class UserService {
   }
 
   async updateFmcTokens(fmcDTO: UpdateUserFmcTokenDto, meta: IUser) {
-    const organizationId = meta?.organizationId;
-    if (!organizationId) throw new Error('Organization not found');
+    const organization_id = meta?.organization_id;
+    if (!organization_id) throw new Error('Organization not found');
     try {
       const redisKey = `h-user-id:${meta.id}:fmc-tokens`;
-      const fmcTokens = (await this.redisClient.sMembers(redisKey)) ?? [];
+      const fmcTokens = (await this.cacheService.sMembers(redisKey)) ?? [];
 
-      const updated = await this.prismaService.user.update({
-        data: { fmcTokens: [...fmcTokens, fmcDTO.fmcToken] },
+      const updated = await this.dbService.user.update({
+        data: { fmc_tokens: [...fmcTokens, fmcDTO.fmc_token] },
         select: this.prismaUserSelect,
-        where: { id: meta.id, organizationId },
+        where: { id: meta.id, organization_id },
       });
       // ! Refresh user fmc tokens form redis
-      await this.redisClient.sAdd(redisKey, fmcDTO.fmcToken);
+      await this.cacheService.sAdd(redisKey, fmcDTO.fmc_token);
       return { ok: true, data: updated };
     } catch (error) {
       if (error.code === 'P2025') throw new Error('not found');
@@ -245,20 +222,20 @@ export class UserService {
   }
 
   async deleteFmcToken(fmcDTO: UpdateUserFmcTokenDto, meta: IUser) {
-    const organizationId = meta?.organizationId;
-    if (!organizationId) throw new Error('Organization not found');
+    const organization_id = meta?.organization_id;
+    if (!organization_id) throw new Error('Organization not found');
     try {
       const redisKey = `h-user-id:${meta.id}:fmc-tokens`;
-      const fmcTokens = (await this.redisClient.sMembers(redisKey)) ?? [];
-      const updated = await this.prismaService.user.update({
+      const fmcTokens = (await this.cacheService.sMembers(redisKey)) ?? [];
+      const updated = await this.dbService.user.update({
         data: {
-          fmcTokens: fmcTokens.filter((t) => t !== fmcDTO.fmcToken) ?? [],
+          fmc_tokens: fmcTokens.filter((t) => t !== fmcDTO.fmc_token) ?? [],
         },
         select: this.prismaUserSelect,
-        where: { id: meta.id, organizationId },
+        where: { id: meta.id, organization_id },
       });
       // ! Refresh user fmc tokens form redis
-      await this.redisClient.sRem(redisKey, fmcDTO.fmcToken);
+      await this.cacheService.sRem(redisKey, fmcDTO.fmc_token);
       return { ok: true, data: updated };
     } catch (error) {
       if (error.code === 'P2025') throw new Error('not found');
@@ -266,45 +243,51 @@ export class UserService {
     }
   }
 
-  async update(id: number, userDTO: UpdateUserDto, meta: IUser) {
-    const organizationId = meta?.organizationId;
-    if (!organizationId) throw new Error('Organization not found');
+  async update(id: string, userDTO: UpdateUserDto, meta: IUser) {
+    const organization_id = meta?.organization_id;
+    if (!organization_id) throw new Error('Organization not found');
     try {
-      const cleanUpdateUser = this.excludeUndefinedFromDto(userDTO); // exclude possible undefined value to avoid conflict prisma
+      const cleanUpdateUser = this.excludeUndefinedFromDto(userDTO);
       const { ...cleanData } = cleanUpdateUser;
 
       const data: Prisma.UserUpdateInput = {
         ...cleanData,
-        organizationId,
       };
-      const previous = await this.prismaService.user.findUnique({
+
+      const previous = await this.dbService.user.findUnique({
         where: { id },
         select: {
-          isActive: true,
+          is_active: true,
           id: true,
-          homes: { select: { homeId: true } },
+          homes: { select: { home_id: true } },
         },
       });
-      const updated = await this.prismaService.user.update({
+
+      if (!previous) {
+        throw new Error('User not found');
+      }
+
+      const updated = await this.dbService.user.update({
         data,
         select: this.prismaUserSelect,
-        where: { id, organizationId },
+        where: { id, organization_id },
       });
+
       // ! Remove from cache
-      if (previous.isActive && !updated.isActive) {
+      if (previous.is_active && !updated.is_active) {
         previous.homes?.map(async (h) => {
-          if (h?.homeId) {
+          if (h?.home_id) {
             const redisKey = `h-user-id:${id}:homes-id`;
-            await this.redisClient.sRem(redisKey, h.homeId.toString());
+            await this.cacheService.sRem(redisKey, h.home_id.toString());
           }
         });
       }
       // ! Add to cache
-      if (!previous.isActive && updated.isActive) {
+      if (!previous.is_active && updated.is_active) {
         previous.homes?.map(async (h) => {
-          if (h?.homeId) {
+          if (h?.home_id) {
             const redisKey = `h-user-id:${id}:homes-id`;
-            await this.redisClient.sAdd(redisKey, h.homeId.toString());
+            await this.cacheService.sAdd(redisKey, h.home_id.toString());
           }
         });
       }
@@ -316,33 +299,39 @@ export class UserService {
     }
   }
 
-  async delete(id: number, meta: IUser) {
-    const organizationId = meta?.organizationId;
-    if (!organizationId) throw new Error('Organization not found');
+  async delete(id: string, meta: IUser) {
+    const organization_id = meta?.organization_id;
+    if (!organization_id) throw new Error('Organization not found');
     try {
-      const previous = await this.prismaService.user.findUnique({
+      const previous = await this.dbService.user.findUnique({
         where: { id },
         select: {
-          isActive: true,
+          is_active: true,
           id: true,
-          homes: { select: { homeId: true } },
+          homes: { select: { home_id: true } },
         },
       });
-      const deleted = await this.prismaService.user.delete({
-        where: { id, organizationId },
+
+      if (!previous) {
+        throw new Error('User not found');
+      }
+
+      const deleted = await this.dbService.user.delete({
+        where: { id, organization_id },
         select: this.prismaUserSelect,
       });
+
       // ! Remove from cache
-      if (previous.isActive) {
+      if (previous.is_active) {
         previous.homes?.map(async (h) => {
-          if (h?.homeId) {
+          if (h?.home_id) {
             const redisKey = `h-user-id:${id}:homes-id`;
-            await this.redisClient.sRem(redisKey, h.homeId.toString());
+            await this.cacheService.sRem(redisKey, h.home_id.toString());
           }
         });
       }
       const redisKeyAllUsersIds = `h-users-ids`;
-      await this.redisClient.sRem(redisKeyAllUsersIds, id.toString());
+      await this.cacheService.sRem(redisKeyAllUsersIds, id.toString());
       this.refreshUserRulesSchedules([id]);
       return { ok: true, data: deleted };
     } catch (error) {
@@ -350,7 +339,7 @@ export class UserService {
     }
   }
 
-  async deleteMany(ids: number[], meta: IUser) {
+  async deleteMany(ids: string[], meta: IUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationUsersAccess(
         ids,
@@ -359,40 +348,40 @@ export class UserService {
       if (!verifyPermissions.ok) {
         throw new Error('Access denied to delete request users list');
       }
-      const toDeletedFromCache = await this.prismaService.user.findMany({
+      const toDeletedFromCache = await this.dbService.user.findMany({
         where: {
           id: {
             in: ids,
           },
-          organizationId: meta.organizationId,
+          organization_id: meta.organization_id,
         },
         select: {
-          isActive: true,
+          is_active: true,
           id: true,
-          homes: { select: { homeId: true } },
+          homes: { select: { home_id: true } },
         },
       });
       // ! Delete from cache
       await Promise.all(
         toDeletedFromCache.map(async (user) => {
-          if (user.isActive) {
+          if (user.is_active) {
             user.homes?.map(async (h) => {
-              if (h?.homeId) {
+              if (h?.home_id) {
                 const redisKey = `h-user-id:${user.id}:homes-id`;
-                await this.redisClient.sRem(redisKey, h.homeId.toString());
+                await this.cacheService.sRem(redisKey, h.home_id.toString());
               }
             });
           }
           const redisKeyAllUsersIds = `h-users-ids`;
-          await this.redisClient.sRem(redisKeyAllUsersIds, user.id.toString());
+          await this.cacheService.sRem(redisKeyAllUsersIds, user.id.toString());
         }),
       );
-      await this.prismaService.user.deleteMany({
+      await this.dbService.user.deleteMany({
         where: {
           id: {
             in: ids,
           },
-          organizationId: meta.organizationId,
+          organization_id: meta.organization_id,
         },
       });
       this.refreshUserRulesSchedules(ids);
@@ -402,7 +391,7 @@ export class UserService {
     }
   }
 
-  async disableMany(ids: number[], meta: IUser) {
+  async disableMany(ids: string[], meta: IUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationUsersAccess(
         ids,
@@ -411,41 +400,41 @@ export class UserService {
       if (!verifyPermissions.ok) {
         throw new Error('Access denied to delete request users list');
       }
-      const toDeletedFromCache = await this.prismaService.user.findMany({
+      const toDeletedFromCache = await this.dbService.user.findMany({
         where: {
           id: {
             in: ids,
           },
-          organizationId: meta.organizationId,
+          organization_id: meta.organization_id,
         },
         select: {
-          isActive: true,
+          is_active: true,
           id: true,
-          homes: { select: { homeId: true } },
+          homes: { select: { home_id: true } },
         },
       });
       // ! Delete from cache
       await Promise.all(
         toDeletedFromCache.map(async (user) => {
-          if (user.isActive) {
+          if (user.is_active) {
             user.homes?.map(async (h) => {
-              if (h?.homeId) {
+              if (h?.home_id) {
                 const redisKey = `h-user-id:${user.id}:homes-id`;
-                await this.redisClient.sRem(redisKey, h.homeId.toString());
+                await this.cacheService.sRem(redisKey, h.home_id.toString());
               }
             });
           }
         }),
       );
-      await this.prismaService.user.updateMany({
+      await this.dbService.user.updateMany({
         where: {
           id: {
             in: ids,
           },
-          organizationId: meta.organizationId,
+          organization_id: meta.organization_id,
         },
         data: {
-          isActive: false,
+          is_active: false,
         },
       });
       this.refreshUserRulesSchedules(ids);
@@ -455,7 +444,7 @@ export class UserService {
     }
   }
 
-  async enableMany(ids: number[], meta: IUser) {
+  async enableMany(ids: string[], meta: IUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationUsersAccess(
         ids,
@@ -464,41 +453,41 @@ export class UserService {
       if (!verifyPermissions.ok) {
         throw new Error('Access denied to delete request users list');
       }
-      const toAddToCache = await this.prismaService.user.findMany({
+      const toAddToCache = await this.dbService.user.findMany({
         where: {
           id: {
             in: ids,
           },
-          organizationId: meta.organizationId,
+          organization_id: meta.organization_id,
         },
         select: {
-          isActive: true,
+          is_active: true,
           id: true,
-          homes: { select: { homeId: true } },
+          homes: { select: { home_id: true } },
         },
       });
       // ! Add to cache
       await Promise.all(
         toAddToCache.map(async (user) => {
-          if (!user.isActive) {
+          if (!user.is_active) {
             user.homes?.map(async (h) => {
-              if (h?.homeId) {
+              if (h?.home_id) {
                 const redisKey = `h-user-id:${user.id}:homes-id`;
-                await this.redisClient.sAdd(redisKey, h.homeId.toString());
+                await this.cacheService.sAdd(redisKey, h.home_id.toString());
               }
             });
           }
         }),
       );
-      await this.prismaService.user.updateMany({
+      await this.dbService.user.updateMany({
         where: {
           id: {
             in: ids,
           },
-          organizationId: meta.organizationId,
+          organization_id: meta.organization_id,
         },
         data: {
-          isActive: true,
+          is_active: true,
         },
       });
       this.refreshUserRulesSchedules(ids);
@@ -508,9 +497,9 @@ export class UserService {
     }
   }
 
-  async findByUsername(username: string) {
-    return await this.prismaService.user.findUnique({
-      where: { username },
+  async findByEmail(email: string) {
+    return await this.dbService.user.findUnique({
+      where: { email },
       select: this.prismaUserSelect,
     });
   }
@@ -522,22 +511,21 @@ export class UserService {
   }
 
   // ! User - Home
-  // findAllHomesLinks
-  async findAllHomesLinks(meta: IUser, userId: number) {
-    const homes = await this.prismaService.home.findMany({
-      where: { organizationId: meta.organizationId },
+  async findAllHomesLinks(meta: IUser, userId: string) {
+    const homes = await this.dbService.home.findMany({
+      where: { organization_id: meta.organization_id },
       select: {
         id: true,
         name: true,
-        uniqueId: true,
+        unique_id: true,
         disabled: true,
       },
     });
-    const userHomes = await this.prismaService.userHome.findMany({
-      where: { userId },
-      select: { homeId: true },
+    const userHomes = await this.dbService.userHome.findMany({
+      where: { user_id: userId },
+      select: { home_id: true },
     });
-    const linkedHomeIds = new Set(userHomes.map((ud) => ud.homeId));
+    const linkedHomeIds = new Set(userHomes.map((ud) => ud.home_id));
     const homesWithLinks = homes.map((home) => ({
       ...home,
       linked: linkedHomeIds.has(home.id),
@@ -545,7 +533,7 @@ export class UserService {
     return { homes: homesWithLinks ?? [] };
   }
 
-  async linksHomesUser(data: LinksIdsDto, meta: IUser) {
+  async linksHomesUser(data: LinksUUIDsDto, meta: IUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationHomesAccess(
         [...data.toDelete, ...data.toUpdate],
@@ -555,24 +543,24 @@ export class UserService {
         throw new Error('Access denied to all request homes');
       }
       await Promise.all(
-        data.ids.map((userId) => {
-          return this.prismaService.userHome.createMany({
+        data.uuids.map((userId) => {
+          return this.dbService.userHome.createMany({
             data: data.toUpdate.map((homeId) => ({
-              homeId,
-              userId,
+              home_id: homeId,
+              user_id: userId,
             })),
           });
         }),
       );
       // ! Add to cache
       if (data.toUpdate.length > 0) {
-        const toAddToCache = await this.prismaService.home.findMany({
+        const toAddToCache = await this.dbService.home.findMany({
           where: {
             id: {
               in: data.toUpdate,
             },
             disabled: false,
-            organizationId: meta.organizationId,
+            organization_id: meta.organization_id,
           },
           select: {
             id: true,
@@ -581,7 +569,7 @@ export class UserService {
                 user: {
                   select: {
                     id: true,
-                    isActive: true,
+                    is_active: true,
                   },
                 },
               },
@@ -592,9 +580,9 @@ export class UserService {
         await Promise.all(
           toAddToCache.map(async (home) => {
             home.users?.map(async (user) => {
-              if (user.user?.isActive) {
+              if (user.user?.is_active) {
                 const redisKey = `h-user-id:${user.user.id}:homes-id`;
-                await this.redisClient.sAdd(redisKey, home.id.toString());
+                await this.cacheService.sAdd(redisKey, home.id.toString());
               }
             });
           }),
@@ -602,13 +590,13 @@ export class UserService {
       }
       // ! Delete from cache
       if (data.toDelete.length > 0) {
-        const toDeleteFromCache = await this.prismaService.home.findMany({
+        const toDeleteFromCache = await this.dbService.home.findMany({
           where: {
             id: {
               in: data.toDelete,
             },
             disabled: false,
-            organizationId: meta.organizationId,
+            organization_id: meta.organization_id,
           },
           select: {
             id: true,
@@ -617,7 +605,7 @@ export class UserService {
                 user: {
                   select: {
                     id: true,
-                    isActive: true,
+                    is_active: true,
                   },
                 },
               },
@@ -628,44 +616,41 @@ export class UserService {
         await Promise.all(
           toDeleteFromCache.map(async (home) => {
             home.users?.map(async (user) => {
-              if (user.user?.isActive) {
+              if (user.user?.is_active) {
                 const redisKey = `h-user-id:${user.user.id}:homes-id`;
-                await this.redisClient.sRem(redisKey, home.id.toString());
+                await this.cacheService.sRem(redisKey, home.id.toString());
               }
             });
           }),
         );
       }
       await Promise.all(
-        data.ids.map((userId) => {
-          return this.prismaService.userHome.deleteMany({
+        data.uuids.map((userId) => {
+          return this.dbService.userHome.deleteMany({
             where: {
-              homeId: {
+              home_id: {
                 in: data.toDelete,
               },
-              userId,
+              user_id: userId,
             },
           });
         }),
       );
-      this.refreshUserRulesSchedules(data.ids);
+      this.refreshUserRulesSchedules(data.uuids);
       return { ok: true };
     } catch (error) {
       throw new Error(error);
     }
   }
 
-  refreshUserRulesSchedules(userIds: number[]) {
+  refreshUserRulesSchedules(userIds: string[]) {
     userIds.map((id) => {
-      this.clientProxyRules.emit(RulesEngineMsg.REFRESH_USER_RULES, {
+      this.natsClient.emit('rules.refresh_user_rules', {
         meta: { id },
       });
-      this.clientProxySchedules.emit(
-        SchedulesEngineMsg.REFRESH_USER_SCHEDULES,
-        {
-          meta: { id },
-        },
-      );
+      this.natsClient.emit('schedules.refresh_user_schedules', {
+        meta: { id },
+      });
     });
   }
 }

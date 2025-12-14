@@ -24,7 +24,7 @@ export const SELECT_USER_SESSION = {
 @Injectable()
 export class AuthService {
     constructor(
-        private prisma: DbService,
+        private dbService: DbService,
         private oauthAccountsService: OAuthAccountsService,
     ) { }
 
@@ -46,7 +46,7 @@ export class AuthService {
         }
 
         // 2. Check if user with same email exists
-        const existingUser = await this.prisma.user.findUnique({
+        const existingUser = await this.dbService.user.findUnique({
             where: { email: oauthUser.email },
         });
 
@@ -61,14 +61,14 @@ export class AuthService {
         }
 
         // 3. New user - create organization and user
-        const organization = await this.prisma.organization.create({
+        const organization = await this.dbService.organization.create({
             data: {
                 name: `Organization of ${oauthUser.email}`,
                 is_active: true,
             },
         });
 
-        const newUser = await this.prisma.user.create({
+        const newUser = await this.dbService.user.create({
             data: {
                 email: oauthUser.email,
                 name: `${oauthUser.firstName} ${oauthUser.lastName}`.trim(),
@@ -92,7 +92,7 @@ export class AuthService {
     }
 
     async findUserById(id: string): Promise<SessionUser | null> {
-        return this.prisma.user.findUnique({
+        return this.dbService.user.findUnique({
             where: { id },
             select: SELECT_USER_SESSION,
         });

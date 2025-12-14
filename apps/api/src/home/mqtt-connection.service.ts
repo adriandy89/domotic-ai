@@ -1,11 +1,9 @@
-import { decrypt, encrypt, generateRandomPassword } from '@app/shared';
 import { HttpService } from '@nestjs/axios';
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Cron, CronExpression } from '@nestjs/schedule';
 import { AxiosError } from 'axios';
-import { RedisClientType } from 'redis';
 import { catchError, firstValueFrom } from 'rxjs';
+import { encrypt, generateRandomPassword } from '../utils';
 
 interface MqttCredentials {
   clientType: string;
@@ -15,7 +13,7 @@ interface MqttCredentials {
 }
 
 interface MqttCredentialsValue {
-  clientId: string;
+  clientId: string | null;
   userName: string;
   password: string;
   authRules: {
@@ -27,14 +25,18 @@ interface MqttCredentialsValue {
 @Injectable()
 export class MqttConnectionService {
   private readonly logger = new Logger(MqttConnectionService.name);
-  mqttWebApi = this.configService.get('MQTT_SERVER_API');
-  mqttWebUser = this.configService.get('MQTT_SERVER_WEB_USER');
-  mqttWebPassword = this.configService.get('MQTT_SERVER_WEB_PASS');
+  mqttWebApi: string;
+  mqttWebUser: string;
+  mqttWebPassword: string;
 
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
-  ) {}
+  ) {
+    this.mqttWebApi = this.configService.get<string>('MQTT_SERVER_API', 'http://localhost:8080');
+    this.mqttWebUser = this.configService.get<string>('MQTT_SERVER_WEB_USER', 'admin');
+    this.mqttWebPassword = this.configService.get<string>('MQTT_SERVER_WEB_PASS', 'admin');
+  }
 
   async mqttWebApiLogin() {
     try {
@@ -54,7 +56,7 @@ export class MqttConnectionService {
           )
           .pipe(
             catchError((error: AxiosError) => {
-              this.logger.error(error.response.data);
+              this.logger.error(error.response?.data);
               throw 'An error happened!';
             }),
           ),
@@ -104,7 +106,7 @@ export class MqttConnectionService {
           )
           .pipe(
             catchError((error: AxiosError) => {
-              this.logger.error(error.response.data);
+              this.logger.error(error.response?.data);
               throw 'An error happened!';
             }),
           ),
@@ -134,7 +136,7 @@ export class MqttConnectionService {
           })
           .pipe(
             catchError((error: AxiosError) => {
-              this.logger.error(error.response.data);
+              this.logger.error(error.response?.data);
               throw 'An error happened!';
             }),
           ),

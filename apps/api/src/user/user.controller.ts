@@ -1,20 +1,20 @@
 import {
   CreateUserDto,
-  LinksIdsDto,
+  LinksUUIDsDto,
   UpdateUserAttributesDto,
   UpdateUserDto,
   UpdateUserFmcTokenDto,
   UserPageOptionsDto,
 } from '@app/models';
 import { UserService } from './user.service';
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Put, 
-  Delete, 
-  Body, 
-  Param, 
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
   Query,
   UseGuards,
   HttpCode,
@@ -30,7 +30,7 @@ import { Role } from 'generated/prisma/enums';
 @Controller('users')
 @UseGuards(AuthenticatedGuard)
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
 
   @Get('statistics/total')
   @Permissions([Role.ADMIN, Role.MANAGER])
@@ -130,9 +130,9 @@ export class UserController {
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteMany(@Body('user_home_ids') userHomeIds: string[], @GetUserInfo() user: any) {
+  async deleteMany(@Body('users_ids') usersIds: string[], @GetUserInfo() user: any) {
     try {
-      return await this.userService.deleteMany(userHomeIds, user);
+      return await this.userService.deleteMany(usersIds, user);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -141,9 +141,9 @@ export class UserController {
   @Put('disable/many')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async disableMany(@Body('user_home_ids') userHomeIds: string[], @GetUserInfo() user: any) {
+  async disableMany(@Body('users_ids') usersIds: string[], @GetUserInfo() user: any) {
     try {
-      return await this.userService.disableMany(userHomeIds, user);
+      return await this.userService.disableMany(usersIds, user);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -152,9 +152,9 @@ export class UserController {
   @Put('enable/many')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async enableMany(@Body('user_home_ids') userHomeIds: string[], @GetUserInfo() user: any) {
+  async enableMany(@Body('users_ids') usersIds: string[], @GetUserInfo() user: any) {
     try {
-      return await this.userService.enableMany(userHomeIds, user);
+      return await this.userService.enableMany(usersIds, user);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -172,7 +172,7 @@ export class UserController {
   @Post(':id/homes/link')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async linkHomes(@Param('id') id: string, @Body() data: LinksIdsDto, @GetUserInfo() user: any) {
+  async linkHomes(@Param('id') id: string, @Body() data: LinksUUIDsDto, @GetUserInfo() user: any) {
     try {
       return await this.userService.linksHomesUser(data, user);
     } catch (error) {

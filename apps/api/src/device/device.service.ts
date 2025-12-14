@@ -10,9 +10,9 @@ import {
   UpdateCommandNameDto,
 } from '@app/models';
 import { DbService } from '@app/db';
-import type { RedisClientType } from 'redis';
 import type { MqttClient } from 'mqtt';
 import { Prisma } from 'generated/prisma/client';
+import { CacheService } from '@app/cache';
 
 @Injectable()
 export class DeviceService {
@@ -37,7 +37,7 @@ export class DeviceService {
 
   constructor(
     private prismaService: DbService,
-    @Inject('REDIS_CLIENT') private readonly redisClient: RedisClientType,
+    private readonly cacheService: CacheService,
     @Inject('MQTT_CLIENT') private readonly mqttClient: MqttClient,
   ) { }
 
@@ -89,13 +89,13 @@ export class DeviceService {
 
   async findAllByCurrentUser(userId: string) {
     const redisKeyHomesIds = `h-user-id:${userId}:homes-id`;
-    const homesIds = await this.redisClient.sMembers(redisKeyHomesIds);
+    const homesIds = await this.cacheService.sMembers(redisKeyHomesIds);
     const redisKeyDevicesIds = homesIds.map(
       (id) => `h-home-id:${id}:devices-id`,
     );
     // get all devicesIds from all redisKeyDevicesIds
     const devicesIdsRedis = await Promise.all(
-      redisKeyDevicesIds.map((key) => this.redisClient.sMembers(key)),
+      redisKeyDevicesIds.map((key) => this.cacheService.sMembers(key)),
     ).then((result) => result.flat());
     return await this.prismaService.device.findMany({
       where: { id: { in: devicesIdsRedis } },
@@ -132,15 +132,15 @@ export class DeviceService {
     });
     // ! Update uniqueId - device cache
     if (!created.disabled) {
-      await this.redisClient.set(
+      await this.cacheService.set(
         'h-device-uniqueid:' + created.unique_id,
         created.id,
       );
       if (created.home_id && created.home) {
         const redisKeyHomeIds = `h-home-id:${created.home_id}:devices-id`;
-        await this.redisClient.sAdd(redisKeyHomeIds, created.id);
+        await this.cacheService.sAdd(redisKeyHomeIds, created.id);
         const redisKeyHomeUniqueIds = `h-home-uniqueid:${created.home.unique_id}:devices-uniqueid`;
-        await this.redisClient.sAdd(redisKeyHomeUniqueIds, created.unique_id);
+        await this.cacheService.sAdd(redisKeyHomeUniqueIds, created.unique_id);
       }
     }
     return { ok: true, data: created };
@@ -175,19 +175,9 @@ export class DeviceService {
           },
         },
         where,
-        orderBy:
-          orderBy === 'name' ||
-            orderBy === 'uniqueId' ||
-            orderBy === 'description' ||
-            orderBy === 'category' ||
-            orderBy === 'model' ||
-            orderBy === 'disabled' ||
-            orderBy === 'organizationId' ||
-            orderBy === 'homeId' ||
-            orderBy === 'createdAt' ||
-            orderBy === 'updatedAt'
-            ? { [orderBy === 'uniqueId' ? 'unique_id' : orderBy === 'organizationId' ? 'organization_id' : orderBy === 'homeId' ? 'home_id' : orderBy === 'createdAt' ? 'created_at' : orderBy === 'updatedAt' ? 'updated_at' : orderBy]: <Prisma.SortOrder>sortOrder }
-            : { home: { name: <Prisma.SortOrder>sortOrder } },
+        orderBy: orderBy
+          ? { [orderBy]: sortOrder }
+          : { home: { name: <Prisma.SortOrder>sortOrder } },
       }),
     ]);
     const userPaginatedMeta = new DevicePageMetaDto({
@@ -255,20 +245,20 @@ export class DeviceService {
       // ? Update uniqueId - device cache
       if (previous && previous.unique_id !== updated.unique_id) {
         if (!previous.disabled) {
-          await this.redisClient.del('h-device-uniqueid:' + previous.unique_id);
+          await this.cacheService.del('h-device-uniqueid:' + previous.unique_id);
         }
         if (!updated.disabled) {
-          await this.redisClient.set(
+          await this.cacheService.set(
             'h-device-uniqueid:' + updated.unique_id,
             updated.id,
           );
         }
       } else {
         if (previous && previous.disabled === false && updated.disabled === true) {
-          await this.redisClient.del('h-device-uniqueid:' + previous.unique_id);
+          await this.cacheService.del('h-device-uniqueid:' + previous.unique_id);
         }
         if (previous && previous.disabled === true && updated.disabled === false) {
-          await this.redisClient.set(
+          await this.cacheService.set(
             'h-device-uniqueid:' + updated.unique_id,
             updated.id,
           );
@@ -277,15 +267,15 @@ export class DeviceService {
       if (previous && previous.home_id !== updated.home_id) {
         if (previous.home_id) {
           const redisKeyHomeIds = `h-home-id:${previous.home_id}:devices-id`;
-          await this.redisClient.sRem(redisKeyHomeIds, previous.id);
+          await this.cacheService.sRem(redisKeyHomeIds, previous.id);
           const redisKeyHomeUniqueIds = `h-home-uniqueid:${previous.home?.unique_id}:devices-uniqueid`;
-          await this.redisClient.sRem(redisKeyHomeUniqueIds, previous.unique_id);
+          await this.cacheService.sRem(redisKeyHomeUniqueIds, previous.unique_id);
         }
         if (updated.home_id) {
           const redisKeyHomeIds = `h-home-id:${updated.home_id}:devices-id`;
-          await this.redisClient.sAdd(redisKeyHomeIds, updated.id);
+          await this.cacheService.sAdd(redisKeyHomeIds, updated.id);
           const redisKeyHomeUniqueIds = `h-home-uniqueid:${updated.home?.unique_id}:devices-uniqueid`;
-          await this.redisClient.sAdd(redisKeyHomeUniqueIds, updated.unique_id);
+          await this.cacheService.sAdd(redisKeyHomeUniqueIds, updated.unique_id);
         }
       }
       return { ok: true, data: updated };
@@ -313,13 +303,13 @@ export class DeviceService {
       });
       // ? Update uniqueId - device cache
       if (!deleted.disabled) {
-        await this.redisClient.del('h-device-uniqueid:' + deleted.unique_id);
+        await this.cacheService.del('h-device-uniqueid:' + deleted.unique_id);
       }
       if (deleted.home_id) {
         const redisKeyHomeIds = `h-home-id:${deleted.home_id}:devices-id`;
-        await this.redisClient.sRem(redisKeyHomeIds, deleted.id);
+        await this.cacheService.sRem(redisKeyHomeIds, deleted.id);
         const redisKeyHomeUniqueIds = `h-home-uniqueid:${deleted.home?.unique_id}:devices-uniqueid`;
-        await this.redisClient.sRem(redisKeyHomeUniqueIds, deleted.unique_id);
+        await this.cacheService.sRem(redisKeyHomeUniqueIds, deleted.unique_id);
       }
       return { ok: true };
     } catch (error) {
@@ -349,13 +339,13 @@ export class DeviceService {
       await Promise.all(
         toDeletedFromCache.map(async (device) => {
           if (!device.disabled) {
-            await this.redisClient.del('h-device-uniqueid:' + device.unique_id);
+            await this.cacheService.del('h-device-uniqueid:' + device.unique_id);
           }
           if (device.home_id) {
             const redisKeyHomeIds = `h-home-id:${device.home_id}:devices-id`;
-            await this.redisClient.sRem(redisKeyHomeIds, device.id);
+            await this.cacheService.sRem(redisKeyHomeIds, device.id);
             const redisKeyHomeUniqueIds = `h-home-uniqueid:${device.home_id}:devices-uniqueid`;
-            await this.redisClient.sRem(redisKeyHomeUniqueIds, device.unique_id);
+            await this.cacheService.sRem(redisKeyHomeUniqueIds, device.unique_id);
           }
         }),
       );
@@ -402,13 +392,13 @@ export class DeviceService {
       await Promise.all(
         toDeletedFromCache.map(async (device) => {
           if (!device.disabled) {
-            await this.redisClient.del('h-device-uniqueid:' + device.unique_id);
+            await this.cacheService.del('h-device-uniqueid:' + device.unique_id);
           }
           if (device.home_id) {
             const redisKeyHomeIds = `h-home-id:${device.home_id}:devices-id`;
-            await this.redisClient.sRem(redisKeyHomeIds, device.id);
+            await this.cacheService.sRem(redisKeyHomeIds, device.id);
             const redisKeyHomeUniqueIds = `h-home-uniqueid:${device.home?.unique_id}:devices-uniqueid`;
-            await this.redisClient.sRem(redisKeyHomeUniqueIds, device.unique_id);
+            await this.cacheService.sRem(redisKeyHomeUniqueIds, device.unique_id);
           }
         }),
       );
@@ -457,16 +447,16 @@ export class DeviceService {
       await Promise.all(
         toAddToCache.map(async (device) => {
           if (device.disabled) {
-            await this.redisClient.set(
+            await this.cacheService.set(
               'h-device-uniqueid:' + device.unique_id,
               device.id,
             );
           }
           if (device.home_id) {
             const redisKeyHomeIds = `h-home-id:${device.home_id}:devices-id`;
-            await this.redisClient.sAdd(redisKeyHomeIds, device.id);
+            await this.cacheService.sAdd(redisKeyHomeIds, device.id);
             const redisKeyHomeUniqueIds = `h-home-uniqueid:${device.home?.unique_id}:devices-uniqueid`;
-            await this.redisClient.sAdd(redisKeyHomeUniqueIds, device.unique_id);
+            await this.cacheService.sAdd(redisKeyHomeUniqueIds, device.unique_id);
           }
         }),
       );

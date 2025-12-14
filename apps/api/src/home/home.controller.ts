@@ -2,17 +2,17 @@ import {
   CreateHomeDto,
   UpdateHomeDto,
   HomePageOptionsDto,
-  LinksIdsDto,
+  LinksUUIDsDto,
 } from '@app/models';
 import { HomeService } from './home.service';
-import { 
-  Controller, 
-  Get, 
-  Post, 
-  Put, 
-  Delete, 
-  Body, 
-  Param, 
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Body,
+  Param,
   Query,
   UseGuards,
   HttpCode,
@@ -28,7 +28,7 @@ import { Role } from 'generated/prisma/enums';
 @Controller('homes')
 @UseGuards(AuthenticatedGuard)
 export class HomeController {
-  constructor(private readonly homeService: HomeService) {}
+  constructor(private readonly homeService: HomeService) { }
 
   @Get('statistics/total')
   @Permissions([Role.ADMIN, Role.MANAGER])
@@ -177,9 +177,9 @@ export class HomeController {
   @Post(':id/users/link')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async linkUsers(@Param('id') id: string, @Body() data: LinksIdsDto, @GetUserInfo() user: any) {
+  async linkUsers(@Param('id') id: string, @Body() data: LinksUUIDsDto, @GetUserInfo() user: any) {
     try {
-      return await this.homeService.linksUsersHome(data, user);
+      return await this.homeService.linksUserHomes(data, user);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -197,9 +197,9 @@ export class HomeController {
   @Post(':id/devices/link')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async linkDevices(@Param('id') id: string, @Body() data: LinksIdsDto, @GetUserInfo() user: any) {
+  async linkDevices(@Param('id') id: string, @Body() data: LinksUUIDsDto, @GetUserInfo() user: any) {
     try {
-      return await this.homeService.linksDevicesHome(data, user);
+      return await this.homeService.linksDeviceHomes(data, user);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
