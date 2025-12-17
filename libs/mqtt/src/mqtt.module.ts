@@ -16,11 +16,11 @@ export class MqttModule {
             const client: MqttClient = connect(
               configService.get<string>('MQTT_SERVER_BASE') || 'mqtt://localhost',
               {
-                port: parseInt(configService.get<string>('MQTT_PORT') || '1883', 10),
+                port: parseInt(configService.get<string>('MQTT_PORT', '1883'), 10),
                 clientId: configService.get<string>('MQTT_CLIENT_ID') || undefined,
                 clean: true,
                 connectTimeout: parseInt(
-                  configService.get<string>('MQTT_CONNECT_TIMEOUT') || '4000',
+                  configService.get<string>('MQTT_CONNECT_TIMEOUT', '4000'),
                   10,
                 ),
                 username: configService.get<string>('MQTT_USERNAME'),
@@ -34,6 +34,7 @@ export class MqttModule {
             );
             client.on('connect', () => {
               console.log('====== Connected to MQTT server ====== ');
+              console.log('Server:', configService.get<string>('MQTT_SERVER_BASE', 'default'), 'Port:', configService.get<string>('MQTT_PORT', 'default'));
             });
             client.on('error', (e) => {
               console.log('MQTT server Error: ', e);
