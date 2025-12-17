@@ -48,6 +48,7 @@ export class AuthService {
         // 2. Check if user with same email exists
         const existingUser = await this.dbService.user.findUnique({
             where: { email: oauthUser.email },
+            select: SELECT_USER_SESSION,
         });
 
         if (existingUser) {
@@ -55,7 +56,7 @@ export class AuthService {
             await this.oauthAccountsService.create(
                 oauthUser.provider,
                 oauthUser,
-                existingUser,
+                existingUser.id,
             );
             return existingUser;
         }
@@ -85,7 +86,7 @@ export class AuthService {
         await this.oauthAccountsService.create(
             oauthUser.provider,
             oauthUser,
-            newUser,
+            newUser.id,
         );
 
         return newUser;

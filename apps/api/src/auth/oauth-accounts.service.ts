@@ -37,13 +37,13 @@ export class OAuthAccountsService {
     async create(
         provider: string,
         oauthUser: OAuthUserDto,
-        user: SessionUser,
+        user_id: string,
     ): Promise<OAuthAccount> {
         return this.prisma.oAuthAccount.create({
             data: {
                 provider,
                 provider_id: oauthUser.providerId,
-                user_id: user.id,
+                user_id,
             },
         });
     }
