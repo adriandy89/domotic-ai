@@ -1,4 +1,4 @@
-import { SessionUser } from '../interfaces/session-user.interface';
+import { SessionUser } from "@app/models";
 
 declare global {
     namespace Express {

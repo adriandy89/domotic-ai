@@ -1,7 +1,7 @@
+import { SessionUser } from '@app/models';
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Role } from 'generated/prisma/enums';
-import { SessionUser } from '../interfaces';
 @Injectable()
 export class PermissionsGuard implements CanActivate {
   constructor(private reflector: Reflector) { }

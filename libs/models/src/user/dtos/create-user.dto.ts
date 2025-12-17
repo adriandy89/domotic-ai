@@ -8,8 +8,8 @@ import {
   MinLength,
   IsEmail,
 } from 'class-validator';
-import { RoleTrack } from '../enums';
 import { ApiProperty } from '@nestjs/swagger';
+import { Role } from 'generated/prisma/enums';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -72,10 +72,10 @@ export class CreateUserDto {
 
   @ApiProperty({
     description: 'role',
-    example: RoleTrack.USER,
-    enum: RoleTrack,
+    example: Role.USER,
+    enum: Role,
   })
   @IsOptional()
-  @IsEnum(RoleTrack)
-  readonly role?: RoleTrack;
+  @IsEnum(Role)
+  readonly role?: Role;
 }

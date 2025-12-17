@@ -1,6 +1,6 @@
+import { SessionUser } from '@app/models';
 import { Injectable } from '@nestjs/common';
 import { PassportSerializer } from '@nestjs/passport';
-import { SessionUser } from './interfaces/session-user.interface';
 
 @Injectable()
 export class SessionSerializer extends PassportSerializer {

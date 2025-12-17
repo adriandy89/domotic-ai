@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { DbService } from '@app/db';
 import { OAuthAccount } from 'generated/prisma/client';
-import { SessionUser } from './interfaces';
 import { SELECT_USER_SESSION } from './auth.service';
 import { OAuthUserDto } from './dto';
+import { SessionUser } from '@app/models';
 
 @Injectable()
 export class OAuthAccountsService {

@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DbService } from '@app/db';
 import { OAuthUserDto } from './dto/oauth-user.dto';
 import { OAuthAccountsService } from './oauth-accounts.service';
-import { SessionUser } from './interfaces/session-user.interface';
+import { SessionUser } from '@app/models';
 
 export const SELECT_USER_SESSION = {
     id: true,

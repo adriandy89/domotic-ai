@@ -1,7 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   CreateDeviceDto,
-  IUser,
   UpdateDeviceDto,
   DevicePageMetaDto,
   DevicePageOptionsDto,
@@ -13,6 +12,7 @@ import { DbService } from '@app/db';
 import type { MqttClient } from 'mqtt';
 import { Prisma } from 'generated/prisma/client';
 import { CacheService } from '@app/cache';
+import type { SessionUser } from '@app/models';
 
 @Injectable()
 export class DeviceService {
@@ -41,7 +41,7 @@ export class DeviceService {
     @Inject('MQTT_CLIENT') private readonly mqttClient: MqttClient,
   ) { }
 
-  async verifyOrganizationDevicesAccess(devicesIds: string[], meta: IUser) {
+  async verifyOrganizationDevicesAccess(devicesIds: string[], meta: SessionUser) {
     const devices = await this.prismaService.device.findMany({
       where: {
         id: {
@@ -57,13 +57,13 @@ export class DeviceService {
     return { ok: true };
   }
 
-  async findAllByHomeId(homeId: string, meta: IUser) {
+  async findAllByHomeId(homeId: string, meta: SessionUser) {
     return await this.prismaService.device.findMany({
       where: { home_id: homeId, organization_id: meta.organization_id },
     });
   }
 
-  async findByUniqueId(uniqueId: string, meta: IUser) {
+  async findByUniqueId(uniqueId: string, meta: SessionUser) {
     return await this.prismaService.device.findUnique({
       where: { unique_id: uniqueId, organization_id: meta.organization_id },
     });
@@ -112,18 +112,35 @@ export class DeviceService {
     });
   }
 
-  async countTotalOrganizationDevices(meta: IUser) {
+  async countTotalOrganizationDevices(meta: SessionUser) {
     const count = await this.prismaService.device.count({
       where: { organization_id: meta.organization_id },
     });
     return { organizationTotalDevices: count ?? 0 };
   }
 
-  async create(deviceDTO: CreateDeviceDto, meta: IUser) {
+  async create(deviceDTO: CreateDeviceDto, organization_id: string) {
+    if (!deviceDTO || !organization_id) {
+      throw new Error('Invalid data to create device');
+    }
+    if (deviceDTO.home_id) {
+      const home = await this.prismaService.home.findUnique({
+        where: {
+          id: deviceDTO.home_id,
+        },
+        select: {
+          id: true,
+          organization_id: true,
+        },
+      });
+      if (!home || home.organization_id !== organization_id) {
+        throw new Error('Home not found in organization');
+      }
+    }
     const created = await this.prismaService.device.create({
       data: {
         ...deviceDTO,
-        organization_id: meta.organization_id,
+        organization_id: organization_id,
       },
       select: {
         ...this.prismaDeviceSelect,
@@ -146,7 +163,7 @@ export class DeviceService {
     return { ok: true, data: created };
   }
 
-  async findAll(optionsDto: DevicePageOptionsDto, meta: IUser) {
+  async findAll(optionsDto: DevicePageOptionsDto, meta: SessionUser) {
     const { search, take, page, orderBy, sortOrder } = optionsDto;
     const skip = (page - 1) * take;
 
@@ -187,7 +204,7 @@ export class DeviceService {
     return { data: devices, meta: userPaginatedMeta };
   }
 
-  async findOne(id: string, meta: IUser) {
+  async findOne(id: string, meta: SessionUser) {
     return await this.prismaService.device.findUnique({
       where: { id, organization_id: meta.organization_id },
       select: {
@@ -209,7 +226,7 @@ export class DeviceService {
     });
   }
 
-  async update(id: string, deviceDTO: UpdateDeviceDto | any, meta: IUser) {
+  async update(id: string, deviceDTO: UpdateDeviceDto | any, meta: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationDevicesAccess(
         [id],
@@ -285,7 +302,7 @@ export class DeviceService {
     }
   }
 
-  async delete(id: string, meta: IUser) {
+  async delete(id: string, meta: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationDevicesAccess(
         [id],
@@ -317,7 +334,7 @@ export class DeviceService {
     }
   }
 
-  async deleteMany(ids: string[], meta: IUser) {
+  async deleteMany(ids: string[], meta: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationDevicesAccess(
         ids,
@@ -364,7 +381,7 @@ export class DeviceService {
     }
   }
 
-  async disableMany(ids: string[], meta: IUser) {
+  async disableMany(ids: string[], meta: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationDevicesAccess(
         ids,
@@ -419,7 +436,7 @@ export class DeviceService {
     }
   }
 
-  async enableMany(ids: string[], meta: IUser) {
+  async enableMany(ids: string[], meta: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationDevicesAccess(
         ids,
@@ -483,7 +500,7 @@ export class DeviceService {
     meta,
   }: {
     commandDTO: CommandDeviceDto;
-    meta: IUser;
+    meta: SessionUser;
   }) {
     const device = await this.prismaService.device.findUnique({
       where: {
@@ -514,7 +531,7 @@ export class DeviceService {
     meta,
   }: {
     commandDTO: CreateCommandDeviceDto;
-    meta: IUser;
+    meta: SessionUser;
   }) {
     await this.prismaService.deviceLearnedCommands.create({
       data: {
@@ -554,7 +571,7 @@ export class DeviceService {
   }: {
     id: string;
     commandDTO: UpdateCommandNameDto;
-    meta: IUser;
+    meta: SessionUser;
   }) {
     const upt = await this.prismaService.deviceLearnedCommands.update({
       where: {
@@ -587,7 +604,7 @@ export class DeviceService {
     return { ok: true, device };
   }
 
-  async deleteCommand({ id, meta }: { id: string; meta: IUser }) {
+  async deleteCommand({ id, meta }: { id: string; meta: SessionUser }) {
     const upt = await this.prismaService.deviceLearnedCommands.delete({
       where: {
         id,

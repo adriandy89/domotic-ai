@@ -24,6 +24,7 @@ import {
 import { AuthenticatedGuard, PermissionsGuard } from '../auth/guards';
 import { GetUserInfo, Permissions } from '../auth/decorators';
 import { Role } from 'generated/prisma/enums';
+import type { SessionUser } from '@app/models';
 
 @Controller('homes')
 @UseGuards(AuthenticatedGuard)
@@ -33,14 +34,14 @@ export class HomeController {
   @Get('statistics/total')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async countTotalOrganizationHomes(@GetUserInfo() user: any) {
+  async countTotalOrganizationHomes(@GetUserInfo() user: SessionUser) {
     return this.homeService.countTotalOrganizationHomes(user);
   }
 
   @Get('statistics/organization')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async statisticsOrgHomes(@GetUserInfo() user: any) {
+  async statisticsOrgHomes(@GetUserInfo() user: SessionUser) {
     try {
       return await this.homeService.statisticsOrgHomes(user.organization_id);
     } catch (error) {
@@ -49,14 +50,14 @@ export class HomeController {
   }
 
   @Get('mqtt/config')
-  async getMqttConfig(@GetUserInfo() user: any) {
+  async getMqttConfig(@GetUserInfo() user: SessionUser) {
     return this.homeService.getMqttConfig();
   }
 
   @Post()
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async create(@Body() homeDTO: CreateHomeDto, @GetUserInfo() user: any) {
+  async create(@Body() homeDTO: CreateHomeDto, @GetUserInfo() user: SessionUser) {
     try {
       return await this.homeService.create(homeDTO, user);
     } catch (error) {
@@ -68,17 +69,17 @@ export class HomeController {
   }
 
   @Get()
-  async findAll(@Query() optionsDto: HomePageOptionsDto, @GetUserInfo() user: any) {
+  async findAll(@Query() optionsDto: HomePageOptionsDto, @GetUserInfo() user: SessionUser) {
     return this.homeService.findAll(optionsDto, user);
   }
 
   @Get('select')
-  async findAllSelect(@GetUserInfo() user: any) {
+  async findAllSelect(@GetUserInfo() user: SessionUser) {
     return this.homeService.findAllSelect(user);
   }
 
   @Get('me')
-  async findAllByCurrentUser(@GetUserInfo() user: any) {
+  async findAllByCurrentUser(@GetUserInfo() user: SessionUser) {
     try {
       return await this.homeService.findAllByCurrentUser(user.id);
     } catch (error) {
@@ -87,7 +88,7 @@ export class HomeController {
   }
 
   @Get('unique/:uniqueId')
-  async findByUniqueId(@Param('uniqueId') uniqueId: string, @GetUserInfo() user: any) {
+  async findByUniqueId(@Param('uniqueId') uniqueId: string, @GetUserInfo() user: SessionUser) {
     const found = await this.homeService.findByUniqueId(uniqueId, user);
     if (!found) {
       throw new NotFoundException('Not Found');
@@ -96,7 +97,7 @@ export class HomeController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string, @GetUserInfo() user: any) {
+  async findOne(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     const found = await this.homeService.findOne(id, user);
     if (!found) {
       throw new NotFoundException('Not Found');
@@ -110,7 +111,7 @@ export class HomeController {
   async update(
     @Param('id') id: string,
     @Body() homeDTO: UpdateHomeDto,
-    @GetUserInfo() user: any
+    @GetUserInfo() user: SessionUser
   ) {
     try {
       return await this.homeService.update(id, homeDTO, user);
@@ -123,7 +124,7 @@ export class HomeController {
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async delete(@Param('id') id: string, @GetUserInfo() user: any) {
+  async delete(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     try {
       return await this.homeService.delete(id, user);
     } catch (error) {
@@ -135,7 +136,7 @@ export class HomeController {
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteMany(@Body('homes_ids') homesIds: string[], @GetUserInfo() user: any) {
+  async deleteMany(@Body('homes_ids') homesIds: string[], @GetUserInfo() user: SessionUser) {
     try {
       return await this.homeService.deleteMany(homesIds, user);
     } catch (error) {
@@ -146,7 +147,7 @@ export class HomeController {
   @Put('disable/many')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async disableMany(@Body('homes_ids') homesIds: string[], @GetUserInfo() user: any) {
+  async disableMany(@Body('homes_ids') homesIds: string[], @GetUserInfo() user: SessionUser) {
     try {
       return await this.homeService.disableMany(homesIds, user);
     } catch (error) {
@@ -157,7 +158,7 @@ export class HomeController {
   @Put('enable/many')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async enableMany(@Body('homes_ids') homesIds: string[], @GetUserInfo() user: any) {
+  async enableMany(@Body('homes_ids') homesIds: string[], @GetUserInfo() user: SessionUser) {
     try {
       return await this.homeService.enableMany(homesIds, user);
     } catch (error) {
@@ -170,14 +171,14 @@ export class HomeController {
   @Get(':id/users')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async findAllUserLinks(@Param('id') id: string, @GetUserInfo() user: any) {
+  async findAllUserLinks(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     return this.homeService.findUsersAllLinks(user, id);
   }
 
   @Post(':id/users/link')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async linkUsers(@Param('id') id: string, @Body() data: LinksUUIDsDto, @GetUserInfo() user: any) {
+  async linkUsers(@Param('id') id: string, @Body() data: LinksUUIDsDto, @GetUserInfo() user: SessionUser) {
     try {
       return await this.homeService.linksUserHomes(data, user);
     } catch (error) {
@@ -190,14 +191,14 @@ export class HomeController {
   @Get(':id/devices')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async findAllDeviceLinks(@Param('id') id: string, @GetUserInfo() user: any) {
+  async findAllDeviceLinks(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     return this.homeService.findDevicesAllLinks(user, id);
   }
 
   @Post(':id/devices/link')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async linkDevices(@Param('id') id: string, @Body() data: LinksUUIDsDto, @GetUserInfo() user: any) {
+  async linkDevices(@Param('id') id: string, @Body() data: LinksUUIDsDto, @GetUserInfo() user: SessionUser) {
     try {
       return await this.homeService.linksDeviceHomes(data, user);
     } catch (error) {

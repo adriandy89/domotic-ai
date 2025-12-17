@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { RoleTrack } from '../enums';
+import { Role } from 'generated/prisma/enums';
 
 export class UserDto {
   @ApiProperty()
@@ -18,7 +18,7 @@ export class UserDto {
   readonly name: string;
 
   @ApiProperty()
-  readonly role: RoleTrack;
+  readonly role: Role;
 
   @ApiProperty()
   is_active: boolean;

@@ -26,6 +26,7 @@ import {
 import { AuthenticatedGuard, PermissionsGuard } from '../auth/guards';
 import { GetUserInfo, Permissions } from '../auth/decorators';
 import { Role } from 'generated/prisma/enums';
+import type { SessionUser } from '@app/models';
 
 @Controller('devices')
 @UseGuards(AuthenticatedGuard)
@@ -35,14 +36,14 @@ export class DeviceController {
   @Get('statistics/total')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async countTotalOrganizationDevices(@GetUserInfo() user: any) {
+  async countTotalOrganizationDevices(@GetUserInfo() user: SessionUser) {
     return this.deviceService.countTotalOrganizationDevices(user);
   }
 
   @Get('statistics/organization')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async statisticsOrgDevices(@GetUserInfo() user: any) {
+  async statisticsOrgDevices(@GetUserInfo() user: SessionUser) {
     try {
       return await this.deviceService.statisticsOrgDevices(user.organization_id);
     } catch (error) {
@@ -53,24 +54,25 @@ export class DeviceController {
   @Post()
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async create(@Body() deviceDTO: CreateDeviceDto, @GetUserInfo() user: any) {
+  async create(@Body() deviceDTO: CreateDeviceDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.deviceService.create(deviceDTO, user);
+      return await this.deviceService.create(deviceDTO, user.organization_id);
     } catch (error) {
+      console.log(error);
       if (error.code === 'P2002') {
         throw new ConflictException('Duplicate, already exist');
       }
-      throw error;
+      throw new BadRequestException('Bad request');
     }
   }
 
   @Get()
-  async findAll(@Query() optionsDto: DevicePageOptionsDto, @GetUserInfo() user: any) {
+  async findAll(@Query() optionsDto: DevicePageOptionsDto, @GetUserInfo() user: SessionUser) {
     return this.deviceService.findAll(optionsDto, user);
   }
 
   @Get('me')
-  async findAllByCurrentUser(@GetUserInfo() user: any) {
+  async findAllByCurrentUser(@GetUserInfo() user: SessionUser) {
     try {
       return await this.deviceService.findAllByCurrentUser(user.id);
     } catch (error) {
@@ -79,7 +81,7 @@ export class DeviceController {
   }
 
   @Get('unique/:uniqueId')
-  async findByUniqueId(@Param('uniqueId') uniqueId: string, @GetUserInfo() user: any) {
+  async findByUniqueId(@Param('uniqueId') uniqueId: string, @GetUserInfo() user: SessionUser) {
     const found = await this.deviceService.findByUniqueId(uniqueId, user);
     if (!found) {
       throw new NotFoundException('Not Found');
@@ -88,7 +90,7 @@ export class DeviceController {
   }
 
   @Get('home/:homeId')
-  async findAllByHomeId(@Param('homeId') homeId: string, @GetUserInfo() user: any) {
+  async findAllByHomeId(@Param('homeId') homeId: string, @GetUserInfo() user: SessionUser) {
     const found = await this.deviceService.findAllByHomeId(homeId, user);
     if (!found) {
       throw new NotFoundException('Not Found');
@@ -97,7 +99,7 @@ export class DeviceController {
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string, @GetUserInfo() user: any) {
+  async findOne(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     const found = await this.deviceService.findOne(id, user);
     if (!found) {
       throw new NotFoundException('Not Found');
@@ -111,7 +113,7 @@ export class DeviceController {
   async update(
     @Param('id') id: string,
     @Body() deviceDTO: UpdateDeviceDto,
-    @GetUserInfo() user: any
+    @GetUserInfo() user: SessionUser
   ) {
     try {
       return await this.deviceService.update(id, deviceDTO, user);
@@ -124,7 +126,7 @@ export class DeviceController {
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async delete(@Param('id') id: string, @GetUserInfo() user: any) {
+  async delete(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     try {
       return await this.deviceService.delete(id, user);
     } catch (error) {
@@ -136,7 +138,7 @@ export class DeviceController {
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteMany(@Body('devices_ids') devicesIds: string[], @GetUserInfo() user: any) {
+  async deleteMany(@Body('devices_ids') devicesIds: string[], @GetUserInfo() user: SessionUser) {
     try {
       return await this.deviceService.deleteMany(devicesIds, user);
     } catch (error) {
@@ -147,7 +149,7 @@ export class DeviceController {
   @Put('disable/many')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async disableMany(@Body('devices_ids') devicesIds: string[], @GetUserInfo() user: any) {
+  async disableMany(@Body('devices_ids') devicesIds: string[], @GetUserInfo() user: SessionUser) {
     try {
       return await this.deviceService.disableMany(devicesIds, user);
     } catch (error) {
@@ -158,7 +160,7 @@ export class DeviceController {
   @Put('enable/many')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async enableMany(@Body('devices_ids') devicesIds: string[], @GetUserInfo() user: any) {
+  async enableMany(@Body('devices_ids') devicesIds: string[], @GetUserInfo() user: SessionUser) {
     try {
       return await this.deviceService.enableMany(devicesIds, user);
     } catch (error) {
@@ -167,14 +169,14 @@ export class DeviceController {
   }
 
   @Post('command/send')
-  async sendCommand(@Body() commandDTO: CommandDeviceDto, @GetUserInfo() user: any) {
+  async sendCommand(@Body() commandDTO: CommandDeviceDto, @GetUserInfo() user: SessionUser) {
     return this.deviceService.sendCommand({ commandDTO, meta: user });
   }
 
   @Post('command')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async createCommand(@Body() commandDTO: CreateCommandDeviceDto, @GetUserInfo() user: any) {
+  async createCommand(@Body() commandDTO: CreateCommandDeviceDto, @GetUserInfo() user: SessionUser) {
     return this.deviceService.createCommand({ commandDTO, meta: user });
   }
 
@@ -184,7 +186,7 @@ export class DeviceController {
   async updateCommandName(
     @Param('id') id: string,
     @Body() commandDTO: UpdateCommandNameDto,
-    @GetUserInfo() user: any
+    @GetUserInfo() user: SessionUser
   ) {
     return this.deviceService.updateCommandName({ id, commandDTO, meta: user });
   }
@@ -193,7 +195,7 @@ export class DeviceController {
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
   @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteCommand(@Param('id') id: string, @GetUserInfo() user: any) {
+  async deleteCommand(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     return this.deviceService.deleteCommand({ id, meta: user });
   }
 }

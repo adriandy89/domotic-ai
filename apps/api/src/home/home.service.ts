@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   CreateHomeDto,
-  IUser,
+  SessionUser,
   UpdateHomeDto,
   HomePageMetaDto,
   HomePageOptionsDto,
@@ -40,7 +40,7 @@ export class HomeService {
     private readonly natsClient: NatsClientService,
   ) { }
 
-  async verifyOrganizationHomesAccess(homesIds: string[], meta: IUser) {
+  async verifyOrganizationHomesAccess(homesIds: string[], meta: SessionUser) {
     const homes = await this.dbService.home.findMany({
       where: {
         id: {
@@ -56,7 +56,7 @@ export class HomeService {
     return { ok: true };
   }
 
-  async verifyOrganizationUsersAccess(userHomeIds: string[], meta: IUser) {
+  async verifyOrganizationUsersAccess(userHomeIds: string[], meta: SessionUser) {
     const users = await this.dbService.user.findMany({
       where: {
         id: {
@@ -72,7 +72,7 @@ export class HomeService {
     return { ok: true };
   }
 
-  async findByUniqueId(uniqueId: string, meta: IUser) {
+  async findByUniqueId(uniqueId: string, meta: SessionUser) {
     return await this.dbService.home.findUnique({
       where: { unique_id: uniqueId, organization_id: meta.organization_id },
     });
@@ -103,14 +103,14 @@ export class HomeService {
     });
   }
 
-  async countTotalOrganizationHomes(meta: IUser) {
+  async countTotalOrganizationHomes(meta: SessionUser) {
     const count = await this.dbService.home.count({
       where: { organization_id: meta.organization_id },
     });
     return { organizationTotalHomes: count ?? 0 };
   }
 
-  async create(homeDTO: CreateHomeDto, meta: IUser) {
+  async create(homeDTO: CreateHomeDto, meta: SessionUser) {
     const created = await this.dbService.home.create({
       data: {
         ...homeDTO,
@@ -158,7 +158,7 @@ export class HomeService {
     };
   }
 
-  async findAll(optionsDto: HomePageOptionsDto, meta: IUser) {
+  async findAll(optionsDto: HomePageOptionsDto, meta: SessionUser) {
     const { search, take, page, orderBy, sortOrder } = optionsDto;
     const skip = (page - 1) * take;
 
@@ -201,7 +201,7 @@ export class HomeService {
     return { data: homes, meta: userPaginatedMeta };
   }
 
-  async findOne(id: string, meta: IUser) {
+  async findOne(id: string, meta: SessionUser) {
     const found = await this.dbService.home.findUnique({
       where: { id, organization_id: meta.organization_id },
       select: this.prismaHomesSelect,
@@ -212,7 +212,7 @@ export class HomeService {
     return found;
   }
 
-  async update(id: string, homeDTO: UpdateHomeDto | any, meta: IUser) {
+  async update(id: string, homeDTO: UpdateHomeDto | any, meta: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationHomesAccess(
         [id],
@@ -306,7 +306,7 @@ export class HomeService {
     }
   }
 
-  async delete(id: string, meta: IUser) {
+  async delete(id: string, meta: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationHomesAccess(
         [id],
@@ -345,7 +345,7 @@ export class HomeService {
       throw new Error(error);
     }
   }
-  async deleteMany(ids: string[], meta: IUser) {
+  async deleteMany(ids: string[], meta: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationHomesAccess(
         ids,
@@ -408,7 +408,7 @@ export class HomeService {
     }
   }
 
-  async disableMany(ids: string[], meta: IUser) {
+  async disableMany(ids: string[], meta: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationHomesAccess(
         ids,
@@ -465,7 +465,7 @@ export class HomeService {
     }
   }
 
-  async enableMany(ids: string[], meta: IUser) {
+  async enableMany(ids: string[], meta: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationHomesAccess(
         ids,
@@ -533,7 +533,7 @@ export class HomeService {
     return dto;
   }
 
-  async findAllSelect(meta: IUser) {
+  async findAllSelect(meta: SessionUser) {
     const homes = await this.dbService.home.findMany({
       where: { organization_id: meta.organization_id },
       select: {
@@ -548,7 +548,7 @@ export class HomeService {
 
   // ! Home - User
 
-  async findUsersAllLinks(meta: IUser, homeId: string) {
+  async findUsersAllLinks(meta: SessionUser, homeId: string) {
     const users = await this.dbService.user.findMany({
       where: { organization_id: meta.organization_id },
       select: {
@@ -570,7 +570,7 @@ export class HomeService {
     return { users: usersWithLinks ?? [] };
   }
 
-  async linksUserHomes(data: LinksUUIDsDto, meta: IUser) {
+  async linksUserHomes(data: LinksUUIDsDto, meta: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationUsersAccess(
         [...data.toDelete, ...data.toUpdate],
@@ -682,7 +682,7 @@ export class HomeService {
     }
   }
 
-  async findDevicesAllLinks(meta: IUser, homeId: string) {
+  async findDevicesAllLinks(meta: SessionUser, homeId: string) {
     const devices = await this.dbService.device.findMany({
       where: { organization_id: meta.organization_id },
       select: {
@@ -704,7 +704,7 @@ export class HomeService {
     return { devices: devicesWithLinks ?? [] };
   }
 
-  async linksDeviceHomes(data: LinksUUIDsDto, meta: IUser) {
+  async linksDeviceHomes(data: LinksUUIDsDto, meta: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationDevicesAccess(
         [...data.toDelete, ...data.toUpdate],
@@ -817,7 +817,7 @@ export class HomeService {
     }
   }
 
-  async verifyOrganizationDevicesAccess(devicesIds: string[], meta: IUser) {
+  async verifyOrganizationDevicesAccess(devicesIds: string[], meta: SessionUser) {
     const devices = await this.dbService.device.findMany({
       where: {
         id: {
