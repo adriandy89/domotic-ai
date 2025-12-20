@@ -33,26 +33,8 @@ import type { SessionUser } from '@app/models';
 export class DeviceController {
   constructor(private readonly deviceService: DeviceService) { }
 
-  @Get('statistics/total')
-  @Permissions([Role.ADMIN, Role.MANAGER])
-  @UseGuards(PermissionsGuard)
-  async countTotalOrganizationDevices(@GetUserInfo() user: SessionUser) {
-    return this.deviceService.countTotalOrganizationDevices(user);
-  }
-
-  @Get('statistics/organization')
-  @Permissions([Role.ADMIN, Role.MANAGER])
-  @UseGuards(PermissionsGuard)
-  async statisticsOrgDevices(@GetUserInfo() user: SessionUser) {
-    try {
-      return await this.deviceService.statisticsOrgDevices(user.organization_id);
-    } catch (error) {
-      throw new BadRequestException('Bad request');
-    }
-  }
-
   @Post()
-  @Permissions([Role.ADMIN, Role.MANAGER])
+  @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
   async create(@Body() deviceDTO: CreateDeviceDto, @GetUserInfo() user: SessionUser) {
     try {
@@ -125,7 +107,6 @@ export class DeviceController {
   @Delete(':id')
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  @HttpCode(HttpStatus.NO_CONTENT)
   async delete(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     try {
       return await this.deviceService.delete(id, user);
@@ -137,7 +118,6 @@ export class DeviceController {
   @Delete()
   @Permissions([Role.ADMIN, Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  @HttpCode(HttpStatus.NO_CONTENT)
   async deleteMany(@Body('devices_ids') devicesIds: string[], @GetUserInfo() user: SessionUser) {
     try {
       return await this.deviceService.deleteMany(devicesIds, user);
@@ -197,5 +177,24 @@ export class DeviceController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async deleteCommand(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     return this.deviceService.deleteCommand({ id, meta: user });
+  }
+
+  // ! ==============================
+  @Get('statistics/total')
+  @Permissions([Role.ADMIN, Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async countTotalOrganizationDevices(@GetUserInfo() user: SessionUser) {
+    return this.deviceService.countTotalOrganizationDevices(user);
+  }
+
+  @Get('statistics/organization')
+  @Permissions([Role.ADMIN, Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async statisticsOrgDevices(@GetUserInfo() user: SessionUser) {
+    try {
+      return await this.deviceService.statisticsOrgDevices(user.organization_id);
+    } catch (error) {
+      throw new BadRequestException('Bad request');
+    }
   }
 }

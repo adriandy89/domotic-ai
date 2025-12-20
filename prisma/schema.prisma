@@ -57,6 +57,9 @@ model Home {
   @@index([name], map: "idx_home_name")
   @@index([unique_id], map: "idx_home_uniqueid")
   @@index([organization_id], map: "idx_home_organization")
+  @@index([disabled], map: "idx_home_disabled")
+  @@index([connected], map: "idx_home_connected")
+  @@index([organization_id, disabled], map: "idx_home_organization_disabled")
   @@map("homes")
 }
 
@@ -92,7 +95,7 @@ model User {
 
 model Device {
   id               String                  @id(map: "pk_device_id") @default(uuid())
-  unique_id        String                  @unique @db.VarChar(128)
+  unique_id        String                  @db.VarChar(128)
   name             String                  @db.VarChar(128)
   model            String?                 @db.VarChar(128)
   category         String?                 @db.VarChar(128)
@@ -116,8 +119,13 @@ model Device {
   organization     Organization            @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   sensorDataLasts  SensorDataLast[]
 
-  @@index([unique_id], map: "idx_devices_uniqueid")
+  @@unique([unique_id, organization_id], map: "uq_devices_uniqueid_organization")
   @@index([organization_id], map: "idx_device_organization")
+  @@index([unique_id], map: "idx_devices_uniqueid")
+  @@index([home_id], map: "idx_device_home")
+  @@index([disabled], map: "idx_device_disabled")
+  @@index([organization_id, disabled], map: "idx_device_organization_disabled")
+  @@index([home_id, disabled], map: "idx_device_home_disabled")
   @@map("devices")
 }
 
@@ -178,6 +186,11 @@ model Rule {
   home_id     String
   home        Home        @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([user_id], map: "idx_rule_user")
+  @@index([home_id], map: "idx_rule_home")
+  @@index([active], map: "idx_rule_active")
+  @@index([user_id, active], map: "idx_rule_user_active")
+  @@index([home_id, active], map: "idx_rule_home_active")
   @@map("rules")
 }
 
@@ -191,6 +204,8 @@ model Condition {
   rule_id   String
   rule      Rule      @relation(fields: [rule_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([rule_id], map: "idx_condition_rule")
+  @@index([device_id], map: "idx_condition_device")
   @@map("conditions")
 }
 
@@ -207,6 +222,8 @@ model Result {
   rule_id      String
   rule         Rule                  @relation(fields: [rule_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([rule_id], map: "idx_result_rule")
+  @@index([device_id], map: "idx_result_device")
   @@map("results")
 }
 
@@ -226,6 +243,11 @@ model Schedule {
   home_id    String
   home       Home                  @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([user_id], map: "idx_schedule_user")
+  @@index([home_id], map: "idx_schedule_home")
+  @@index([active], map: "idx_schedule_active")
+  @@index([user_id, active], map: "idx_schedule_user_active")
+  @@index([home_id, active], map: "idx_schedule_home_active")
   @@map("schedules")
 }
 
@@ -238,6 +260,8 @@ model ScheduleAction {
   schedule_id String
   schedule    Schedule @relation(fields: [schedule_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([schedule_id], map: "idx_schedule_action_schedule")
+  @@index([device_id], map: "idx_schedule_action_device")
   @@map("schedule_actions")
 }
 
@@ -250,6 +274,7 @@ model DeviceLearnedCommands {
   device_id  String
   device     Device    @relation(fields: [device_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@index([device_id], map: "idx_device_learned_commands_device")
   @@map("device_learned_commands")
 }
 

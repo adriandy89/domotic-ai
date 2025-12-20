@@ -1,14 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsBoolean,
-  IsInt,
   IsNotEmpty,
-  IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   MaxLength,
-  Min,
 } from 'class-validator';
 
 export class CreateDeviceDto {
@@ -82,16 +80,6 @@ export class CreateDeviceDto {
   @MaxLength(500)
   readonly icon?: string;
 
-  // @ApiProperty({
-  //   description: 'attributes',
-  //   example: {},
-  //   default: {},
-  //   required: false,
-  // })
-  // @IsOptional()
-  // @IsObject()
-  // readonly attributes: object = {};
-
   @ApiProperty({
     description: `Enable/Disable device`,
     default: false,
@@ -107,6 +95,6 @@ export class CreateDeviceDto {
     required: false,
   })
   @IsOptional()
-  @IsString()
+  @IsUUID()
   readonly home_id?: string;
 }

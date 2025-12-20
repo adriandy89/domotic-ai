@@ -41,6 +41,51 @@ export class DeviceService {
     @Inject('MQTT_CLIENT') private readonly mqttClient: MqttClient,
   ) { }
 
+  async create(deviceDTO: CreateDeviceDto, organization_id: string) {
+    if (!deviceDTO || !organization_id) {
+      throw new Error('Invalid data to create device');
+    }
+    if (deviceDTO.home_id) {
+      const home = await this.prismaService.home.findUnique({
+        where: {
+          id: deviceDTO.home_id,
+        },
+        select: {
+          id: true,
+          organization_id: true,
+        },
+      });
+      if (!home || home.organization_id !== organization_id) {
+        throw new Error('Home not found in organization');
+      }
+    }
+    const created = await this.prismaService.device.create({
+      data: {
+        ...deviceDTO,
+        organization_id: organization_id,
+      },
+      select: {
+        ...this.prismaDeviceSelect,
+        home: { select: { unique_id: true } },
+      },
+    });
+    // ! Update uniqueId - device cache
+    if (!created.disabled) {
+      await this.cacheService.set(
+        'h-device-uniqueid:' + created.unique_id,
+        created.id,
+      );
+      if (created.home_id && created.home) {
+        const redisKeyHomeIds = `h-home-id:${created.home_id}:devices-id`;
+        await this.cacheService.sAdd(redisKeyHomeIds, created.id);
+        const redisKeyHomeUniqueIds = `h-home-uniqueid:${created.home.unique_id}:devices-uniqueid`;
+        await this.cacheService.sAdd(redisKeyHomeUniqueIds, created.unique_id);
+      }
+    }
+    return { ok: true, data: created };
+  }
+
+
   async verifyOrganizationDevicesAccess(devicesIds: string[], meta: SessionUser) {
     const devices = await this.prismaService.device.findMany({
       where: {
@@ -117,50 +162,6 @@ export class DeviceService {
       where: { organization_id: meta.organization_id },
     });
     return { organizationTotalDevices: count ?? 0 };
-  }
-
-  async create(deviceDTO: CreateDeviceDto, organization_id: string) {
-    if (!deviceDTO || !organization_id) {
-      throw new Error('Invalid data to create device');
-    }
-    if (deviceDTO.home_id) {
-      const home = await this.prismaService.home.findUnique({
-        where: {
-          id: deviceDTO.home_id,
-        },
-        select: {
-          id: true,
-          organization_id: true,
-        },
-      });
-      if (!home || home.organization_id !== organization_id) {
-        throw new Error('Home not found in organization');
-      }
-    }
-    const created = await this.prismaService.device.create({
-      data: {
-        ...deviceDTO,
-        organization_id: organization_id,
-      },
-      select: {
-        ...this.prismaDeviceSelect,
-        home: { select: { unique_id: true } },
-      },
-    });
-    // ! Update uniqueId - device cache
-    if (!created.disabled) {
-      await this.cacheService.set(
-        'h-device-uniqueid:' + created.unique_id,
-        created.id,
-      );
-      if (created.home_id && created.home) {
-        const redisKeyHomeIds = `h-home-id:${created.home_id}:devices-id`;
-        await this.cacheService.sAdd(redisKeyHomeIds, created.id);
-        const redisKeyHomeUniqueIds = `h-home-uniqueid:${created.home.unique_id}:devices-uniqueid`;
-        await this.cacheService.sAdd(redisKeyHomeUniqueIds, created.unique_id);
-      }
-    }
-    return { ok: true, data: created };
   }
 
   async findAll(optionsDto: DevicePageOptionsDto, meta: SessionUser) {
