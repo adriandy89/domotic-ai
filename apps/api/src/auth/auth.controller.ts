@@ -4,6 +4,7 @@ import type { Request, Response } from 'express';
 import { AuthenticatedGuard, PermissionsGuard } from './guards';
 import { GetUserInfo, Permissions } from './decorators';
 import { Role } from 'generated/prisma/enums';
+import type { SessionUser } from '@app/models';
 
 @Controller('auth')
 export class AuthController {
@@ -97,7 +98,7 @@ export class AuthController {
 
     @Get('me')
     @UseGuards(AuthenticatedGuard)
-    async getCurrentUser(@GetUserInfo() user) {
+    async getCurrentUser(@GetUserInfo() user: SessionUser) {
         // Return current user from session
         return {
             user
@@ -107,7 +108,7 @@ export class AuthController {
     @Get('test-permissions')
     @Permissions([Role.ADMIN])
     @UseGuards(AuthenticatedGuard, PermissionsGuard)
-    async testPermissions(@GetUserInfo() user) {
+    async testPermissions(@GetUserInfo() user: SessionUser) {
         return {
             user
         };
