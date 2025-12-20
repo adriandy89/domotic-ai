@@ -42,6 +42,7 @@ async function bootstrap() {
   // Configure session middleware with Redis
   app.use(
     session({
+      name: 'domotic.sh',
       store: new RedisStore({
         client: redisClient,
         prefix: 'sess:',

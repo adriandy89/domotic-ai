@@ -90,7 +90,7 @@ export class AuthController {
                 if (err) {
                     return res.status(500).json({ message: 'Error destroying session' });
                 }
-                res.clearCookie('connect.sid'); // Default session cookie name
+                res.clearCookie('domotic.sh'); // session cookie name from main.ts
                 res.redirect('/');
             });
         });
