@@ -29,7 +29,7 @@ sleep 10
 
 # Batch 2: First services
 echo "📦 Deploying Batch 2: First Services"
-deploy_batch "api notifications"
+deploy_batch "api mqtt-core notifications"
 # echo "⏳ Waiting for first services to be ready..."
 # sleep 10
 
