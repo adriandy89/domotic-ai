@@ -9,9 +9,9 @@ import {
   UpdateCommandNameDto,
 } from '@app/models';
 import { DbService } from '@app/db';
-import type { MqttClient } from 'mqtt';
 import { Prisma } from 'generated/prisma/client';
 import { CacheService } from '@app/cache';
+import { NatsClientService } from '@app/nats-client';
 
 @Injectable()
 export class DeviceService {
@@ -36,8 +36,8 @@ export class DeviceService {
 
   constructor(
     private dbService: DbService,
+    private readonly natsClient: NatsClientService,
     private readonly cacheService: CacheService,
-    @Inject('MQTT_CLIENT') private readonly mqttClient: MqttClient,
   ) { }
 
   async statisticsOrgDevices(organization_id: string) {
@@ -465,12 +465,14 @@ export class DeviceService {
       JSON.stringify(commandDTO.command),
     );
     // Send command to device in MQTT
-    this.mqttClient.publish(
-      `home/id/${device.home.unique_id}/${device.unique_id}/set`,
-      JSON.stringify(commandDTO.command),
-      { qos: 1 },
-    );
-    return { ok: true };
+    return await this.natsClient.sendMessage<
+      { ok: boolean },
+      { homeUniqueId: string; deviceUniqueId: string; command: any }
+    >('mqtt-core.publish-command', {
+      homeUniqueId: device.home.unique_id,
+      deviceUniqueId: device.unique_id,
+      command: commandDTO.command,
+    });
   }
 
   async createCommand({

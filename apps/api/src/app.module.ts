@@ -8,7 +8,6 @@ import { CacheModule } from '@app/cache';
 import { NatsClientModule } from '@app/nats-client';
 import { DbModule } from '@app/db';
 import { HttpModule } from '@nestjs/axios';
-import { MqttModule } from '@app/mqtt';
 import { SSEModule } from './sse';
 
 @Module({
@@ -17,7 +16,6 @@ import { SSEModule } from './sse';
       isGlobal: true,
     }),
     CacheModule.forRootAsync(),
-    MqttModule.forRootAsync(),
     NatsClientModule,
     DbModule,
     HttpModule.register({

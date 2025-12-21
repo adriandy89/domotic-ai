@@ -6,6 +6,7 @@ import { MqttClient } from 'mqtt';
 import { CacheModule } from '@app/cache';
 import { NatsClientModule } from '@app/nats-client';
 import { DbModule } from '@app/db';
+import { MqttCoreController } from './mqtt-core.controller';
 
 @Module({
   imports: [
@@ -17,7 +18,7 @@ import { DbModule } from '@app/db';
     NatsClientModule,
     DbModule,
   ],
-  controllers: [],
+  controllers: [MqttCoreController],
   providers: [MqttCoreService],
 })
 export class MqttCoreModule implements OnModuleInit {

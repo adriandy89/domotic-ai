@@ -2,9 +2,10 @@ import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
 import { getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, getKeyHomeUniqueIdsDisconnected, IHomeConnectedEvent, ISensorData, IUserSensorNotification } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { JsonValue } from '@prisma/client/runtime/client';
 import { SensorData } from 'generated/prisma/client';
+import { MqttClient } from 'mqtt';
 
 const sanitizeInput = (input: any): any => {
   if (typeof input === 'string') {
@@ -49,6 +50,7 @@ export class MqttCoreService {
     private readonly cacheService: CacheService,
     private readonly natsClient: NatsClientService,
     private readonly dbService: DbService,
+    @Inject('MQTT_CLIENT') private readonly mqttClient: MqttClient,
   ) { }
 
   async handleMessage(topic: string, bufferMsg: Buffer) {
@@ -365,4 +367,12 @@ export class MqttCoreService {
     }
   }
 
+  publishCommand(payload: { homeUniqueId: string; deviceUniqueId: string; command: any }) {
+    this.mqttClient.publish(
+      `home/id/${payload.homeUniqueId}/${payload.deviceUniqueId}/set`,
+      JSON.stringify(payload.command),
+      { qos: 1 },
+    );
+    return { ok: true };
+  }
 }
