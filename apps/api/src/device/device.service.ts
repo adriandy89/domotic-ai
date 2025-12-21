@@ -586,4 +586,41 @@ export class DeviceService {
     });
     return { ok: true, device };
   }
+
+  // ! Last Data
+  async findLastDeviceDataCurrentUser(user_id: string, organization_id: string) {
+    const homes = await this.dbService.home.findMany({
+      where: {
+        organization_id,
+        users: {
+          some: {
+            user_id,
+          },
+        },
+      },
+      select: {
+        id: true,
+        devices: {
+          select: {
+            id: true,
+          },
+        },
+      },
+    });
+    const devices = homes.map(home => home.devices).flat();
+    const lastData = await this.dbService.sensorDataLast.findMany({
+      where: {
+        device_id: {
+          in: devices.map(device => device.id),
+        },
+      },
+      select: {
+        device_id: true,
+        timestamp: true,
+        data: true,
+      },
+    });
+    return { ok: true, lastData };
+  }
+
 }

@@ -181,4 +181,16 @@ export class DeviceController {
       throw new BadRequestException('Bad request');
     }
   }
+
+  // ! Last Data
+  @Get('data/user')
+  @Permissions([Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async findLastDeviceDataCurrentUser(@GetUserInfo() user: SessionUser) {
+    try {
+      return await this.deviceService.findLastDeviceDataCurrentUser(user.id, user.organization_id);
+    } catch (error) {
+      throw new BadRequestException('Bad request');
+    }
+  }
 }
