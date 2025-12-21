@@ -155,11 +155,13 @@ export class MqttCoreService {
       // ? Save message to database
       const cacheKeyHomeUniqueIdDevicesUniqueIds = getKeyHomeUniqueIdDevicesUniqueIds(homeUniqueId);
       const cacheKeyHomeUniqueIdOrgId = getKeyHomeUniqueIdOrgId(homeUniqueId);
-      const isMember = await this.cacheService.sIsMember(
-        cacheKeyHomeUniqueIdDevicesUniqueIds,
-        deviceUniqueId,
-      );
-      const homeOrgId = await this.cacheService.get<string>(cacheKeyHomeUniqueIdOrgId);
+      const [isMember, homeOrgId] = await Promise.all([
+        this.cacheService.sIsMember(
+          cacheKeyHomeUniqueIdDevicesUniqueIds,
+          deviceUniqueId,
+        ),
+        this.cacheService.get<string>(cacheKeyHomeUniqueIdOrgId),
+      ]);
       if (!isMember) {
         this.logger.error(
           `Not Found home = ${homeUniqueId} with device = ${deviceUniqueId}`,
