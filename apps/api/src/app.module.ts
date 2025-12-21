@@ -9,6 +9,7 @@ import { NatsClientModule } from '@app/nats-client';
 import { DbModule } from '@app/db';
 import { HttpModule } from '@nestjs/axios';
 import { MqttModule } from '@app/mqtt';
+import { SSEModule } from './sse';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { MqttModule } from '@app/mqtt';
       maxRedirects: 5,
       // baseURL: process.env.TRACCAR_BASE_URL || 'http://localhost:8082/api/',
     }),
+    SSEModule,
     AuthModule,
     HomeModule,
     UserModule,

@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { createClient, RedisClientType } from 'redis';
 import type { CacheOptions } from './cache.constants';
-import { getPhoneKeyUserId } from './cache.constants';
 
 @Injectable()
 export class CacheService implements OnModuleInit, OnModuleDestroy {
@@ -408,7 +407,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     /**
      * Clear phone cache entries for multiple phones
      */
-    async clearPhoneCache(phones: string[]): Promise<void> {
+    async clearPhoneCache(phonesKeys: string[]): Promise<void> {
         if (!this.client?.isReady) {
             this.logger.error(
                 `Redis client [${this.serviceName}] is not ready for clearing phone cache.`,
@@ -416,12 +415,11 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
             return;
         }
         try {
-            if (!phones || phones.length === 0) {
+            if (!phonesKeys || phonesKeys.length === 0) {
                 return;
             }
-            const keysToDelete = phones
-                .filter((phone) => phone) // Filter out null/undefined
-                .map((phone) => getPhoneKeyUserId(phone));
+            const keysToDelete = phonesKeys
+                .filter((phoneKey) => phoneKey) // Filter out null/undefined
 
             if (keysToDelete.length > 0) {
                 await this.client.del(keysToDelete);
