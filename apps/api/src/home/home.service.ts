@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
 import {
   CreateHomeDto,
   SessionUser,
@@ -6,6 +6,7 @@ import {
   HomePageMetaDto,
   HomePageOptionsDto,
   LinksUUIDsDto,
+  getKeyHomeUniqueIdOrgId,
 } from '@app/models';
 import { DbService } from '@app/db';
 import { Prisma } from 'generated/prisma/client';
@@ -140,6 +141,7 @@ export class HomeService {
         home_id: created.id,
       },
     });
+    await this.cacheService.set(getKeyHomeUniqueIdOrgId(created.unique_id), organization_id);
     try {
       // ? Create mqtt credentials
       const { ok, encryptedPassword, mqttId } =
@@ -274,6 +276,7 @@ export class HomeService {
           users: { select: { user_id: true } },
         },
       });
+      await this.cacheService.del(getKeyHomeUniqueIdOrgId(deleted.unique_id));
       // ? Update home caches
       // if (!deleted.disabled) {
       //   const redisKeyHomeIds = `h-home-id:${deleted.id}:devices-id`;
@@ -293,7 +296,8 @@ export class HomeService {
       }
       return { ok: true };
     } catch (error) {
-      throw new Error(error);
+      console.log(error);
+      throw new InternalServerErrorException(error);
     }
   }
 
