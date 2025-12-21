@@ -121,7 +121,7 @@ export class HomeService {
     return { ok: true };
   }
 
-  async create(homeDTO: CreateHomeDto, organization_id: string) {
+  async create(homeDTO: CreateHomeDto, organization_id: string, user_id: string) {
     const verifyLimits = await this.verifyLimitsOrganizationHomes(organization_id);
     if (!verifyLimits.ok) {
       throw new BadRequestException(verifyLimits.message);
@@ -133,6 +133,12 @@ export class HomeService {
         organization_id,
       },
       select: this.prismaHomesSelect,
+    });
+    await this.dbService.userHome.create({
+      data: {
+        user_id,
+        home_id: created.id,
+      },
     });
     try {
       // ? Create mqtt credentials

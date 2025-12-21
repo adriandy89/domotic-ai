@@ -47,7 +47,7 @@ export class HomeController {
   @UseGuards(PermissionsGuard)
   async create(@Body() homeDTO: CreateHomeDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.homeService.create(homeDTO, user.organization_id);
+      return await this.homeService.create(homeDTO, user.organization_id, user.id);
     } catch (error) {
       if (error.code === 'P2002') {
         throw new ConflictException('Duplicate, already exist');
