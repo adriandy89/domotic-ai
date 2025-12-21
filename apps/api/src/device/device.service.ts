@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
 import {
   CreateDeviceDto,
   UpdateDeviceDto,
@@ -35,17 +35,17 @@ export class DeviceService {
   };
 
   constructor(
-    private prismaService: DbService,
+    private dbService: DbService,
     private readonly cacheService: CacheService,
     @Inject('MQTT_CLIENT') private readonly mqttClient: MqttClient,
   ) { }
 
   async statisticsOrgDevices(organization_id: string) {
     const [countEnabledDevices, countDisabledDevices] = await Promise.all([
-      this.prismaService.device.count({
+      this.dbService.device.count({
         where: { organization_id, disabled: false },
       }),
-      this.prismaService.device.count({
+      this.dbService.device.count({
         where: { organization_id, disabled: true },
       }),
     ]);
@@ -59,7 +59,7 @@ export class DeviceService {
   }
 
   async verifyOrganizationDevicesAccess(devicesIds: string[], organization_id: string) {
-    const totalDevices = await this.prismaService.device.count({
+    const totalDevices = await this.dbService.device.count({
       where: {
         id: {
           in: devicesIds,
@@ -73,12 +73,32 @@ export class DeviceService {
     return { ok: true };
   }
 
-  async create(deviceDTO: CreateDeviceDto, organization_id: string) {
-    if (!deviceDTO || !organization_id) {
-      throw new Error('Invalid data to create device');
+  async verifyLimitsOrganizationDevices(organization_id: string) {
+    const organization = await this.dbService.organization.findUnique({
+      where: {
+        id: organization_id,
+      },
+      select: {
+        max_devices: true,
+      },
+    });
+    if (!organization) {
+      throw new Error('Organization not found');
     }
+    const totalDevices = await this.dbService.device.count({
+      where: { organization_id },
+    });
+    if (totalDevices >= organization.max_devices) return { ok: false, message: 'Max devices limit reached' };
+    return { ok: true };
+  }
+
+
+  async create(deviceDTO: CreateDeviceDto, organization_id: string) {
+    const verifyLimits = await this.verifyLimitsOrganizationDevices(organization_id);
+    if (!verifyLimits.ok) throw new BadRequestException(verifyLimits.message);
+
     if (deviceDTO.home_id) {
-      const home = await this.prismaService.home.findUnique({
+      const home = await this.dbService.home.findUnique({
         where: {
           id: deviceDTO.home_id,
         },
@@ -91,7 +111,7 @@ export class DeviceService {
         throw new Error('Home not found in organization');
       }
     }
-    const created = await this.prismaService.device.create({
+    const created = await this.dbService.device.create({
       data: {
         ...deviceDTO,
         organization_id: organization_id,
@@ -129,7 +149,7 @@ export class DeviceService {
       const data: Prisma.DeviceUpdateInput = {
         ...deviceDTO,
       };
-      const previous = await this.prismaService.device.findUnique({
+      const previous = await this.dbService.device.findUnique({
         where: { id },
         select: {
           unique_id: true,
@@ -139,7 +159,7 @@ export class DeviceService {
           home: { select: { unique_id: true } },
         },
       });
-      const updated = await this.prismaService.device.update({
+      const updated = await this.dbService.device.update({
         data,
         select: {
           ...this.prismaDeviceSelect,
@@ -199,7 +219,7 @@ export class DeviceService {
       if (!verifyPermissions.ok) {
         throw new Error('Access denied to delete request devices list');
       }
-      const deleted = await this.prismaService.device.delete({
+      const deleted = await this.dbService.device.delete({
         where: { id, organization_id },
         select: {
           ...this.prismaDeviceSelect,
@@ -223,7 +243,7 @@ export class DeviceService {
   }
 
   async findAllByHomeId(home_id: string, organization_id: string) {
-    return await this.prismaService.device.findMany({
+    return await this.dbService.device.findMany({
       where: { home_id, organization_id },
       select: {
         ...this.prismaDeviceSelect,
@@ -233,7 +253,7 @@ export class DeviceService {
   }
 
   async findByUniqueId(unique_id: string, organization_id: string) {
-    return await this.prismaService.device.findUnique({
+    return await this.dbService.device.findUnique({
       where: {
         unique_id_organization_id: {
           unique_id,
@@ -259,9 +279,9 @@ export class DeviceService {
     } : {};
     where.organization_id = organization_id;
 
-    const [itemCount, devices] = await this.prismaService.$transaction([
-      this.prismaService.device.count({ where }),
-      this.prismaService.device.findMany({
+    const [itemCount, devices] = await this.dbService.$transaction([
+      this.dbService.device.count({ where }),
+      this.dbService.device.findMany({
         skip,
         take,
         select: {
@@ -287,7 +307,7 @@ export class DeviceService {
   }
 
   async findOne(id: string, organization_id: string) {
-    return await this.prismaService.device.findUnique({
+    return await this.dbService.device.findUnique({
       where: { id, organization_id },
       select: {
         ...this.prismaDeviceSelect,
@@ -317,7 +337,7 @@ export class DeviceService {
       if (!verifyPermissions.ok) {
         throw new Error('Access denied to delete request devices list');
       }
-      const toDeletedFromCache = await this.prismaService.device.findMany({
+      const toDeletedFromCache = await this.dbService.device.findMany({
         where: {
           id: {
             in: ids,
@@ -346,7 +366,7 @@ export class DeviceService {
       //     }
       //   }),
       // );
-      await this.prismaService.device.updateMany({
+      await this.dbService.device.updateMany({
         where: {
           id: {
             in: ids,
@@ -372,7 +392,7 @@ export class DeviceService {
       if (!verifyPermissions.ok) {
         throw new Error('Access denied to delete request devices list');
       }
-      const toAddToCache = await this.prismaService.device.findMany({
+      const toAddToCache = await this.dbService.device.findMany({
         where: {
           id: {
             in: ids,
@@ -405,7 +425,7 @@ export class DeviceService {
       //   }),
       // );
 
-      await this.prismaService.device.updateMany({
+      await this.dbService.device.updateMany({
         where: {
           id: {
             in: ids,
@@ -429,7 +449,7 @@ export class DeviceService {
     commandDTO: CommandDeviceDto;
     organization_id: string;
   }) {
-    const device = await this.prismaService.device.findUnique({
+    const device = await this.dbService.device.findUnique({
       where: {
         id: commandDTO.device_id,
         organization_id,
@@ -467,7 +487,7 @@ export class DeviceService {
     if (!verifyPermissions.ok) {
       throw new Error('Access denied to create command');
     }
-    await this.prismaService.deviceLearnedCommands.create({
+    await this.dbService.deviceLearnedCommands.create({
       data: {
         name: commandDTO.name,
         command: commandDTO.command,
@@ -478,7 +498,7 @@ export class DeviceService {
         },
       },
     });
-    const device = await this.prismaService.device.findUnique({
+    const device = await this.dbService.device.findUnique({
       where: {
         id: commandDTO.device_id,
         organization_id,
@@ -506,7 +526,7 @@ export class DeviceService {
     commandDTO: UpdateCommandNameDto;
     organization_id: string;
   }) {
-    const upt = await this.prismaService.deviceLearnedCommands.update({
+    const upt = await this.dbService.deviceLearnedCommands.update({
       where: {
         id,
         device: {
@@ -520,7 +540,7 @@ export class DeviceService {
         device_id: true,
       }
     });
-    const device = await this.prismaService.device.findUnique({
+    const device = await this.dbService.device.findUnique({
       where: {
         id: upt.device_id,
         organization_id,
@@ -540,7 +560,7 @@ export class DeviceService {
   }
 
   async deleteCommand({ id, organization_id }: { id: string; organization_id: string }) {
-    const upt = await this.prismaService.deviceLearnedCommands.delete({
+    const upt = await this.dbService.deviceLearnedCommands.delete({
       where: {
         id,
         device: {
@@ -548,7 +568,7 @@ export class DeviceService {
         },
       },
     });
-    const device = await this.prismaService.device.findUnique({
+    const device = await this.dbService.device.findUnique({
       where: {
         id: upt.device_id,
         organization_id,

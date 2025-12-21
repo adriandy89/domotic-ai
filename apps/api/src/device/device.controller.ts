@@ -34,7 +34,7 @@ export class DeviceController {
   constructor(private readonly deviceService: DeviceService) { }
 
   @Post()
-  @Permissions([Role.MANAGER])
+  @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
   async create(@Body() deviceDTO: CreateDeviceDto, @GetUserInfo() user: SessionUser) {
     try {
@@ -49,7 +49,7 @@ export class DeviceController {
   }
 
   @Put(':id')
-  @Permissions([Role.MANAGER])
+  @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
   async update(
     @Param('id') id: string,
@@ -64,7 +64,7 @@ export class DeviceController {
   }
 
   @Delete(':id')
-  @Permissions([Role.MANAGER])
+  @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
   async delete(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     try {

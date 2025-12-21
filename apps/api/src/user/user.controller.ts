@@ -33,15 +33,8 @@ import type { SessionUser } from '@app/models';
 export class UserController {
   constructor(private readonly userService: UserService) { }
 
-  @Get('statistics/total')
-  @Permissions([Role.ADMIN, Role.MANAGER])
-  @UseGuards(PermissionsGuard)
-  async countTotalOrganizationUsers(@GetUserInfo() user: SessionUser) {
-    return this.userService.countTotalOrganizationUsers(user);
-  }
-
   @Get('statistics/organization')
-  @Permissions([Role.ADMIN, Role.MANAGER])
+  @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
   async statisticsOrgUsers(@GetUserInfo() user: SessionUser) {
     try {
@@ -56,7 +49,7 @@ export class UserController {
   @UseGuards(PermissionsGuard)
   async create(@Body() userDTO: CreateUserDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.userService.create(userDTO, user);
+      return await this.userService.create(userDTO, user.organization_id);
     } catch (error) {
       if (error.code === 11000 || error.code === 'P2002') {
         throw new ConflictException('Duplicate, already exist');
@@ -65,25 +58,9 @@ export class UserController {
     }
   }
 
-  @Get()
-  @Permissions([Role.ADMIN, Role.MANAGER])
-  @UseGuards(PermissionsGuard)
-  async findAll(@Query() optionsDto: UserPageOptionsDto, @GetUserInfo() user: SessionUser) {
-    return this.userService.findAll(optionsDto, user);
-  }
-
-  @Get(':id')
-  @Permissions([Role.ADMIN, Role.MANAGER])
-  @UseGuards(PermissionsGuard)
-  async findOne(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
-    const found = await this.userService.findOne(id, user);
-    if (!found) {
-      throw new NotFoundException('Not Found');
-    }
-    return found;
-  }
-
   @Put('attributes')
+  @Permissions([Role.MANAGER])
+  @UseGuards(PermissionsGuard)
   async updateAttributes(
     @Body() userDTO: UpdateUserAttributesDto,
     @GetUserInfo() user: SessionUser
@@ -92,6 +69,8 @@ export class UserController {
   }
 
   @Put('fmc-tokens')
+  @Permissions([Role.MANAGER])
+  @UseGuards(PermissionsGuard)
   async updateFmcTokens(
     @Body() fmcDTO: UpdateUserFmcTokenDto,
     @GetUserInfo() user: SessionUser
@@ -99,8 +78,9 @@ export class UserController {
     return this.userService.updateFmcTokens(fmcDTO, user);
   }
 
-  @Delete('fmc-tokens')
-  @HttpCode(HttpStatus.NO_CONTENT)
+  @Delete('fmc/tokens')
+  @Permissions([Role.MANAGER])
+  @UseGuards(PermissionsGuard)
   async deleteFmcToken(
     @Body() fmcDTO: UpdateUserFmcTokenDto,
     @GetUserInfo() user: SessionUser
@@ -122,21 +102,27 @@ export class UserController {
   @Delete(':id')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  @HttpCode(HttpStatus.NO_CONTENT)
   async delete(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     return this.userService.delete(id, user);
   }
 
-  @Delete()
-  @Permissions([Role.ADMIN])
+
+  @Get()
+  @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async deleteMany(@Body('users_ids') usersIds: string[], @GetUserInfo() user: SessionUser) {
-    try {
-      return await this.userService.deleteMany(usersIds, user);
-    } catch (error) {
-      throw new BadRequestException('Bad request');
+  async findAll(@Query() optionsDto: UserPageOptionsDto, @GetUserInfo() user: SessionUser) {
+    return this.userService.findAll(optionsDto, user.organization_id);
+  }
+
+  @Get(':id')
+  @Permissions([Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async findOne(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
+    const found = await this.userService.findOne(id, user.organization_id);
+    if (!found) {
+      throw new NotFoundException('Not Found');
     }
+    return found;
   }
 
   @Put('disable/many')
@@ -144,7 +130,7 @@ export class UserController {
   @UseGuards(PermissionsGuard)
   async disableMany(@Body('users_ids') usersIds: string[], @GetUserInfo() user: SessionUser) {
     try {
-      return await this.userService.disableMany(usersIds, user);
+      return await this.userService.disableMany(usersIds, user.organization_id);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -155,7 +141,7 @@ export class UserController {
   @UseGuards(PermissionsGuard)
   async enableMany(@Body('users_ids') usersIds: string[], @GetUserInfo() user: SessionUser) {
     try {
-      return await this.userService.enableMany(usersIds, user);
+      return await this.userService.enableMany(usersIds, user.organization_id);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -164,18 +150,18 @@ export class UserController {
   // ! User - Home Links
 
   @Get(':id/homes')
-  @Permissions([Role.ADMIN, Role.MANAGER])
+  @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
   async findAllHomeLinks(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
-    return this.userService.findAllHomesLinks(user, id);
+    return this.userService.findAllHomesLinks(id, user.organization_id);
   }
 
-  @Post(':id/homes/link')
-  @Permissions([Role.ADMIN, Role.MANAGER])
+  @Post('homes/link')
+  @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async linkHomes(@Param('id') id: string, @Body() data: LinksUUIDsDto, @GetUserInfo() user: SessionUser) {
+  async linkHomes(@Body() data: LinksUUIDsDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.userService.linksHomesUser(data, user);
+      return await this.userService.linksHomesUser(data, user.organization_id);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }

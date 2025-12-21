@@ -527,12 +527,6 @@ export class HomeService {
     }
   }
 
-  private excludeUndefinedFromDto<Dto>(inputDto: Dto): Dto {
-    const dto = { ...inputDto };
-    for (const key in dto) if (dto[key] === undefined) delete dto[key];
-    return dto;
-  }
-
   async findAllSelect(meta: SessionUser) {
     const homes = await this.dbService.home.findMany({
       where: { organization_id: meta.organization_id },
