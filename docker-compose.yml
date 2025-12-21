@@ -39,6 +39,20 @@ services:
       init:
         condition: service_started
 
+  mqtt-core:
+    container_name: mqtt-core
+    env_file:
+      - ./.env.local
+    build:
+      context: .
+      target: production
+      args:
+        - SERVICE_NAME=mqtt-core
+    restart: always
+    depends_on:
+      init:
+        condition: service_started
+
   notifications:
     container_name: notifications
     env_file:
