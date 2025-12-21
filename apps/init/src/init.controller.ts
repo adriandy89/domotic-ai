@@ -6,7 +6,6 @@ import { MessagePattern } from '@nestjs/microservices';
 export class InitController {
   constructor(private readonly initService: InitService) { }
 
-
   @MessagePattern('initializers.reset-cache')
   async initializeCache() {
     return await this.initService.initializeCache();

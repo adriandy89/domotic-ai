@@ -7,6 +7,8 @@ import passport from 'passport';
 import { RedisStore } from 'connect-redis';
 import * as redis from 'redis';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { NATS_QUEUE } from '@app/models';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -83,6 +85,24 @@ async function bootstrap() {
       },
     });
   }
+
+  const natsUrl = configService.get<string>('NATS_URL');
+  if (!natsUrl) {
+    throw new Error('NATS_URL environment variable is not set.');
+  }
+
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.NATS,
+    options: {
+      servers: [natsUrl],
+      timeout: 60_000,
+      queue: NATS_QUEUE.API_GATEWAY,
+      user: configService.get<string>('NATS_USER'),
+      pass: configService.get<string>('NATS_PASS'),
+      maxPayload: 16 * 1024 * 1024, // 16MB
+    },
+  });
+  await app.startAllMicroservices();
 
   const port = configService.get<number>('API_PORT') || 3017;
 

@@ -1,19 +1,17 @@
 //  =============== home ===================
 
-export const getKeyHomeUniqueIdDevicesUniqueIds = (homeUniqueId: string) => {
-  if (!homeUniqueId)
-    throw new Error('Home unique ID is required to generate cache key');
-  return `h-uniqueid:${homeUniqueId}:devices-uniqueids` as const;
+export const getKeyHomeUniqueIdsDisconnected = () => {
+  return `h-uniqueids-disconnected` as const;
+};
+
+export const getKeyHomeNotifiedDisconnections = () => {
+  return `h-notified-disconnections` as const;
 };
 
 export const getKeyHomeUniqueIdOrgId = (homeUniqueId: string) => {
   if (!homeUniqueId)
     throw new Error('Home unique ID is required to generate cache key');
   return `h-uniqueid:${homeUniqueId}:org-id` as const;
-};
-
-export const getKeyHomeUniqueIdsDisconnected = () => {
-  return `h-uniqueids-disconnected` as const;
 };
 
 //  =============== device ===================

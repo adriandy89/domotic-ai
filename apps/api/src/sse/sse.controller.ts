@@ -7,7 +7,6 @@ import {
   UseGuards,
 } from '@nestjs/common';
 
-import { CacheService } from '@app/cache';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { ApiTags } from '@nestjs/swagger';
 import {
@@ -15,25 +14,17 @@ import {
   interval,
   map,
   merge,
-  mergeMap,
   Observable,
   Subject,
 } from 'rxjs';
 import { AuthenticatedGuard, GetUserInfo } from '../auth';
-import { SensorData } from 'generated/prisma/client';
-import type { SessionUser } from '@app/models';
+import type { IHomeConnectedEvent, ISensorData, IUserSensorNotification, SessionUser } from '@app/models';
 
 // Message interface with topic-based routing
 interface IMessage<T> {
   topic: string;
   payload: T;
 }
-
-// ! FIX CACHE !! //////////////////////////////////////////////////////
-// Cache key helpers
-const getSessionKeyDeviceIdUsers = (deviceId: string) =>
-  `device:${deviceId}:users`;
-const getSessionKeyHomeIdUsers = (homeId: string) => `home:${homeId}:users`;
 
 @ApiTags('SSE')
 @Controller('sse')
@@ -49,7 +40,7 @@ export class SSEController implements OnModuleDestroy {
 
   private readonly logger = new Logger(SSEController.name);
 
-  constructor(private readonly cacheService: CacheService) {
+  constructor() {
     this.ping$ = interval(15000).pipe(
       map(() => ({
         data: JSON.stringify({ topic: 'ping', payload: { timestamp: Date.now() } }),
@@ -75,51 +66,49 @@ export class SSEController implements OnModuleDestroy {
     this.logger.log(`User ${user.id} connected to unified SSE stream`);
 
     const dataStream$ = this.message$.pipe(
-      mergeMap(async (message) => {
+      // Filter messages based on userIds in payload
+      filter((message) => {
         try {
-          // Permission check based on topic
+          // Permission check based on topic using userIds from payload
           let hasPermission = false;
 
           switch (message.topic) {
             case 'sensor.data':
-              const sensorData = message.payload as SensorData;
-              if (sensorData.device_id) {
-                hasPermission = await this.cacheService.sIsMember(
-                  getSessionKeyDeviceIdUsers(sensorData.device_id),
-                  user.id,
-                );
-              }
+              const sensorData = message.payload as ISensorData;
+              // Check if user is in the userIds array
+              hasPermission = sensorData.userIds?.includes(user.id) ?? false;
               break;
 
             case 'home.status':
-              const homeStatus = message.payload as { home_id: string; connected: boolean };
-              if (homeStatus.home_id) {
-                hasPermission = await this.cacheService.sIsMember(
-                  getSessionKeyHomeIdUsers(homeStatus.home_id),
-                  user.id,
-                );
-              }
+              const homeStatus = message.payload as IHomeConnectedEvent;
+              // Check if user is in the userIds array
+              hasPermission = homeStatus.userIds?.includes(user.id) ?? false;
+              break;
+
+            case 'user.sensor-notification':
+              const userSensorNotification = message.payload as IUserSensorNotification;
+              // Check if notification is for this user
+              hasPermission = userSensorNotification.userId === user.id;
               break;
 
             default:
               this.logger.warn(`Unknown topic: ${message.topic}`);
-              return null;
+              return false;
           }
 
           this.logger.debug(
             `STREAM: User ${user.id} permission check for topic ${message.topic}: ${hasPermission}`,
           );
 
-          return hasPermission ? message : null;
+          return hasPermission;
         } catch (error) {
           this.logger.error(
             `Permission check error for user ${user.id}:`,
             error,
           );
-          return null;
+          return false;
         }
       }),
-      filter((data): data is IMessage<any> => data !== null),
       map((message: IMessage<any>) => ({
         data: JSON.stringify(message),
         id: new Date().getTime().toString(),
@@ -133,32 +122,38 @@ export class SSEController implements OnModuleDestroy {
 
   // ? Event Handlers --------------------------------------------------------------
 
-  @EventPattern('sensor.data.new')
+  @EventPattern('mqtt-core.sensor.data')
   async handleNewSensorData(
-    @Payload() data: { sensorData: SensorData },
+    @Payload() payload: ISensorData,
   ) {
-    this.logger.log(`Received sensor.data.new: ${JSON.stringify(data)}`);
+    this.logger.log(`Received mqtt-core.sensor.data: ${JSON.stringify(payload)}`);
     this.messageSubject.next({
       topic: 'sensor.data',
-      payload: data.sensorData,
+      payload,
     });
   }
 
-  @EventPattern('home.status.update')
+  @EventPattern('mqtt-core.home.connected')
   async handleHomeStatusUpdate(
     @Payload()
-    data: {
-      home_id: string;
-      connected: boolean;
-    },
+    payload: IHomeConnectedEvent,
   ) {
-    this.logger.log(`Received home.status.update: ${JSON.stringify(data)}`);
+    this.logger.log(`Received mqtt-core.home.connected: ${JSON.stringify(payload)}`);
     this.messageSubject.next({
       topic: 'home.status',
-      payload: {
-        home_id: data.home_id,
-        connected: data.connected,
-      },
+      payload,
+    });
+  }
+
+  @EventPattern('mqtt-core.user.sensor-notification')
+  async handleUserSensorNotification(
+    @Payload()
+    payload: IUserSensorNotification,
+  ) {
+    this.logger.log(`Received mqtt-core.user.sensor-notification: ${JSON.stringify(payload)}`);
+    this.messageSubject.next({
+      topic: 'user.sensor-notification',
+      payload,
     });
   }
 }

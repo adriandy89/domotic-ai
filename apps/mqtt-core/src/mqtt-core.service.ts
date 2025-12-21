@@ -1,6 +1,6 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
-import { getKeyHomeUniqueIdDevicesUniqueIds, getKeyHomeUniqueIdOrgId } from '@app/models';
+import { getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, getKeyHomeUniqueIdsDisconnected, IHomeConnectedEvent, ISensorData, IUserSensorNotification } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { Injectable, Logger } from '@nestjs/common';
 import { JsonValue } from '@prisma/client/runtime/client';
@@ -64,6 +64,11 @@ export class MqttCoreService {
             unique_id: true,
             id: true,
             organization_id: true,
+            users: {
+              select: {
+                user_id: true,
+              },
+            },
             connected: true,
           },
         });
@@ -76,9 +81,27 @@ export class MqttCoreService {
             where: { id: foundHome.id },
             data: { connected: true },
           });
+          // ! Remove from disconnected cache
+          await this.cacheService.sRem(
+            getKeyHomeUniqueIdsDisconnected(),
+            foundHome.unique_id,
+          );
+          // Check if this home was previously notified as disconnected
+          const wasNotified = await this.cacheService.sIsMember(
+            getKeyHomeNotifiedDisconnections(),
+            foundHome.unique_id,
+          );
+          if (wasNotified) {
+            // Remove from notified set
+            await this.cacheService.sRem(
+              getKeyHomeNotifiedDisconnections(),
+              foundHome.unique_id,
+            );
+          }
           // notify to user
-          await this.natsClient.emit('mqtt-core.home.connected', {
+          await this.natsClient.emit<IHomeConnectedEvent>('mqtt-core.home.connected', {
             homeId: foundHome.id,
+            userIds: foundHome.users.map((user) => user.user_id),
             connected: true,
           });
         }
@@ -153,21 +176,7 @@ export class MqttCoreService {
       const message = JSON.parse(bufferMsg.toString().replace(/\u0000/g, ''));
 
       // ? Save message to database
-      const cacheKeyHomeUniqueIdDevicesUniqueIds = getKeyHomeUniqueIdDevicesUniqueIds(homeUniqueId);
-      const cacheKeyHomeUniqueIdOrgId = getKeyHomeUniqueIdOrgId(homeUniqueId);
-      const [isMember, homeOrgId] = await Promise.all([
-        this.cacheService.sIsMember(
-          cacheKeyHomeUniqueIdDevicesUniqueIds,
-          deviceUniqueId,
-        ),
-        this.cacheService.get<string>(cacheKeyHomeUniqueIdOrgId),
-      ]);
-      if (!isMember) {
-        this.logger.error(
-          `Not Found home = ${homeUniqueId} with device = ${deviceUniqueId}`,
-        );
-        return;
-      }
+      const homeOrgId = await this.cacheService.get<string>(getKeyHomeUniqueIdOrgId(homeUniqueId));
       if (!homeOrgId) {
         this.logger.error(
           `Not Found Organization ID = ${homeOrgId} for home = ${homeUniqueId}`,
@@ -255,6 +264,14 @@ export class MqttCoreService {
         },
       });
 
+      await this.natsClient.emit<ISensorData>('mqtt-core.sensor.data', {
+        homeId: updatedHome.id,
+        userIds: updatedHome.users.map((user) => user.user.id),
+        deviceId: newSensorData.device_id,
+        timestamp: newSensorData.timestamp,
+        data: newSensorData.data,
+      });
+
       if (updatedHome && prevSensorData && newSensorData) {
         // compare last data with new data
         await this.globalUserAttributesNotification(
@@ -332,7 +349,7 @@ export class MqttCoreService {
                 this.logger.verbose(
                   `Notifying user ${user.id} for ${keyAttr} on home ${home.id}`,
                 );
-                await this.natsClient.emit('mqtt-core.user.sensor-notification', {
+                await this.natsClient.emit<IUserSensorNotification>('mqtt-core.user.sensor-notification', {
                   userId: user.id,
                   homeId: home.id,
                   deviceId: newSensorData.device_id,
