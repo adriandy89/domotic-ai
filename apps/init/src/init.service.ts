@@ -1,6 +1,6 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
-import { getKeyHomeUniqueIdsDisconnected, getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId } from '@app/models';
+import { getKeyHomeUniqueIdsDisconnected, getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, IHomeConnectedEvent } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { HttpService } from '@nestjs/axios';
 import { Injectable, OnModuleInit } from '@nestjs/common';
@@ -87,7 +87,7 @@ export class InitService implements OnModuleInit {
               home.unique_id,
             );
             if (wasNotified) {
-              await this.notifyReconnect(home.unique_id);
+              await this.notifyConnection(home.unique_id, true);
               // Remove from notified set
               await this.cacheService.sRem(
                 getKeyHomeNotifiedDisconnections(),
@@ -194,7 +194,7 @@ export class InitService implements OnModuleInit {
         this.logger.debug(
           `Home ${unique_id} disconnected (2nd check) - notifying`,
         );
-        await this.notifyDisconnection(unique_id);
+        await this.notifyConnection(unique_id, false);
         // Mark as notified
         await this.cacheService.sAdd(
           getKeyHomeNotifiedDisconnections(),
@@ -204,9 +204,14 @@ export class InitService implements OnModuleInit {
     }
   }
 
-  private async notifyDisconnection(unique_id: string) {
+  /**
+   * Notify connection status change (connect or disconnect)
+   */
+  private async notifyConnection(unique_id: string, connected: boolean) {
+    const action = connected ? 'reconnected' : 'disconnected';
+
     this.logger.warn(
-      `Home ${unique_id} has been disconnected for two consecutive checks.`,
+      `Home ${unique_id} has ${action}${connected ? '' : ' for two consecutive checks'}.`,
     );
 
     // Update database
@@ -220,42 +225,15 @@ export class InitService implements OnModuleInit {
           },
         },
       },
-      data: { connected: false },
+      data: { connected },
     });
 
     if (updated) {
       // Emit NATS event with userIds for SSE notification
-      await this.natsClient.emit('mqtt-core.home.connected', {
+      await this.natsClient.emit<IHomeConnectedEvent>('mqtt-core.home.connected', {
         homeId: updated.id,
         userIds: updated.users.map((u) => u.user_id),
-        connected: false,
-      });
-    }
-  }
-
-  private async notifyReconnect(unique_id: string) {
-    this.logger.log(`Home ${unique_id} has reconnected.`);
-
-    // Update database
-    const updated = await this.dbService.home.update({
-      where: { unique_id },
-      select: {
-        id: true,
-        users: {
-          select: {
-            user_id: true,
-          },
-        },
-      },
-      data: { connected: true },
-    });
-
-    if (updated) {
-      // Emit NATS event with userIds for SSE notification
-      await this.natsClient.emit('mqtt-core.home.connected', {
-        homeId: updated.id,
-        userIds: updated.users.map((u) => u.user_id),
-        connected: true,
+        connected,
       });
     }
   }
