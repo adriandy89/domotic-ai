@@ -137,30 +137,51 @@ export class MqttCoreService {
                   },
                 });
               } else {
-                this.logger.verbose(
-                  `Bridge Create Device: ${item.friendly_name}`,
-                );
                 try {
-                  const sanitizedData = sanitizeInput({
-                    unique_id: item.friendly_name,
-                    name:
-                      item.definition?.description?.substring(0, 124) ??
-                      item.friendly_name,
-                    model: item.model_id,
-                    attributes: item,
-                  });
-
-                  await this.dbService.device.create({
-                    data: {
-                      unique_id: sanitizedData.unique_id,
-                      name: sanitizedData.name,
-                      model: sanitizedData.model,
-                      attributes: sanitizedData.attributes,
-                      home_id: foundHome.id,
-                      organization_id: foundHome.organization_id,
-                      disabled: true,
+                  const organization = await this.dbService.organization.findUnique({
+                    where: {
+                      id: foundHome.organization_id,
+                    },
+                    select: {
+                      max_devices: true,
                     },
                   });
+                  if (!organization) {
+                    throw new Error('Organization not found');
+                  }
+                  const totalDevices = await this.dbService.device.count({
+                    where: { organization_id: foundHome.organization_id },
+                  });
+                  if (totalDevices < organization.max_devices) {
+                    this.logger.verbose(
+                      `Bridge Create Device: ${item.friendly_name}`,
+                    );
+                    const sanitizedData = sanitizeInput({
+                      unique_id: item.friendly_name,
+                      name:
+                        item.definition?.description?.substring(0, 124) ??
+                        item.friendly_name,
+                      model: item.model_id,
+                      attributes: item,
+                    });
+
+                    await this.dbService.device.create({
+                      data: {
+                        unique_id: sanitizedData.unique_id,
+                        name: sanitizedData.name,
+                        model: sanitizedData.model,
+                        attributes: sanitizedData.attributes,
+                        home_id: foundHome.id,
+                        organization_id: foundHome.organization_id,
+                        disabled: true,
+                      },
+                    });
+                  } else {
+                    this.logger.error(
+                      `Max devices reached for organization: ${foundHome.organization_id}`,
+                    );
+                  }
+
                 } catch (error) {
                   console.log('Error:', error);
                 }
