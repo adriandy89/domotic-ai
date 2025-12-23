@@ -216,12 +216,20 @@ export class MqttCoreService {
         },
         select: {
           id: true,
+          disabled: true,
         },
       });
 
       if (!device) {
         this.logger.error(
           `Not Found device = ${deviceUniqueId} for home = ${homeUniqueId}`,
+        );
+        return;
+      }
+
+      if (device.disabled) {
+        this.logger.warn(
+          `Device = ${deviceUniqueId} for home = ${homeUniqueId} is disabled`,
         );
         return;
       }
