@@ -5,6 +5,7 @@ import {
   CommandDeviceDto,
   CreateCommandDeviceDto,
   UpdateCommandNameDto,
+  UUIDArrayDto
 } from '@app/models';
 import { DeviceService } from './device.service';
 import {
@@ -17,8 +18,6 @@ import {
   Param,
   Query,
   UseGuards,
-  HttpCode,
-  HttpStatus,
   NotFoundException,
   BadRequestException,
   ConflictException
@@ -117,9 +116,9 @@ export class DeviceController {
   @Put('disable/many')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async disableMany(@Body('devices_ids') devicesIds: string[], @GetUserInfo() user: SessionUser) {
+  async disableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.deviceService.disableMany(devicesIds, user.organization_id);
+      return await this.deviceService.disableMany(uuidArrayDto.uuids, user.organization_id);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -128,9 +127,9 @@ export class DeviceController {
   @Put('enable/many')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async enableMany(@Body('devices_ids') devicesIds: string[], @GetUserInfo() user: SessionUser) {
+  async enableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.deviceService.enableMany(devicesIds, user.organization_id);
+      return await this.deviceService.enableMany(uuidArrayDto.uuids, user.organization_id);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -164,7 +163,6 @@ export class DeviceController {
   @Delete('command/:id')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  @HttpCode(HttpStatus.NO_CONTENT)
   async deleteCommand(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     return this.deviceService.deleteCommand({ id, organization_id: user.organization_id });
   }

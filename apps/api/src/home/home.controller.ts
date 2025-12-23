@@ -3,6 +3,7 @@ import {
   UpdateHomeDto,
   HomePageOptionsDto,
   LinksUUIDsDto,
+  UUIDArrayDto
 } from '@app/models';
 import { HomeService } from './home.service';
 import {
@@ -15,8 +16,6 @@ import {
   Param,
   Query,
   UseGuards,
-  HttpCode,
-  HttpStatus,
   NotFoundException,
   BadRequestException,
   ConflictException
@@ -131,9 +130,9 @@ export class HomeController {
   @Put('disable/many')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async disableMany(@Body('homes_ids') homesIds: string[], @GetUserInfo() user: SessionUser) {
+  async disableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.homeService.disableMany(homesIds, user.organization_id);
+      return await this.homeService.disableMany(uuidArrayDto.uuids, user.organization_id);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -142,9 +141,9 @@ export class HomeController {
   @Put('enable/many')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async enableMany(@Body('homes_ids') homesIds: string[], @GetUserInfo() user: SessionUser) {
+  async enableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.homeService.enableMany(homesIds, user.organization_id);
+      return await this.homeService.enableMany(uuidArrayDto.uuids, user.organization_id);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }

@@ -5,6 +5,7 @@ import {
   UpdateUserDto,
   UpdateUserFmcTokenDto,
   UserPageOptionsDto,
+  UUIDArrayDto,
 } from '@app/models';
 import { UserService } from './user.service';
 import {
@@ -17,8 +18,6 @@ import {
   Param,
   Query,
   UseGuards,
-  HttpCode,
-  HttpStatus,
   NotFoundException,
   BadRequestException,
   ConflictException
@@ -128,9 +127,9 @@ export class UserController {
   @Put('disable/many')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async disableMany(@Body('users_ids') usersIds: string[], @GetUserInfo() user: SessionUser) {
+  async disableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.userService.disableMany(usersIds, user.organization_id);
+      return await this.userService.disableMany(uuidArrayDto.uuids, user.organization_id);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -139,9 +138,9 @@ export class UserController {
   @Put('enable/many')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async enableMany(@Body('users_ids') usersIds: string[], @GetUserInfo() user: SessionUser) {
+  async enableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.userService.enableMany(usersIds, user.organization_id);
+      return await this.userService.enableMany(uuidArrayDto.uuids, user.organization_id);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
