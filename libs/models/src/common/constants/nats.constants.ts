@@ -1,14 +1,10 @@
 export const NATS_QUEUE = {
   INIT: 'init_queue',
   API_GATEWAY: 'api_gateway_queue',
-  AUTH: 'auth_queue',
-  DEVICES: 'devices_queue',
   CORE_MQTT: 'core_mqtt_queue',
-  GEOFENCES: 'geofences_queue',
   NOTIFICATIONS: 'notifications_queue',
   RULE_ENGINE: 'rule_engine_queue',
   SCHEDULES: 'schedules_queue',
-  SEARCH_ENGINE: 'search_engine_queue',
   AI_SERVICE: 'ai_service_queue',
 } as const;
 

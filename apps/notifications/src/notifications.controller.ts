@@ -1,12 +1,13 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
+import { MessagePattern } from '@nestjs/microservices';
 
 @Controller()
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(private readonly notificationsService: NotificationsService) { }
 
-  @Get()
-  getHello(): string {
-    return this.notificationsService.getHello();
+  @MessagePattern('notifications.health')
+  healthCheck(): { ok: boolean } {
+    return this.notificationsService.healthCheck();
   }
 }
