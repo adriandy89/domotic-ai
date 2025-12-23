@@ -1,98 +1,110 @@
+<br />
+<p align="center">
+  <img src="assets/domotic.jpg" width="240" alt="Domotic AI Logo" />
+</p>
 <p align="center">
   <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+# Domotic AI
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Domotic AI is a comprehensive home automation system designed to manage multiple houses with seamless integration for Zigbee2MQTT. It leverages a powerful stack to provide real-time monitoring, control, and automation of your smart home devices.
 
-## Description
+## 🚀 Features
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- **Multi-House Support**: Manage multiple distinct locations from a single instance.
+- **Zigbee2MQTT Integration**: Native support for Zigbee devices via MQTT.
+- **Real-time Updates**: Built on an event-driven architecture using NATS and SSE.
+- **Scalable Infrastructure**: Containerized with Docker for easy deployment and scaling.
 
-## Project setup
+## 🛠️ Tech Stack
 
-```bash
-$ pnpm install
-```
+- **Framework**: [NestJS](https://nestjs.com/) (Node.js)
+- **Database**: [TimescaleDB](https://www.timescale.com/) (PostgreSQL extension for time-series data)
+- **Messaging**: [NATS](https://nats.io/)
+- **Caching**: [Redis](https://redis.io/)
+- **Containerization**: [Docker](https://www.docker.com/) & Docker Compose
 
-## Compile and run the project
+## 📋 Prerequisites
 
-```bash
-# development
-$ pnpm run start
+Ensure you have the following installed on your system:
 
-# watch mode
-$ pnpm run start:dev
+- [Docker](https://docs.docker.com/get-docker/)
+- [Docker Compose](https://docs.docker.com/compose/install/)
 
-# production mode
-$ pnpm run start:prod
-```
+## ⚙️ Configuration
 
-## Run tests
+1. **Clone the repository**:
+   ```bash
+   git clone <repository-url>
+   cd domotic-ai
+   ```
 
-```bash
-# unit tests
-$ pnpm run test
+2. **Environment Setup**:
+   Copy the example environment file to create your local configuration.
+   ```bash
+   cp .env.example .env
+   ```
+   ### READ INSTRUCTIONS IN .env.example FILE
+   Open `.env` and adjust the variables according to your environment (database credentials, NATS URL, etc.).
 
-# e2e tests
-$ pnpm run test:e2e
+## 📦 Deployment
 
-# test coverage
-$ pnpm run test:cov
-```
+You can deploy the system using our batched deployment script (recommended) or manually via Docker Compose.
 
-## Deployment
+### Option 1: Batched Deployment (Recommended)
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+We provide a `deploy-batched.sh` script to streamline the deployment process. It handles:
+- Starting infrastructure services (Redis, TimescaleDB, NATS) first.
+- Running database migrations.
+- Starting the core application services in the correct order.
+- Cleaning up unused Docker images.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+To use it, simply run:
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+./deploy-batched.sh
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### Option 2: Manual Deployment
 
-## Resources
+If you prefer to control the process manually, follow these steps:
 
-Check out a few resources that may come in handy when working with NestJS:
+1. **Start the Infrastructure Stack**:
+   The infrastructure services are defined in `stack-docker/docker-compose.yml`.
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+   ```bash
+   docker compose -f stack-docker/docker-compose.yml up -d
+   ```
 
-## Support
+2. **Wait for Services**:
+   Ensure that TimescaleDB, Redis, and NATS are fully up and running before proceeding.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+3. **Start Application Services**:
+   Deploy the main application services.
 
-## Stay in touch
+   ```bash
+   docker compose up -d
+   ```
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## 🔍 Monitoring
 
-## License
+After deployment, you can check the status of your services:
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+```bash
+docker compose ps
+```
+
+To view logs for a specific service:
+
+```bash
+docker compose logs -f <service_name>
+```
+
+## 🤝 Contribution
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+This project is [GNU AGPL v3 licensed](LICENSE).
