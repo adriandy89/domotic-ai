@@ -1,0 +1,25 @@
+version: 4
+mqtt:
+  base_topic: home/id/1234-fake-id-long-string
+  server: mqtt://your-mqtt-server.com:1883
+  keepalive: 60
+  reject_unauthorized: true
+  version: 5
+  client_id: 1234-fake-id-long-string
+  password: FakePassw0rd
+  user: 1234-fake-id-long-string
+serial:
+  adapter: zstack
+  port: /dev/ttyUSB0
+frontend:
+  enabled: true
+  port: 8080
+  auth_token: frontend-secret-token
+advanced:
+  network_key: GENERATE
+  last_seen: epoch
+homeassistant:
+  enabled: false
+device_options: {}
+devices:
+

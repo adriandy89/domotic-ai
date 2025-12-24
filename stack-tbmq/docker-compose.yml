@@ -1,0 +1,135 @@
+
+services:
+  postgres:
+    restart: always
+    image: "postgres:16"
+    container_name: tbmq_postgres
+    expose:
+      - "5432"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "5"
+    environment:
+      POSTGRES_DB: thingsboard_mqtt_broker
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - tbmq-postgres-data:/var/lib/postgresql/data
+    networks:
+      tbmq_backend:
+        aliases:
+          - tbmq_postgres
+
+  kafka:
+    restart: always
+    image: "bitnamilegacy/kafka:3.7.0"
+    container_name: tbmq_kafka
+    expose:
+      - "9092"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "5"
+    environment:
+      KAFKA_CFG_NODE_ID: 0
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://:9092
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+    volumes:
+      - tbmq-kafka-data:/bitnami/kafka
+    networks:
+      tbmq_backend:
+        aliases:
+          - tbmq_kafka
+
+  redis:
+    restart: always
+    image: "bitnamilegacy/redis:7.2.5"
+    container_name: tbmq_redis
+    environment:
+      # ALLOW_EMPTY_PASSWORD is recommended only for development.
+      ALLOW_EMPTY_PASSWORD: "yes"
+    expose:
+      - "6379"
+    volumes:
+      - tbmq-redis-data:/bitnami/redis/data
+    networks:
+      tbmq_backend:
+        aliases:
+          - tbmq_redis
+
+  tbmq:
+    restart: always
+    image: "thingsboard/tbmq:2.2.0"
+    container_name: tbmq
+    depends_on:
+      - postgres
+      - kafka
+      - redis
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "8084:8084"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "5"
+    environment:
+      TB_SERVICE_ID: tbmq
+      SPRING_DATASOURCE_URL: jdbc:postgresql://tbmq_postgres:5432/thingsboard_mqtt_broker
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      TB_KAFKA_SERVERS: tbmq_kafka:9092
+      REDIS_HOST: tbmq_redis
+      SECURITY_MQTT_BASIC_ENABLED: "true"
+      TCP_NETTY_MAX_PAYLOAD_SIZE: 1048576
+      LISTENER_WS_ENABLED: "true"
+      #JAVA_OPTS: "-Xmx2048M -Xms2048M -Xss384k -XX:+AlwaysPreTouch"
+    volumes:
+      - tbmq-logs:/var/log/thingsboard-mqtt-broker
+      - tbmq-data:/data
+    networks:
+      - tbmq_backend
+      - domotic-net
+
+  tbmq-integration-executor:
+    restart: always
+    image: "thingsboard/tbmq-integration-executor:2.2.0"
+    container_name: tbmq_ie
+    depends_on:
+      - kafka
+      - tbmq
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "200m"
+        max-file: "5"
+    environment:
+      TB_SERVICE_ID: tbmq-ie
+      TB_KAFKA_SERVERS: tbmq_kafka:9092
+      #JAVA_OPTS: "-Xmx2048M -Xms2048M -Xss384k -XX:+AlwaysPreTouch"
+    volumes:
+      - tbmq-ie-logs:/var/log/tbmq-integration-executor
+    networks:
+      - tbmq_backend
+
+volumes:
+  tbmq-postgres-data:
+  tbmq-kafka-data:
+  tbmq-redis-data:
+  tbmq-logs:
+  tbmq-data:
+  tbmq-ie-logs:
+
+networks:
+  domotic-net:
+      external: true
+  tbmq_backend:
+    driver: bridge

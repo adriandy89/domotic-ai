@@ -1,0 +1,18 @@
+services:
+  portainer:
+    container_name: portainer
+    image: portainer/portainer-ce:latest
+    privileged: true
+    restart: always
+    command: -H unix:///var/run/docker.sock
+    volumes:
+      - "./data:/data"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    ports:
+      - 9000:9000
+    networks:
+      - zigbee
+
+networks:
+  zigbee:
+    external: true
