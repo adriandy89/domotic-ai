@@ -273,11 +273,6 @@ flowchart TD
         NT["NATS<br/>:4222"]
     end
     
-    subgraph NET["domotic-net Network"]
-        direction LR
-        NL["Network Layer"]
-    end
-    
     subgraph TBMQ["STACK-TBMQ"]
         direction LR
         PG["PostgreSQL"] --> KF["Kafka"]
@@ -298,10 +293,9 @@ flowchart TD
         NEST["NestJS Microservices Application<br/>API, SSE, Services"]
     end
     
-    SD -->|"Creates network"| NET
-    NET -->|"Connects via network"| TBMQ
-    TBMQ -->|"MQTT & Network"| CLIENT
-    CLIENT -->|"Communicates"| BACKEND
+    SD <--> |"Database, Redis, NATS"| BACKEND
+    TBMQ <--> |"MQTT"| CLIENT
+    TBMQ <--> |"MQTT"| BACKEND
     
 ```
 
