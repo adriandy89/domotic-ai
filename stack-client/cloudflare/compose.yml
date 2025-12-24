@@ -1,0 +1,12 @@
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    command: tunnel --no-autoupdate run --token cloudflared-token-xyz
+    restart: always
+    networks:
+      - zigbee
+
+networks:
+  zigbee:
+    external: true
