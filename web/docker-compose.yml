@@ -13,4 +13,4 @@ services:
 networks:
   default:
     external: true
-    name: domotic-net
+    name: domotic-network

@@ -18,7 +18,7 @@ ThingsBoard MQTT Broker is an open-source MQTT message broker that facilitates c
 
 Before deploying this stack, ensure you have:
 
-**Docker Network**: The `domotic-net` network must exist, FIRST deploy `stack-docker`
+**Docker Network**: The `domotic-network` network must exist, FIRST deploy `stack-docker`
 
 > **Note**: If you've already deployed `stack-docker`, this network is automatically created.
 
@@ -60,7 +60,7 @@ The stack connects to two networks:
 ```yaml
 networks:
   - tbmq_backend    # Internal network for services
-  - domotic-net     # External network (must exist)
+  - domotic-network     # External network (must exist)
 ```
 
 ### Step 2: Update Passwords (Recommended)
