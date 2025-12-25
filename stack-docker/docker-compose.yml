@@ -41,4 +41,4 @@ volumes:
 
 networks:
   default:
-    name: domotic-net
+    name: domotic-network

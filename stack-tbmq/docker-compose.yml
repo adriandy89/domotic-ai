@@ -97,7 +97,7 @@ services:
       - tbmq-data:/data
     networks:
       - tbmq_backend
-      - domotic-net
+      - domotic-network
 
   tbmq-integration-executor:
     restart: always
@@ -129,7 +129,7 @@ volumes:
   tbmq-ie-logs:
 
 networks:
-  domotic-net:
+  domotic-network:
       external: true
   tbmq_backend:
     driver: bridge
