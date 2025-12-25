@@ -4,6 +4,7 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
+import DevicesPage from './pages/DevicesPage';
 import ProtectedRoute from './ProtectedRoute';
 
 // Public Route wrapper to redirect authenticated users to dashboard
@@ -45,7 +46,7 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
             <Route path="/" element={<DashboardPage />} />
-            {/* Add other dashboard routes here */}
+            <Route path="/devices" element={<DevicesPage />} />
           </Route>
         </Route>
 

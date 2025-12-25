@@ -70,7 +70,7 @@ export interface Device {
 export interface DeviceData {
     device_id: string;
     timestamp: string;
-    data: Record<string, unknown>;
+    data: Record<string, any>;
 }
 
 interface DeviceDataApiResponse {
