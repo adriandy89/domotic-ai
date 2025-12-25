@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { useHomesStore } from './useHomesStore';
+import { sseService } from '../lib/sse';
 
 export interface User {
     id: string;
@@ -36,20 +38,38 @@ export const useAuthStore = create<AuthState>((set) => ({
         try {
             const response = await api.get('/auth/me');
             set({ user: response.data.user, isAuthenticated: true, isLoading: false });
+
+            // Fetch homes after successful authentication
+            useHomesStore.getState().fetchHomes();
+
+            // Connect to SSE for real-time updates
+            sseService.resetReconnection();
+            sseService.connect();
         } catch (error) {
             // 401 or network error means not authenticated
             console.log("Not authenticated", error);
             set({ user: null, isAuthenticated: false, isLoading: false });
+
+            // Clear homes data on auth failure
+            useHomesStore.getState().clearHomes();
+
+            // Disconnect SSE
+            sseService.disconnect();
         }
     },
 
     logout: async () => {
+        // Disconnect SSE first
+        sseService.disconnect();
+
         try {
             await api.get('/auth/logout');
         } catch (error) {
             console.error('Logout failed', error);
         } finally {
             set({ user: null, isAuthenticated: false });
+            // Clear homes data on logout
+            useHomesStore.getState().clearHomes();
             // Force reload to clear any client-side state
             window.location.href = '/';
         }
