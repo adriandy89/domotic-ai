@@ -2,7 +2,7 @@
 FROM node:22.16-alpine as dev
 RUN mkdir -p /app
 WORKDIR /app
-COPY --chown=node:node package*.json pnpm-lock.yaml ./
+COPY --chown=node:node package*.json ./
 RUN npm install --verbose
 COPY --chown=node:node . .
 RUN npm run build
