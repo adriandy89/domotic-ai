@@ -1,0 +1,16 @@
+name: web
+
+services:
+  domotic-web:
+    container_name: domotic-web
+    build:
+      dockerfile: Dockerfile
+      context: .
+    restart: always
+    expose:
+      - "80"
+
+networks:
+  default:
+    external: true
+    name: domotic-net
