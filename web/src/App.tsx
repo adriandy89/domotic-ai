@@ -8,7 +8,7 @@ import ProtectedRoute from './ProtectedRoute';
 
 // Public Route wrapper to redirect authenticated users to dashboard
 import { useAuthStore } from './store/useAuthStore';
-function PublicRoute({ children }: { children: JSX.Element }) {
+function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuthStore();
 
   if (!isLoading && isAuthenticated) {
