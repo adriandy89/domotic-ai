@@ -109,12 +109,16 @@ export class SSEController implements OnModuleDestroy {
           return false;
         }
       }),
-      map((message: IMessage<any>) => ({
-        data: JSON.stringify(message),
-        id: new Date().getTime().toString(),
-        retry: 5000,
-        type: 'message',
-      })),
+      map((message: IMessage<any>) => {
+        // Remove sensitive fields before sending to frontend
+        const { userIds, userId, ...sanitizedPayload } = message.payload;
+        return {
+          data: JSON.stringify({ topic: message.topic, payload: sanitizedPayload }),
+          id: new Date().getTime().toString(),
+          retry: 5000,
+          type: 'message',
+        };
+      }),
     );
 
     return merge(dataStream$, this.ping$);

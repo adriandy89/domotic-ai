@@ -56,14 +56,4 @@ export class UpdateRestrictedDeviceDto {
   @IsString()
   @Length(1, 500)
   readonly icon?: string;
-
-  // @ApiProperty({
-  //   description: 'attributes',
-  //   example: {},
-  //   default: {},
-  //   required: false,
-  // })
-  // @IsOptional()
-  // @IsObject()
-  // readonly attributes?: object;
 }
