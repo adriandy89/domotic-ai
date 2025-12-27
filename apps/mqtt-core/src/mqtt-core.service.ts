@@ -1,6 +1,6 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
-import { getKeyDeviceData, getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, getKeyHomeUniqueIdsDisconnected, IHomeConnectedEvent, ISensorData, IUserSensorNotification } from '@app/models';
+import { getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, getKeyHomeUniqueIdsDisconnected, IHomeConnectedEvent, IRulesSensorData, ISensorData, IUserSensorNotification } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { JsonValue } from '@prisma/client/runtime/client';
@@ -254,20 +254,14 @@ export class MqttCoreService {
 
 
       // ? get previous data
-      let prevSensorData = await this.cacheService.get<Pick<ISensorData, 'data'>>(getKeyDeviceData(device.id));
-      if (!prevSensorData) {
-        prevSensorData = await this.dbService.sensorDataLast.findUnique({
-          where: {
-            device_id: device.id,
-          },
-          select: {
-            data: true,
-          },
-        });
-        if (prevSensorData) {
-          this.cacheService.set(getKeyDeviceData(device.id), prevSensorData, 12 * 60 * 60 * 1000); // 12 hours
-        }
-      }
+      const prevSensorData = await this.dbService.sensorDataLast.findUnique({
+        where: {
+          device_id: device.id,
+        },
+        select: {
+          data: true,
+        },
+      });
 
       const newSensorData = await this.dbService.sensorDataLast.upsert({
         where: {
@@ -308,13 +302,21 @@ export class MqttCoreService {
       await this.natsClient.emit<ISensorData>('mqtt-core.sensor.data', {
         homeId: updatedHome.id,
         userIds: updatedHome.users.map((user) => user.user.id),
-        ruleIds: device.conditions.map((condition) => condition.rule_id),
         deviceId: newSensorData.device_id,
         timestamp: newSensorData.timestamp,
         data: newSensorData.data,
       });
 
       if (updatedHome && prevSensorData && newSensorData) {
+        if (device.conditions?.length > 0) {
+          await this.natsClient.emit<IRulesSensorData>('mqtt-core.rules.data', {
+            ruleIds: device.conditions.map((condition) => condition.rule_id),
+            deviceId: newSensorData.device_id,
+            timestamp: newSensorData.timestamp,
+            data: newSensorData.data,
+            prevData: prevSensorData.data,
+          });
+        }
         // compare last data with new data
         await this.globalUserAttributesNotification(
           newSensorData,

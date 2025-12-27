@@ -1,6 +1,6 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
-import { getKeyDeviceData, getKeyRuleExecuted, getKeyRuleLastExecution, ISensorData } from '@app/models';
+import { getKeyRuleExecuted, getKeyRuleLastExecution, IRulesSensorData } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -16,7 +16,6 @@ export class RulesEngineService {
   private readonly logger = new Logger(RulesEngineService.name);
 
   constructor(
-    private readonly configService: ConfigService,
     private readonly cacheService: CacheService,
     private readonly dbService: DbService,
     private readonly natsClient: NatsClientService,
@@ -25,7 +24,7 @@ export class RulesEngineService {
   /**
    * Process new sensor data and evaluate rules
    */
-  async processNewData(sensorData: ISensorData) {
+  async processNewData(sensorData: IRulesSensorData) {
     this.logger.log(`Processing sensor data for device: ${sensorData.deviceId}`);
 
     if (!sensorData.ruleIds || sensorData.ruleIds.length === 0) {
@@ -33,18 +32,12 @@ export class RulesEngineService {
       return;
     }
 
-    // Get previous sensor data from cache to detect changes
-    const prevSensorData = await this.cacheService.get<{ data: any }>(getKeyDeviceData(sensorData.deviceId));
-    if (!prevSensorData?.data) {
-      this.logger.verbose(`No previous sensor data found for device: ${sensorData.deviceId}`);
-      return;
-    }
     // Load rules from database
     const rules = await this.loadRules(sensorData.ruleIds);
 
     for (const rule of rules) {
       try {
-        await this.evaluateAndExecuteRule(rule, sensorData.data, prevSensorData.data);
+        await this.evaluateAndExecuteRule(rule, sensorData.data, sensorData.prevData);
       } catch (error) {
         this.logger.error(`Error evaluating rule ${rule.id}: ${error}`);
       }

@@ -14,12 +14,6 @@ export const getKeyHomeUniqueIdOrgId = (homeUniqueId: string) => {
   return `h-uniqueid:${homeUniqueId}:org-id` as const;
 };
 
-export const getKeyDeviceData = (deviceId: string) => {
-  if (!deviceId)
-    throw new Error('Device ID is required to generate cache key');
-  return `d-sensor:${deviceId}:data` as const;
-};
-
 // ! =============== rules ===================
 
 export const getKeyRuleLastExecution = (ruleId: string) => {
