@@ -22,12 +22,6 @@ export const getKeyRuleLastExecution = (ruleId: string) => {
   return `rule:${ruleId}:last-exec` as const;
 };
 
-export const getKeyRuleExecuted = (ruleId: string) => {
-  if (!ruleId)
-    throw new Error('Rule ID is required to generate cache key');
-  return `rule:${ruleId}:executed` as const;
-};
-
 // ! ========================================
 
 

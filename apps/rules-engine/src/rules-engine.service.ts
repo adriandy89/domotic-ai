@@ -1,15 +1,56 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
-import { getKeyRuleExecuted, getKeyRuleLastExecution, IRulesSensorData } from '@app/models';
+import { getKeyRuleLastExecution, IRulesSensorData } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Condition, Operation, Result, ResultType, Rule, RuleType } from 'generated/prisma/client';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import { NotificationChannel, Operation, ResultType, RuleType } from 'generated/prisma/client';
+import { RULES_DELAYED_QUEUE_NAME, IDelayedRuleJob } from './rules-queue.constants';
 
-type RuleWithRelations = Rule & {
-  conditions: (Condition & { device: { unique_id: string; home: { unique_id: string } | null } })[];
-  results: (Result & { device: { unique_id: string; home: { unique_id: string } | null } | null })[];
+// Type matching the select query structure
+type RuleSelected = {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  all: boolean;
+  type: RuleType;
+  interval: number;
+  timestamp: Date | null;
+  created_at: Date;
+  user: {
+    id: string;
+    organization_id: string;
+    phone: string | null;
+    email: string;
+  };
+  conditions: {
+    id: string;
+    device_id: string;
+    attribute: string;
+    operation: Operation;
+    data: any;
+  }[];
+  results: {
+    id: string;
+    device_id: string | null;
+    event: string;
+    attribute: string | null;
+    data: any;
+    type: ResultType;
+    channel: NotificationChannel[];
+    resend_after: number | null;
+  }[];
+  home: {
+    id: string;
+    name: string;
+    unique_id: string;
+  };
 };
+
+// Cache key for pending delayed rule job
+const getKeyRulePendingJob = (ruleId: string) => `rule:${ruleId}:pending-job`;
 
 @Injectable()
 export class RulesEngineService {
@@ -19,6 +60,7 @@ export class RulesEngineService {
     private readonly cacheService: CacheService,
     private readonly dbService: DbService,
     private readonly natsClient: NatsClientService,
+    @InjectQueue(RULES_DELAYED_QUEUE_NAME) private readonly delayedQueue: Queue<IDelayedRuleJob>,
   ) { }
 
   /**
@@ -35,53 +77,70 @@ export class RulesEngineService {
     // Load rules from database
     const rules = await this.loadRules(sensorData.ruleIds);
 
-    for (const rule of rules) {
-      try {
-        await this.evaluateAndExecuteRule(rule, sensorData.data, sensorData.prevData);
-      } catch (error) {
-        this.logger.error(`Error evaluating rule ${rule.id}: ${error}`);
-      }
+    try {
+      await Promise.all(rules.map(rule =>
+        this.evaluateAndExecuteRule(rule, sensorData.deviceId, sensorData.data, sensorData.prevData)
+      ));
+    } catch (error) {
+      console.log(error);
     }
   }
 
   /**
    * Load rules with conditions and results from database
    */
-  private async loadRules(ruleIds: string[]): Promise<RuleWithRelations[]> {
+  private async loadRules(ruleIds: string[]): Promise<RuleSelected[]> {
     const rules = await this.dbService.rule.findMany({
       where: {
         id: { in: ruleIds },
         active: true,
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        active: true,
+        all: true,
+        type: true,
+        user: {
+          select: {
+            id: true,
+            organization_id: true,
+            phone: true,
+            email: true,
+          },
+        },
+        interval: true,
+        timestamp: true,
         conditions: {
-          include: {
-            device: {
-              select: {
-                unique_id: true,
-                home: {
-                  select: {
-                    unique_id: true,
-                  },
-                },
-              },
-            },
+          select: {
+            id: true,
+            device_id: true,
+            attribute: true,
+            operation: true,
+            data: true,
           },
         },
         results: {
-          include: {
-            device: {
-              select: {
-                unique_id: true,
-                home: {
-                  select: {
-                    unique_id: true,
-                  },
-                },
-              },
-            },
+          select: {
+            id: true,
+            device_id: true,
+            event: true,
+            attribute: true,
+            data: true,
+            type: true,
+            channel: true,
+            resend_after: true,
           },
         },
+        home: {
+          select: {
+            id: true,
+            name: true,
+            unique_id: true,
+          },
+        },
+        created_at: true,
       },
     });
 
@@ -92,7 +151,8 @@ export class RulesEngineService {
    * Evaluate rule and execute results if conditions are met
    */
   private async evaluateAndExecuteRule(
-    rule: RuleWithRelations,
+    rule: RuleSelected,
+    currentDeviceId: string,
     newData: Record<string, any>,
     prevData?: Record<string, any>,
   ): Promise<void> {
@@ -104,64 +164,232 @@ export class RulesEngineService {
     }
 
     // Validate conditions
-    const conditionsMet = this.validateRuleConditions(rule, newData, prevData);
+    const conditionsMet = await this.evaluateRule(rule, currentDeviceId, newData, prevData);
+
+    // Check if there's a pending delayed job for this rule
+    const pendingJobId = await this.cacheService.get<string>(getKeyRulePendingJob(rule.id));
+
     if (!conditionsMet) {
+      // Conditions NOT met
+      if (pendingJobId) {
+        // Cancel the pending delayed job
+        await this.cancelDelayedJob(rule.id, pendingJobId);
+      }
       this.logger.verbose(`Rule ${rule.id} conditions not met`);
       return;
     }
 
-    this.logger.log(`Rule ${rule.id} conditions met, executing results`);
+    // Conditions ARE met
+    this.logger.log(`Rule ${rule.id} conditions met`);
 
-    // Execute results
+    // If interval > 0, schedule delayed execution (or keep existing)
+    if (rule.interval > 0) {
+      if (pendingJobId) {
+        // Already scheduled, don't schedule again
+        this.logger.verbose(`Rule ${rule.id} already scheduled (job ${pendingJobId})`);
+        return;
+      }
+
+      // Schedule delayed execution
+      await this.scheduleDelayedExecution(rule);
+      return;
+    }
+
+    // No interval - execute immediately
     await this.executeResults(rule);
-
-    // Mark rule as executed
     await this.markRuleExecuted(rule);
+  }
+
+  /**
+   * Schedule delayed rule execution
+   */
+  private async scheduleDelayedExecution(rule: RuleSelected): Promise<void> {
+    const delayMs = rule.interval * 1000;
+
+    const jobData: IDelayedRuleJob = {
+      ruleId: rule.id,
+      ruleName: rule.name,
+      homeUniqueId: rule.home.unique_id,
+      results: rule.results.map(r => ({
+        id: r.id,
+        device_id: r.device_id,
+        event: r.event,
+        attribute: r.attribute,
+        data: r.data,
+        type: r.type,
+        channel: r.channel,
+        resend_after: r.resend_after,
+      })),
+      userId: rule.user.id,
+      homeId: rule.home.id,
+    };
+
+    const job = await this.delayedQueue.add(
+      'execute-rule',
+      jobData,
+      {
+        delay: delayMs,
+        jobId: `delayed-rule-${rule.id}-${Date.now()}`,
+        removeOnComplete: true,
+        removeOnFail: { age: 3600 },
+      }
+    );
+
+    // Store the job ID in cache so we can cancel it later
+    // TTL = interval + 60 seconds buffer
+    await this.cacheService.set(getKeyRulePendingJob(rule.id), job.id, rule.interval + 60);
+
+    this.logger.log(`Rule ${rule.id} scheduled for execution in ${rule.interval}s (job ${job.id})`);
+  }
+
+  /**
+   * Cancel a pending delayed job
+   */
+  private async cancelDelayedJob(ruleId: string, jobId: string): Promise<void> {
+    try {
+      const job = await this.delayedQueue.getJob(jobId);
+      if (job) {
+        await job.remove();
+        this.logger.log(`Cancelled delayed job ${jobId} for rule ${ruleId}`);
+      }
+    } catch (error) {
+      this.logger.warn(`Failed to cancel job ${jobId}: ${error}`);
+    }
+
+    // Clear the pending job cache
+    await this.cacheService.del(getKeyRulePendingJob(ruleId));
+  }
+
+  /**
+   * Execute a delayed rule (called by RulesDelayedProcessor)
+   */
+  async executeDelayedRule(jobData: IDelayedRuleJob): Promise<void> {
+    this.logger.log(`Executing delayed rule ${jobData.ruleId}: ${jobData.ruleName}`);
+
+    // Clear the pending job cache
+    await this.cacheService.del(getKeyRulePendingJob(jobData.ruleId));
+
+    // Execute each result
+    for (const result of jobData.results) {
+      try {
+        if (result.type === ResultType.COMMAND) {
+          await this.executeCommandFromJob(jobData.homeUniqueId, result);
+        } else if (result.type === ResultType.NOTIFICATION) {
+          await this.executeNotificationFromJob(jobData, result);
+        }
+      } catch (error) {
+        this.logger.error(`Error executing delayed result ${result.id}: ${error}`);
+      }
+    }
+
+    // Mark rule as executed (for ONCE rules, deactivate)
+    await this.markRuleExecutedById(jobData.ruleId);
+  }
+
+  /**
+   * Execute command from delayed job data
+   */
+  private async executeCommandFromJob(
+    homeUniqueId: string,
+    result: IDelayedRuleJob['results'][0],
+  ): Promise<void> {
+    if (!result.device_id) {
+      this.logger.warn(`Result ${result.id} has no device_id`);
+      return;
+    }
+
+    const device = await this.dbService.device.findUnique({
+      where: { id: result.device_id },
+      select: { unique_id: true },
+    });
+
+    if (!device) {
+      this.logger.warn(`Device ${result.device_id} not found`);
+      return;
+    }
+
+    const command = this.buildCommandFromResult(result);
+
+    this.logger.log(`Sending delayed command to device ${device.unique_id}`);
+
+    await this.natsClient.emit<{
+      homeUniqueId: string;
+      deviceUniqueId: string;
+      command: any
+    }>('mqtt-core.publish-command', {
+      homeUniqueId,
+      deviceUniqueId: device.unique_id,
+      command,
+    });
+  }
+
+  /**
+   * Execute notification from delayed job data
+   */
+  private async executeNotificationFromJob(
+    jobData: IDelayedRuleJob,
+    result: IDelayedRuleJob['results'][0],
+  ): Promise<void> {
+    this.logger.log(`Executing delayed notification for rule ${jobData.ruleId}`);
+    console.log({
+      ruleId: jobData.ruleId,
+      ruleName: jobData.ruleName,
+      resultId: result.id,
+      event: result.event,
+      userId: jobData.userId,
+      homeId: jobData.homeId,
+      channels: result.channel,
+    });
+  }
+
+  /**
+   * Build command from result data
+   */
+  private buildCommandFromResult(result: IDelayedRuleJob['results'][0]): Record<string, any> {
+    const command: Record<string, any> = {};
+
+    if (result.attribute && result.data) {
+      const dataValue = (result.data as { value: any })?.value;
+      if (dataValue !== undefined) {
+        command[result.attribute] = dataValue;
+      }
+    } else if (result.data) {
+      return result.data as Record<string, any>;
+    }
+
+    return command;
+  }
+
+  /**
+   * Mark rule as executed by ID (for delayed execution)
+   */
+  private async markRuleExecutedById(ruleId: string): Promise<void> {
+    const rule = await this.dbService.rule.findUnique({
+      where: { id: ruleId },
+      select: { type: true },
+    });
+
+    if (!rule) return;
+
+    if (rule.type === RuleType.ONCE) {
+      await this.dbService.rule.update({
+        where: { id: ruleId },
+        data: { active: false },
+      });
+      this.logger.log(`ONCE rule ${ruleId} executed and deactivated`);
+    }
   }
 
   /**
    * Check if rule can be executed based on RuleType
    */
-  private async canExecuteRule(rule: Rule): Promise<boolean> {
-    const now = new Date();
-
+  private async canExecuteRule(rule: RuleSelected): Promise<boolean> {
     switch (rule.type) {
-      case RuleType.ONCE: {
-        // Check if already executed
-        const executed = await this.cacheService.get<boolean>(getKeyRuleExecuted(rule.id));
-        if (executed) {
-          return false;
-        }
-        return true;
-      }
+      case RuleType.ONCE:
+        return rule.active;
 
-      case RuleType.RECURRENT: {
-        // Check interval since last execution
-        if (rule.interval <= 0) {
-          return true; // No interval restriction
-        }
-
-        const lastExecution = await this.cacheService.get<number>(getKeyRuleLastExecution(rule.id));
-        if (!lastExecution) {
-          return true; // Never executed
-        }
-
-        const elapsedSeconds = (now.getTime() - lastExecution) / 1000;
-        return elapsedSeconds >= rule.interval;
-      }
-
-      case RuleType.SPECIFIC: {
-        // Check if timestamp matches (within 1 minute tolerance)
-        if (!rule.timestamp) {
-          return false;
-        }
-
-        const ruleTime = new Date(rule.timestamp);
-        const diffMs = Math.abs(now.getTime() - ruleTime.getTime());
-        const oneMinute = 60 * 1000;
-
-        return diffMs <= oneMinute;
-      }
+      case RuleType.RECURRENT:
+        return true; // RECURRENT can always execute (interval handles delay)
 
       default:
         return false;
@@ -169,42 +397,93 @@ export class RulesEngineService {
   }
 
   /**
-   * Validate all conditions for a rule
+   * Evaluate rule conditions
    */
-  private validateRuleConditions(
-    rule: RuleWithRelations,
+  private async evaluateRule(
+    rule: RuleSelected,
+    currentDeviceId: string,
     newData: Record<string, any>,
     prevData?: Record<string, any>,
-  ): boolean {
+  ): Promise<boolean> {
     if (rule.conditions.length === 0) {
-      return true; // No conditions means always true
+      return true;
     }
 
-    const results = rule.conditions.map((condition) =>
-      this.validateCondition(condition, newData, prevData),
-    );
-
-    // rule.all = true: ALL conditions must pass
-    // rule.all = false: ANY condition must pass
-    if (rule.all) {
-      return results.every((result) => result);
-    } else {
-      return results.some((result) => result);
+    const currentDeviceConditions = rule.conditions.filter(c => c.device_id === currentDeviceId);
+    if (currentDeviceConditions.length === 0) {
+      this.logger.verbose(`Rule ${rule.id} has no conditions for device ${currentDeviceId}`);
+      return false;
     }
+
+    // Anti-spam: check if relevant attribute changed
+    const hasRelevantChange = currentDeviceConditions.some(condition => {
+      const newValue = newData[condition.attribute];
+      const oldValue = prevData?.[condition.attribute];
+      return newValue !== oldValue;
+    });
+
+    if (!hasRelevantChange) {
+      this.logger.verbose(`Rule ${rule.id}: No relevant attribute change`);
+      return false;
+    }
+
+    // Evaluate current device conditions
+    const currentDeviceResults = currentDeviceConditions.map(condition => {
+      const attributeValue = newData[condition.attribute];
+      return this.evaluateCondition(condition, attributeValue);
+    });
+
+    if (!rule.all) {
+      return currentDeviceResults.some(result => result);
+    }
+
+    const allCurrentPass = currentDeviceResults.every(result => result);
+    if (!allCurrentPass) {
+      return false;
+    }
+
+    // Check other devices if ALL mode
+    const otherDeviceConditions = rule.conditions.filter(c => c.device_id !== currentDeviceId);
+    if (otherDeviceConditions.length === 0) {
+      return true;
+    }
+
+    const otherDeviceIds = [...new Set(otherDeviceConditions.map(c => c.device_id))];
+
+    const otherDevicesData = await this.dbService.sensorDataLast.findMany({
+      where: { device_id: { in: otherDeviceIds } },
+      select: { device_id: true, data: true },
+    });
+
+    const deviceDataMap = new Map<string, any>();
+    for (const d of otherDevicesData) {
+      deviceDataMap.set(d.device_id, d.data);
+    }
+
+    for (const condition of otherDeviceConditions) {
+      const deviceData = deviceDataMap.get(condition.device_id);
+      if (!deviceData) {
+        this.logger.verbose(`Rule ${rule.id}: No data for device ${condition.device_id}`);
+        return false;
+      }
+
+      const attributeValue = deviceData[condition.attribute];
+      if (!this.evaluateCondition(condition, attributeValue)) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
-   * Validate a single condition against sensor data
+   * Evaluate single condition
    */
-  private validateCondition(
-    condition: Condition,
-    newData: Record<string, any>,
-    prevData?: Record<string, any>,
+  private evaluateCondition(
+    condition: RuleSelected['conditions'][0],
+    value: any,
   ): boolean {
-    const currentValue = newData[condition.attribute];
-
-    // If the attribute doesn't exist in the data, condition fails
-    if (currentValue === undefined || currentValue === null) {
+    if (value === undefined || value === null) {
       return false;
     }
 
@@ -214,106 +493,31 @@ export class RulesEngineService {
       return false;
     }
 
-    return this.compareValues(currentValue, condition.operation, targetValue);
-  }
-
-  /**
-   * Compare values using the specified operation
-   */
-  private compareValues(currentValue: any, operation: Operation, targetValue: any): boolean {
-    // Handle boolean comparisons
-    if (typeof currentValue === 'boolean' || typeof targetValue === 'boolean') {
-      return this.compareBooleanValues(currentValue, operation, targetValue);
-    }
-
-    // Handle numeric comparisons
-    if (typeof currentValue === 'number' && typeof targetValue === 'number') {
-      return this.compareNumericValues(currentValue, operation, targetValue);
-    }
-
-    // Handle string comparisons (only EQ makes sense)
-    if (typeof currentValue === 'string' && typeof targetValue === 'string') {
-      if (operation === Operation.EQ) {
-        return currentValue === targetValue;
-      }
-      return false;
-    }
-
-    // Try to convert to numbers for comparison
-    const numCurrent = Number(currentValue);
-    const numTarget = Number(targetValue);
-    if (!isNaN(numCurrent) && !isNaN(numTarget)) {
-      return this.compareNumericValues(numCurrent, operation, numTarget);
-    }
-
-    // Fallback: only EQ comparison
-    if (operation === Operation.EQ) {
-      return currentValue === targetValue;
-    }
-
-    return false;
-  }
-
-  /**
-   * Compare numeric values
-   */
-  private compareNumericValues(current: number, operation: Operation, target: number): boolean {
-    switch (operation) {
+    switch (condition.operation) {
       case Operation.EQ:
-        return current === target;
+        return value === targetValue;
       case Operation.GT:
-        return current > target;
+        return value > targetValue;
       case Operation.GTE:
-        return current >= target;
+        return value >= targetValue;
       case Operation.LT:
-        return current < target;
+        return value < targetValue;
       case Operation.LTE:
-        return current <= target;
+        return value <= targetValue;
       default:
         return false;
     }
   }
 
   /**
-   * Compare boolean values
+   * Execute all results for a rule (immediate execution)
    */
-  private compareBooleanValues(current: any, operation: Operation, target: any): boolean {
-    // Convert to boolean
-    const boolCurrent = Boolean(current);
-    const boolTarget = Boolean(target);
-
-    if (operation === Operation.EQ) {
-      return boolCurrent === boolTarget;
-    }
-
-    // For GT/GTE: true > false
-    if (operation === Operation.GT) {
-      return boolCurrent === true && boolTarget === false;
-    }
-    if (operation === Operation.GTE) {
-      return boolCurrent === boolTarget || (boolCurrent === true && boolTarget === false);
-    }
-
-    // For LT/LTE: false < true
-    if (operation === Operation.LT) {
-      return boolCurrent === false && boolTarget === true;
-    }
-    if (operation === Operation.LTE) {
-      return boolCurrent === boolTarget || (boolCurrent === false && boolTarget === true);
-    }
-
-    return false;
-  }
-
-  /**
-   * Execute all results for a rule
-   */
-  private async executeResults(rule: RuleWithRelations): Promise<void> {
+  private async executeResults(rule: RuleSelected): Promise<void> {
     for (const result of rule.results) {
       try {
         switch (result.type) {
           case ResultType.COMMAND:
-            await this.executeCommand(result);
+            await this.executeCommand(rule, result);
             break;
           case ResultType.NOTIFICATION:
             await this.executeNotification(rule, result);
@@ -328,23 +532,38 @@ export class RulesEngineService {
   }
 
   /**
-   * Execute a COMMAND result - sends MQTT command to device
+   * Execute a COMMAND result
    */
   private async executeCommand(
-    result: Result & { device: { unique_id: string; home: { unique_id: string } | null } | null },
+    rule: RuleSelected,
+    result: RuleSelected['results'][0],
   ): Promise<void> {
-    if (!result.device || !result.device.home) {
-      this.logger.warn(`Result ${result.id} has no device or home associated`);
+    if (!result.device_id) {
+      this.logger.warn(`Result ${result.id} has no device_id`);
+      return;
+    }
+
+    const device = await this.dbService.device.findUnique({
+      where: { id: result.device_id },
+      select: { unique_id: true },
+    });
+
+    if (!device) {
+      this.logger.warn(`Device ${result.device_id} not found`);
       return;
     }
 
     const command = this.buildCommand(result);
 
-    this.logger.log(`Sending command to device ${result.device.unique_id}: ${JSON.stringify(command)}`);
+    this.logger.log(`Sending command to device ${device.unique_id}: ${JSON.stringify(command)}`);
 
-    await this.natsClient.emit('mqtt-core.publish-command', {
-      homeUniqueId: result.device.home.unique_id,
-      deviceUniqueId: result.device.unique_id,
+    await this.natsClient.emit<{
+      homeUniqueId: string;
+      deviceUniqueId: string;
+      command: any
+    }>('mqtt-core.publish-command', {
+      homeUniqueId: rule.home.unique_id,
+      deviceUniqueId: device.unique_id,
       command,
     });
   }
@@ -352,17 +571,15 @@ export class RulesEngineService {
   /**
    * Build command payload from result
    */
-  private buildCommand(result: Result): Record<string, any> {
+  private buildCommand(result: RuleSelected['results'][0]): Record<string, any> {
     const command: Record<string, any> = {};
 
-    // If result has attribute and data, use those
     if (result.attribute && result.data) {
       const dataValue = (result.data as { value: any })?.value;
       if (dataValue !== undefined) {
         command[result.attribute] = dataValue;
       }
     } else if (result.data) {
-      // If only data, use it directly
       return result.data as Record<string, any>;
     }
 
@@ -373,55 +590,31 @@ export class RulesEngineService {
    * Execute a NOTIFICATION result
    */
   private async executeNotification(
-    rule: RuleWithRelations,
-    result: Result,
+    rule: RuleSelected,
+    result: RuleSelected['results'][0],
   ): Promise<void> {
     this.logger.log(`Executing notification for rule ${rule.id}, result ${result.id}`);
-
-    // TODO: Implement notification logic
-    // For now, emit an event that can be handled by the notifications microservice
-    await this.natsClient.emit('rules-engine.notification', {
+    console.log({
       ruleId: rule.id,
       ruleName: rule.name,
       resultId: result.id,
       event: result.event,
-      userId: rule.user_id,
-      homeId: rule.home_id,
+      userId: rule.user.id,
+      homeId: rule.home.id,
+      channels: result.channel,
     });
   }
 
   /**
-   * Mark rule as executed and update tracking
+   * Mark rule as executed
    */
-  private async markRuleExecuted(rule: Rule): Promise<void> {
-    const now = Date.now();
-
-    switch (rule.type) {
-      case RuleType.ONCE:
-        // Mark as executed permanently and deactivate rule
-        await this.cacheService.set(getKeyRuleExecuted(rule.id), true);
-        await this.dbService.rule.update({
-          where: { id: rule.id },
-          data: { active: false },
-        });
-        this.logger.log(`ONCE rule ${rule.id} executed and deactivated`);
-        break;
-
-      case RuleType.RECURRENT:
-        // Update last execution timestamp
-        await this.cacheService.set(getKeyRuleLastExecution(rule.id), now);
-        this.logger.verbose(`RECURRENT rule ${rule.id} last execution updated`);
-        break;
-
-      case RuleType.SPECIFIC:
-        // Mark as executed and deactivate
-        await this.cacheService.set(getKeyRuleExecuted(rule.id), true);
-        await this.dbService.rule.update({
-          where: { id: rule.id },
-          data: { active: false },
-        });
-        this.logger.log(`SPECIFIC rule ${rule.id} executed and deactivated`);
-        break;
+  private async markRuleExecuted(rule: RuleSelected): Promise<void> {
+    if (rule.type === RuleType.ONCE) {
+      await this.dbService.rule.update({
+        where: { id: rule.id },
+        data: { active: false },
+      });
+      this.logger.log(`ONCE rule ${rule.id} executed and deactivated`);
     }
   }
 }
