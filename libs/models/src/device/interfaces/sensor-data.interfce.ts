@@ -5,3 +5,11 @@ export interface ISensorData {
     timestamp: Date;
     data: any;
 }
+
+export interface IRulesSensorData {
+    ruleIds: string[];
+    deviceId: string;
+    timestamp: Date;
+    data: any;
+    prevData: any;
+}

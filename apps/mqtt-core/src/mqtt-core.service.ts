@@ -1,6 +1,6 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
-import { getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, getKeyHomeUniqueIdsDisconnected, IHomeConnectedEvent, ISensorData, IUserSensorNotification } from '@app/models';
+import { getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, getKeyHomeUniqueIdsDisconnected, IHomeConnectedEvent, IRulesSensorData, ISensorData, IUserSensorNotification } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { JsonValue } from '@prisma/client/runtime/client';
@@ -217,6 +217,11 @@ export class MqttCoreService {
         select: {
           id: true,
           disabled: true,
+          conditions: {
+            select: {
+              rule_id: true,
+            }
+          }
         },
       });
 
@@ -247,15 +252,14 @@ export class MqttCoreService {
         },
       });
 
+
       // ? get previous data
       const prevSensorData = await this.dbService.sensorDataLast.findUnique({
         where: {
           device_id: device.id,
         },
         select: {
-          device_id: true,
           data: true,
-          timestamp: true,
         },
       });
 
@@ -304,6 +308,15 @@ export class MqttCoreService {
       });
 
       if (updatedHome && prevSensorData && newSensorData) {
+        if (device.conditions?.length > 0) {
+          await this.natsClient.emit<IRulesSensorData>('mqtt-core.rules.data', {
+            ruleIds: device.conditions.map((condition) => condition.rule_id),
+            deviceId: newSensorData.device_id,
+            timestamp: newSensorData.timestamp,
+            data: newSensorData.data,
+            prevData: prevSensorData.data,
+          });
+        }
         // compare last data with new data
         await this.globalUserAttributesNotification(
           newSensorData,

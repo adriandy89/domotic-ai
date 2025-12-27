@@ -161,7 +161,6 @@ export class InitService implements OnModuleInit {
     }
   }
 
-
   /**
    * Handle home disconnection using a simple two-step approach:
    * 1st disconnection: Add to disconnected set
