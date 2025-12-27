@@ -89,6 +89,15 @@
       "compilerOptions": {
         "tsConfigPath": "apps/notifications/tsconfig.app.json"
       }
+    },
+    "rules-engine": {
+      "type": "application",
+      "root": "apps/rules-engine",
+      "entryFile": "main",
+      "sourceRoot": "apps/rules-engine/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/rules-engine/tsconfig.app.json"
+      }
     }
   },
   "monorepo": true,
