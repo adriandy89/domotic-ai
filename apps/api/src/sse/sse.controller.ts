@@ -111,7 +111,7 @@ export class SSEController implements OnModuleDestroy {
       }),
       map((message: IMessage<any>) => {
         // Remove sensitive fields before sending to frontend
-        const { userIds, userId, ...sanitizedPayload } = message.payload;
+        const { userIds, ruleIds, ...sanitizedPayload } = message.payload;
         return {
           data: JSON.stringify({ topic: message.topic, payload: sanitizedPayload }),
           id: new Date().getTime().toString(),

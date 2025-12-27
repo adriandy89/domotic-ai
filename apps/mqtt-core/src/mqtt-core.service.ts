@@ -217,6 +217,11 @@ export class MqttCoreService {
         select: {
           id: true,
           disabled: true,
+          conditions: {
+            select: {
+              rule_id: true,
+            }
+          }
         },
       });
 
@@ -298,6 +303,7 @@ export class MqttCoreService {
       await this.natsClient.emit<ISensorData>('mqtt-core.sensor.data', {
         homeId: updatedHome.id,
         userIds: updatedHome.users.map((user) => user.user.id),
+        ruleIds: device.conditions.map((condition) => condition.rule_id),
         deviceId: newSensorData.device_id,
         timestamp: newSensorData.timestamp,
         data: newSensorData.data,
