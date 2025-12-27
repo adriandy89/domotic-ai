@@ -20,7 +20,22 @@ export const getKeyDeviceData = (deviceId: string) => {
   return `d-sensor:${deviceId}:data` as const;
 };
 
+// ! =============== rules ===================
+
+export const getKeyRuleLastExecution = (ruleId: string) => {
+  if (!ruleId)
+    throw new Error('Rule ID is required to generate cache key');
+  return `rule:${ruleId}:last-exec` as const;
+};
+
+export const getKeyRuleExecuted = (ruleId: string) => {
+  if (!ruleId)
+    throw new Error('Rule ID is required to generate cache key');
+  return `rule:${ruleId}:executed` as const;
+};
+
 // ! ========================================
+
 
 // // phone - userId cache
 // export const getKeyPhoneUserId = (phone: string) => {
