@@ -1,6 +1,6 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
-import { getKeyRuleLastExecution, IRulesSensorData } from '@app/models';
+import { IRulesSensorData } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -163,6 +163,24 @@ export class RulesEngineService {
       return;
     }
 
+    const currentDeviceConditions = rule.conditions.filter(c => c.device_id === currentDeviceId);
+    if (currentDeviceConditions.length === 0) {
+      this.logger.verbose(`Rule ${rule.id} has no conditions for device ${currentDeviceId}`);
+      return;
+    }
+
+    // Anti-spam: check if relevant attribute changed
+    const hasRelevantChange = currentDeviceConditions.some(condition => {
+      const newValue = newData[condition.attribute];
+      const oldValue = prevData?.[condition.attribute];
+      return newValue !== oldValue;
+    });
+
+    if (!hasRelevantChange) {
+      this.logger.verbose(`Rule ${rule.id}: No relevant attribute change`);
+      return;
+    }
+
     // Validate conditions
     const conditionsMet = await this.evaluateRule(rule, currentDeviceId, newData, prevData);
 
@@ -246,11 +264,14 @@ export class RulesEngineService {
    * Cancel a pending delayed job
    */
   private async cancelDelayedJob(ruleId: string, jobId: string): Promise<void> {
+    this.logger.log(`Canceling delayed job ${jobId} for rule ${ruleId}`);
     try {
       const job = await this.delayedQueue.getJob(jobId);
       if (job) {
         await job.remove();
         this.logger.log(`Cancelled delayed job ${jobId} for rule ${ruleId}`);
+      } else {
+        this.logger.warn(`Delayed job ${jobId} not found for rule ${ruleId}`);
       }
     } catch (error) {
       this.logger.warn(`Failed to cancel job ${jobId}: ${error}`);
@@ -408,25 +429,12 @@ export class RulesEngineService {
     if (rule.conditions.length === 0) {
       return true;
     }
+    console.log(JSON.stringify(rule));
+    console.log(currentDeviceId);
+    console.log(prevData);
+    console.log(newData);
 
     const currentDeviceConditions = rule.conditions.filter(c => c.device_id === currentDeviceId);
-    if (currentDeviceConditions.length === 0) {
-      this.logger.verbose(`Rule ${rule.id} has no conditions for device ${currentDeviceId}`);
-      return false;
-    }
-
-    // Anti-spam: check if relevant attribute changed
-    const hasRelevantChange = currentDeviceConditions.some(condition => {
-      const newValue = newData[condition.attribute];
-      const oldValue = prevData?.[condition.attribute];
-      return newValue !== oldValue;
-    });
-
-    if (!hasRelevantChange) {
-      this.logger.verbose(`Rule ${rule.id}: No relevant attribute change`);
-      return false;
-    }
-
     // Evaluate current device conditions
     const currentDeviceResults = currentDeviceConditions.map(condition => {
       const attributeValue = newData[condition.attribute];

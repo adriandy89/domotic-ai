@@ -4,7 +4,7 @@ import { RuleType } from 'generated/prisma/enums';
 
 export class RuleDto {
   @ApiProperty()
-  readonly id: number;
+  readonly id: string;
 
   @ApiProperty()
   readonly type: RuleType;
@@ -40,10 +40,10 @@ export class RuleDto {
   readonly results: ICreateResult[];
 
   @ApiProperty()
-  readonly user_id: number;
+  readonly user_id: string;
 
   @ApiProperty()
-  readonly home_id: number;
+  readonly home_id: string;
 
   @ApiProperty()
   resend_after: number;

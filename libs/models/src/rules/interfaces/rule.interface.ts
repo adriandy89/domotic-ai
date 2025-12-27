@@ -5,16 +5,16 @@ export interface IRuleObj {
 }
 
 export interface ICreateCondition {
-  id?: number;
-  device_id: number;
+  id?: string;
+  device_id: string;
   attribute: string;
   operation: Operation;
   data: { value: any };
 }
 
 export interface ICreateResult {
-  id?: number;
-  device_id: number;
+  id?: string;
+  device_id: string;
   event: string;
   type: ResultType;
   attribute: string;
@@ -24,7 +24,7 @@ export interface ICreateResult {
 }
 
 export interface ICreateRule {
-  id?: number;
+  id?: string;
   name: string;
   description: string;
   active: boolean;
@@ -33,5 +33,5 @@ export interface ICreateRule {
   type: RuleType;
   conditions: ICreateCondition[];
   results: ICreateResult[];
-  home_id: number;
+  home_id: string;
 }

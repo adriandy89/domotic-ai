@@ -6,6 +6,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Length,
   MaxLength,
   Min,
@@ -108,7 +109,7 @@ export class CreateRuleDto {
     example: 1,
     required: true,
   })
-  @IsInt()
+  @IsUUID()
   @IsNotEmpty()
-  readonly home_id: number;
+  readonly home_id: string;
 }

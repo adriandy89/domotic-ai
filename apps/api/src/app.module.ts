@@ -9,6 +9,7 @@ import { NatsClientModule } from '@app/nats-client';
 import { DbModule } from '@app/db';
 import { HttpModule } from '@nestjs/axios';
 import { SSEModule } from './sse';
+import { RuleModule } from './rule';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { SSEModule } from './sse';
     HomeModule,
     UserModule,
     DeviceModule,
+    RuleModule,
   ],
   controllers: [],
   providers: [],

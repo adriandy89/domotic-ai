@@ -14,17 +14,6 @@ export const getKeyHomeUniqueIdOrgId = (homeUniqueId: string) => {
   return `h-uniqueid:${homeUniqueId}:org-id` as const;
 };
 
-// ! =============== rules ===================
-
-export const getKeyRuleLastExecution = (ruleId: string) => {
-  if (!ruleId)
-    throw new Error('Rule ID is required to generate cache key');
-  return `rule:${ruleId}:last-exec` as const;
-};
-
-// ! ========================================
-
-
 // // phone - userId cache
 // export const getKeyPhoneUserId = (phone: string) => {
 //   if (!phone) throw new Error('Phone number is required to generate cache key');
