@@ -1,6 +1,6 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
-import { getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, getKeyHomeUniqueIdsDisconnected, IHomeConnectedEvent, ISensorData, IUserSensorNotification } from '@app/models';
+import { getKeyDeviceData, getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, getKeyHomeUniqueIdsDisconnected, IHomeConnectedEvent, ISensorData, IUserSensorNotification } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { JsonValue } from '@prisma/client/runtime/client';
@@ -252,17 +252,22 @@ export class MqttCoreService {
         },
       });
 
+
       // ? get previous data
-      const prevSensorData = await this.dbService.sensorDataLast.findUnique({
-        where: {
-          device_id: device.id,
-        },
-        select: {
-          device_id: true,
-          data: true,
-          timestamp: true,
-        },
-      });
+      let prevSensorData = await this.cacheService.get<Pick<ISensorData, 'data'>>(getKeyDeviceData(device.id));
+      if (!prevSensorData) {
+        prevSensorData = await this.dbService.sensorDataLast.findUnique({
+          where: {
+            device_id: device.id,
+          },
+          select: {
+            data: true,
+          },
+        });
+        if (prevSensorData) {
+          this.cacheService.set(getKeyDeviceData(device.id), prevSensorData, 12 * 60 * 60 * 1000); // 12 hours
+        }
+      }
 
       const newSensorData = await this.dbService.sensorDataLast.upsert({
         where: {

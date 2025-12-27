@@ -1,6 +1,6 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
-import { getKeyHomeUniqueIdsDisconnected, getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, IHomeConnectedEvent } from '@app/models';
+import { getKeyHomeUniqueIdsDisconnected, getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, IHomeConnectedEvent, getKeyDeviceData } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { HttpService } from '@nestjs/axios';
 import { Injectable, OnModuleInit } from '@nestjs/common';
@@ -137,6 +137,7 @@ export class InitService implements OnModuleInit {
     this.logger.log('All Redis caches cleared OK!');
 
     await this.initializeHomesCache();
+    await this.initializeLastDeviceDataCache();
 
     this.logger.log('All Redis caches initialized OK!');
     return { ok: true };
@@ -158,6 +159,25 @@ export class InitService implements OnModuleInit {
     } catch (error) {
       console.log(error);
       this.logger.error('Error initializing Homes Cache');
+    }
+  }
+
+  async initializeLastDeviceDataCache() {
+    try {
+      this.logger.log('Initialize Last Device Data Cache ...');
+      const lastDeviceData = await this.dbService.sensorDataLast.findMany({
+        select: {
+          device_id: true,
+          data: true,
+        },
+      });
+      for (const deviceData of lastDeviceData) {
+        await this.cacheService.set(getKeyDeviceData(deviceData.device_id), deviceData.data);
+      }
+      this.logger.log('Last Device Data Cache initialized OK!');
+    } catch (error) {
+      console.log(error);
+      this.logger.error('Error initializing Last Device Data Cache');
     }
   }
 
