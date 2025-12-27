@@ -29,13 +29,13 @@ sleep 10
 
 # Batch 2: First services
 echo "📦 Deploying Batch 2: First Services"
-deploy_batch "api mqtt-core notifications"
-# echo "⏳ Waiting for first services to be ready..."
-# sleep 10
+deploy_batch "api mqtt-core"
+echo "⏳ Waiting for first services to be ready..."
+sleep 10
 
-# # Batch 3: Last services
-# echo "📦 Deploying Batch 3: Last Services"
-# deploy_batch "core-engine rules-engine"
+# Batch 3: Last services
+echo "📦 Deploying Batch 3: Last Services"
+deploy_batch "rules-engine notifications"
 
 # Limpiar imágenes al final
 cleanup_images
