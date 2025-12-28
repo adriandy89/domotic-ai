@@ -25,6 +25,7 @@ export class UserService {
     name: true,
     attributes: true,
     is_active: true,
+    is_org_admin: true,
     organization_id: true,
     updated_at: true,
     created_at: true,
@@ -141,6 +142,7 @@ export class UserService {
       data: {
         ...userDTO,
         password: hash,
+        is_org_admin: false,
         organization_id,
       },
     });
@@ -231,12 +233,23 @@ export class UserService {
         select: {
           is_active: true,
           id: true,
+          is_org_admin: true,
+          role: true,
           homes: { select: { home_id: true } },
         },
       });
 
       if (!previous) {
         throw new Error('User not found');
+      }
+
+      if (previous.is_org_admin) {
+        if (userDTO.role && userDTO.role !== 'ADMIN') {
+          throw new Error('You cannot update an organization admin');
+        }
+        if (userDTO.is_active !== undefined && userDTO.is_active !== previous.is_active) {
+          throw new Error('You cannot update an organization admin');
+        }
       }
 
       const updated = await this.dbService.user.update({
@@ -275,17 +288,26 @@ export class UserService {
     const organization_id = meta?.organization_id;
     if (!organization_id) throw new Error('Organization not found');
     try {
+      if (meta.id === id) {
+        throw new Error('You cannot delete yourself');
+      }
       const user = await this.dbService.user.findUnique({
         where: { id, organization_id },
         select: {
           id: true,
           is_active: true,
+          is_org_admin: true,
+          role: true,
           homes: { select: { home_id: true } },
         },
       });
 
       if (!user) {
         throw new Error('User not found');
+      }
+
+      if (user.is_org_admin) {
+        throw new Error('You cannot delete an organization admin');
       }
 
       const deleted = await this.dbService.user.delete({
@@ -351,47 +373,43 @@ export class UserService {
     });
   }
 
-  async disableMany(ids: string[], organization_id: string) {
+  async disableMany(ids: string[], user: SessionUser) {
     try {
       const verifyPermissions = await this.verifyOrganizationUsersAccess(
         ids,
-        organization_id,
+        user.organization_id,
       );
       if (!verifyPermissions.ok) {
         throw new Error('Access denied to delete request users list');
       }
-      const toDeletedFromCache = await this.dbService.user.findMany({
+      if (ids.includes(user.id)) {
+        throw new Error('You cannot disable yourself');
+      }
+
+      const toDisable = await this.dbService.user.findMany({
         where: {
           id: {
             in: ids,
           },
-          organization_id,
+          organization_id: user.organization_id,
         },
         select: {
           is_active: true,
           id: true,
-          homes: { select: { home_id: true } },
+          is_org_admin: true,
         },
       });
-      // ! Delete from cache
-      // await Promise.all(
-      //   toDeletedFromCache.map(async (user) => {
-      //     if (user.is_active) {
-      //       user.homes?.map(async (h) => {
-      //         if (h?.home_id) {
-      //           const redisKey = `h-user-id:${user.id}:homes-id`;
-      //           await this.cacheService.sRem(redisKey, h.home_id.toString());
-      //         }
-      //       });
-      //     }
-      //   }),
-      // );
+      for (const user of toDisable) {
+        if (user.is_org_admin) {
+          throw new Error('You cannot disable an organization admin');
+        }
+      }
       await this.dbService.user.updateMany({
         where: {
           id: {
             in: ids,
           },
-          organization_id,
+          organization_id: user.organization_id,
         },
         data: {
           is_active: false,

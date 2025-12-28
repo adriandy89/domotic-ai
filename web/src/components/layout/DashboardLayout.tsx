@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Cpu,
+  KeyRound,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
@@ -25,8 +26,9 @@ export default function DashboardLayout() {
 
   const navItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
-    { icon: Cpu, label: 'Devices', href: '/devices' },
     { icon: Home, label: 'Homes', href: '/homes' },
+    { icon: Cpu, label: 'Devices', href: '/devices' },
+    { icon: KeyRound, label: 'Access', href: '/access' },
     { icon: Activity, label: 'Activity', href: '/activity' },
     { icon: Settings, label: 'Settings', href: '/settings' },
   ];
