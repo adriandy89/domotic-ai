@@ -129,7 +129,7 @@ export class UserController {
   @UseGuards(PermissionsGuard)
   async disableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.userService.disableMany(uuidArrayDto.uuids, user.organization_id);
+      return await this.userService.disableMany(uuidArrayDto.uuids, user);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }

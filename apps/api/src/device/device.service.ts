@@ -22,7 +22,6 @@ export class DeviceService {
     name: true,
     description: true,
     category: true,
-    attributes: true,
     disabled: true,
     created_at: true,
     updated_at: true,
@@ -219,12 +218,8 @@ export class DeviceService {
       if (!verifyPermissions.ok) {
         throw new Error('Access denied to delete request devices list');
       }
-      const deleted = await this.dbService.device.delete({
+      await this.dbService.device.delete({
         where: { id, organization_id },
-        select: {
-          ...this.prismaDeviceSelect,
-          home: { select: { unique_id: true } },
-        },
       });
       // ? Update uniqueId - device cache
       // if (!deleted.disabled) {
@@ -311,6 +306,7 @@ export class DeviceService {
       where: { id, organization_id },
       select: {
         ...this.prismaDeviceSelect,
+        attributes: true,
         home: {
           select: {
             unique_id: true,
@@ -507,6 +503,7 @@ export class DeviceService {
       },
       select: {
         ...this.prismaDeviceSelect,
+        attributes: true,
         learned_commands: {
           select: {
             id: true,
@@ -549,6 +546,7 @@ export class DeviceService {
       },
       select: {
         ...this.prismaDeviceSelect,
+        attributes: true,
         learned_commands: {
           select: {
             id: true,
@@ -577,6 +575,7 @@ export class DeviceService {
       },
       select: {
         ...this.prismaDeviceSelect,
+        attributes: true,
         learned_commands: {
           select: {
             id: true,
