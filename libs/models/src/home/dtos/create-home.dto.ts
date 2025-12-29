@@ -46,6 +46,18 @@ export class CreateHomeDto {
   readonly icon?: string;
 
   @ApiProperty({
+    description: 'image',
+    example: 'image',
+    required: false,
+    maxLength: 500,
+    minLength: 1,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 500)
+  readonly image?: string;
+
+  @ApiProperty({
     description: 'attributes',
     example: {},
     default: {},
@@ -53,7 +65,7 @@ export class CreateHomeDto {
   })
   @IsOptional()
   @IsObject()
-  readonly attributes: object = {};
+  readonly attributes?: object;
 
   @ApiProperty({
     description: `Enable/Disable home`,
@@ -62,5 +74,5 @@ export class CreateHomeDto {
   })
   @IsOptional()
   @IsBoolean()
-  readonly disabled: boolean = false;
+  readonly disabled?: boolean;
 }
