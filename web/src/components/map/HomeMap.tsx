@@ -2,10 +2,20 @@ import { useState, useRef } from 'react';
 import { useDevicesStore } from '../../store/useDevicesStore';
 import type { Device } from '../../store/useDevicesStore';
 import type { Home } from '../../store/useHomesStore';
+import { useHomesStore } from '../../store/useHomesStore';
 import { DeviceMarker } from './DeviceMarker';
 import { MapContextMenu } from './MapContextMenu';
-import { Edit, Eye } from 'lucide-react';
+import { HomeImageSelector } from './HomeImageSelector';
+import { Edit, Eye, Image, MapPinOff } from 'lucide-react';
 import { Button } from '../ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '../ui/dialog';
+import DeviceCard from '../device/DeviceCard';
 import { api } from '../../lib/api';
 
 interface HomeMapProps {
@@ -15,9 +25,12 @@ interface HomeMapProps {
 export function HomeMap({ home }: HomeMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { getDevicesByHomeId, updateDevice } = useDevicesStore();
+  const { updateHome } = useHomesStore();
   const devices = getDevicesByHomeId(home.id);
 
   const [isEditMode, setIsEditMode] = useState(false);
+  const [showImageSelector, setShowImageSelector] = useState(false);
+  const [showDeviceModal, setShowDeviceModal] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
     x: number; // Pixels (UI)
     y: number; // Pixels (UI)
@@ -32,6 +45,7 @@ export function HomeMap({ home }: HomeMapProps) {
     startX: number;
     startY: number;
   } | null>(null);
+  const hasDraggedRef = useRef(false);
 
   // Filter devices for map and unassigned list
   const assignedDevices = devices.filter((d: Device) => d.show_on_map);
@@ -81,9 +95,9 @@ export function HomeMap({ home }: HomeMapProps) {
     }
   };
 
-  const handleRemoveDevice = async (device: Device, e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent context menu
-    if (!isEditMode) return;
+  const handleRemoveDevice = async (device: Device, e?: React.MouseEvent) => {
+    e?.preventDefault(); // Prevent context menu
+    if (!isEditMode && e) return; // Only check edit mode if from context menu
 
     // Right click on device in edit mode removes it
     const updates = { show_on_map: false };
@@ -107,6 +121,7 @@ export function HomeMap({ home }: HomeMapProps) {
     e.preventDefault();
     e.stopPropagation(); // Prevent map context menu
 
+    hasDraggedRef.current = false; // Reset drag flag
     draggingRef.current = {
       id: device.id,
       startX: e.clientX,
@@ -130,6 +145,8 @@ export function HomeMap({ home }: HomeMapProps) {
 
     x = Math.max(0, Math.min(100, x));
     y = Math.max(0, Math.min(100, y));
+
+    hasDraggedRef.current = true; // Mark that we've actually dragged
 
     // Update store optimistically for smooth drag
     updateDevice(draggingRef.current.id, { x, y });
@@ -162,101 +179,189 @@ export function HomeMap({ home }: HomeMapProps) {
   };
 
   return (
-    <div className="flex flex-col gap-4 w-full h-full">
+    <div className="flex flex-col gap-2 w-full h-full">
       <div
-        className="relative w-full group select-none"
-        style={{ aspectRatio: '16/9' }}
+        ref={containerRef}
+        className="relative w-full aspect-[5/3] group select-none rounded-xl overflow-hidden border border-border bg-card/40 backdrop-blur-xl shadow-lg"
+        onContextMenu={handleContextMenu}
+        onClick={() => {
+          setContextMenu(null);
+          setSelectedDeviceId(null);
+        }}
       >
-        <div
-          ref={containerRef}
-          className="absolute inset-0 rounded-lg overflow-hidden border bg-muted/20 shadow-inner"
-          onContextMenu={handleContextMenu}
-          onClick={() => {
-            setContextMenu(null);
-            setSelectedDeviceId(null);
-          }}
-        >
-          {home.image ? (
-            <img
-              src={home.image}
-              alt="Floor Plan"
-              className="absolute inset-0 w-full h-full object-contain bg-background pointer-events-none"
-            />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground pointer-events-none">
-              No floor plan image available
-            </div>
-          )}
-
-          {assignedDevices.map((device: Device) => {
-            const deviceData = useDevicesStore
-              .getState()
-              .getDeviceDataById(device.id);
-            return (
-              <DeviceMarker
-                key={device.id}
-                device={device}
-                data={deviceData?.data}
-                isSelected={selectedDeviceId === device.id}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setSelectedDeviceId(device.id);
-                }}
-                onContextMenu={(e) => handleRemoveDevice(device, e)}
-                onMouseDown={(e) => handleDeviceMouseDown(device, e)}
-              />
-            );
-          })}
-
-          {isEditMode && unassignedDevices.length > 0 && !contextMenu && (
-            <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1 rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-              Right click to add devices
-            </div>
-          )}
-        </div>
-
-        {contextMenu && isEditMode && (
-          <MapContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            unassignedDevices={unassignedDevices}
-            onSelect={handleAddDevice}
-            onClose={() => setContextMenu(null)}
+        {home.image ? (
+          <img
+            src={home.image}
+            alt="Floor Plan"
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none rounded-md"
           />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground pointer-events-none">
+            No floor plan image available
+          </div>
+        )}
+
+        {assignedDevices.map((device: Device) => {
+          const deviceData = useDevicesStore
+            .getState()
+            .getDeviceDataById(device.id);
+          return (
+            <DeviceMarker
+              key={device.id}
+              device={device}
+              data={deviceData?.data}
+              isSelected={selectedDeviceId === device.id}
+              onClick={(e) => {
+                e.stopPropagation();
+                // Only open modal if we didn't drag
+                if (!hasDraggedRef.current) {
+                  setSelectedDeviceId(device.id);
+                  setShowDeviceModal(true);
+                }
+              }}
+              onContextMenu={(e) => handleRemoveDevice(device, e)}
+              onMouseDown={(e) => handleDeviceMouseDown(device, e)}
+            />
+          );
+        })}
+
+        {isEditMode && unassignedDevices.length > 0 && !contextMenu && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1 rounded-full pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+            Right click to add devices
+          </div>
         )}
       </div>
+
+      {/* Context Menu - rendered outside map container for proper fixed positioning */}
+      {contextMenu && isEditMode && (
+        <MapContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          unassignedDevices={unassignedDevices}
+          onSelect={handleAddDevice}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
 
       <div className="text-xs text-muted-foreground text-center">
         {isEditMode
           ? 'Right-click on map to add devices. Right-click on existing device to remove. Drag to move.'
           : 'Interact with devices to view details.'}
       </div>
-      <div className="flex justify-between items-center bg-card p-2 rounded-lg border shadow-sm">
-        <div className="font-semibold text-sm px-2">
-          Map Mode:{' '}
-          {isEditMode ? (
-            <span className="text-primary font-bold">Editing</span>
-          ) : (
-            <span className="text-muted-foreground">Viewing</span>
-          )}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 bg-card/40 border border-border p-2 rounded-xl backdrop-blur-xl">
+        <div className="flex items-center justify-between sm:justify-around w-full gap-2">
+          <span className="text-xs font-medium">
+            {isEditMode ? (
+              <span className="text-primary font-bold">Editing</span>
+            ) : (
+              <span className="text-muted-foreground">Viewing</span>
+            )}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowImageSelector(true)}
+            className="flex items-center gap-1 text-xs"
+          >
+            <Image className="w-3 h-3" />
+            <span className="hidden sm:inline">Change </span>Floor Plan
+          </Button>
+          <Button
+            variant={isEditMode ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setIsEditMode(!isEditMode);
+              setContextMenu(null);
+            }}
+            className="flex items-center gap-1 text-xs"
+          >
+            {isEditMode ? (
+              <Edit className="w-3 h-3" />
+            ) : (
+              <Eye className="w-3 h-3" />
+            )}
+            {isEditMode ? 'Done' : 'Edit'}
+          </Button>
         </div>
-        <Button
-          variant={isEditMode ? 'default' : 'outline'}
-          size="sm"
-          onClick={() => {
-            setIsEditMode(!isEditMode);
-            setContextMenu(null);
-          }}
-          className="flex items-center gap-2"
-        >
-          {isEditMode ? (
-            <Edit className="w-4 h-4" />
-          ) : (
-            <Eye className="w-4 h-4" />
-          )}
-          {isEditMode ? 'Done Editing' : 'Edit Map'}
-        </Button>
       </div>
+
+      {/* Home Image Selector Modal */}
+      <HomeImageSelector
+        homeId={home.id}
+        currentImage={home.image}
+        isOpen={showImageSelector}
+        onClose={() => setShowImageSelector(false)}
+        onImageChange={(newImage) => {
+          updateHome(home.id, { image: newImage });
+        }}
+      />
+
+      {/* Device Detail Modal */}
+      <Dialog
+        open={showDeviceModal && !!selectedDeviceId}
+        onOpenChange={(open) => {
+          setShowDeviceModal(open);
+          if (!open) setSelectedDeviceId(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[450px] max-h-[90vh] overflow-hidden flex flex-col p-0">
+          <DialogHeader className="p-4 pb-0">
+            <DialogTitle className="text-lg">Device Details</DialogTitle>
+          </DialogHeader>
+
+          {selectedDeviceId &&
+            (() => {
+              const selectedDevice = assignedDevices.find(
+                (d) => d.id === selectedDeviceId,
+              );
+              const selectedDeviceData = useDevicesStore
+                .getState()
+                .getDeviceDataById(selectedDeviceId);
+
+              if (!selectedDevice) return null;
+
+              return (
+                <div className="flex-1 overflow-y-auto px-4 pb-2">
+                  <DeviceCard
+                    device={selectedDevice}
+                    deviceData={selectedDeviceData ?? undefined}
+                  />
+                </div>
+              );
+            })()}
+
+          <DialogFooter className="p-4 pt-2 border-t border-border gap-2">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                const device = assignedDevices.find(
+                  (d) => d.id === selectedDeviceId,
+                );
+                if (device) {
+                  handleRemoveDevice(device);
+                  setShowDeviceModal(false);
+                  setSelectedDeviceId(null);
+                }
+              }}
+              className="flex items-center gap-2"
+            >
+              <MapPinOff className="w-4 h-4" />
+              Remove from Map
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setShowDeviceModal(false);
+                setSelectedDeviceId(null);
+              }}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

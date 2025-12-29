@@ -19,10 +19,33 @@ export function MapContextMenu({
   onSelect,
   onClose,
 }: MapContextMenuProps) {
+  // Adjust position to keep menu inside viewport
+  const menuWidth = 256; // w-64 = 16rem = 256px
+  const menuHeight = 280; // approximate height
+
+  let adjustedX = x;
+  let adjustedY = y;
+
+  // Prevent going off right edge
+  if (x + menuWidth > window.innerWidth) {
+    adjustedX = window.innerWidth - menuWidth - 10;
+  }
+
+  // Prevent going off bottom edge
+  if (y + menuHeight > window.innerHeight) {
+    adjustedY = window.innerHeight - menuHeight - 10;
+  }
+
+  // Prevent going off left edge
+  if (adjustedX < 10) adjustedX = 10;
+
+  // Prevent going off top edge
+  if (adjustedY < 10) adjustedY = 10;
+
   return (
     <Card
       className="fixed z-50 w-64 shadow-lg animate-in fade-in zoom-in-95 duration-200 bg-popover text-popover-foreground"
-      style={{ left: x, top: y }}
+      style={{ left: adjustedX, top: adjustedY }}
     >
       <div className="flex items-center justify-between p-2 border-b">
         <span className="text-sm font-semibold pl-2">Add Device</span>

@@ -32,18 +32,22 @@ export default function HomeMapPage() {
   }
 
   return (
-    <div className="flex h-full flex-col p-4 md:p-6 gap-6">
-      <div className="flex items-center gap-4">
+    <div className="flex h-full flex-col p-2 md:p-4 gap-2">
+      <div className="flex items-center gap-2">
         <Button variant="ghost" size="icon" onClick={() => navigate('/homes')}>
-          <ArrowLeft className="h-6 w-6" />
+          <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{home.name} Map</h1>
-          <p className="text-muted-foreground text-sm">{home.description}</p>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight">
+            {home.name}
+          </h1>
+          {home.description && (
+            <p className="text-muted-foreground text-xs">{home.description}</p>
+          )}
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 bg-background rounded-xl border shadow-sm overflow-hidden flex flex-col p-4">
+      <div className="flex-1 min-h-0 overflow-hidden">
         <HomeMap home={home} />
       </div>
     </div>

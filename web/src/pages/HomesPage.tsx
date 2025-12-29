@@ -54,9 +54,9 @@ export default function HomesPage() {
                       <HomeIcon className="w-16 h-16 text-muted-foreground/30" />
                     </div>
                   )}
-                  <div className="absolute top-2 right-2">
+                  <div className="absolute top-2 right-2 bg-muted rounded-lg">
                     <Badge
-                      variant={home.connected ? 'default' : 'destructive'}
+                      variant={home.connected ? 'success' : 'destructive'}
                       className="flex items-center gap-1 shadow-sm"
                     >
                       {home.connected ? (
