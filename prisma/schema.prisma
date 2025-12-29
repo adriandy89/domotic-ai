@@ -69,7 +69,7 @@ model User {
   email                      String                @unique(map: "uq_user_email") @db.VarChar
   password                   String?               @db.VarChar(128)
   name                       String                @db.VarChar(128)
-  phone                      String?               @db.VarChar(128)
+  phone                      String?               @unique(map: "uq_user_phone") @db.VarChar(128)
   is_active                  Boolean               @default(false)
   created_at                 DateTime              @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
   updated_at                 DateTime?             @updatedAt @db.Timestamptz(6)
@@ -78,7 +78,7 @@ model User {
   expiration_time            DateTime?             @db.Timestamptz(6)
   notification_batch_minutes Int?                  @default(5)
   fmc_tokens                 String[]
-  telegram_chat_id           String?               @db.VarChar(128)
+  telegram_chat_id           String?               @unique(map: "uq_user_telegram_chat_id") @db.VarChar(128)
   organization_id            String
   homes                      UserHome[]
   rules                      Rule[]

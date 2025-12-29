@@ -118,6 +118,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
     name: '',
     email: '',
     password: '',
+    phone: '',
     role: 'USER',
     is_active: true,
   });
@@ -191,6 +192,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         name: formData.name,
         email: formData.email,
         password: formData.password,
+        phone: formData.phone || undefined,
         role: formData.role,
         is_active: formData.is_active,
       });
@@ -199,6 +201,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         name: '',
         email: '',
         password: '',
+        phone: '',
         role: 'USER',
         is_active: true,
       });
@@ -219,6 +222,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
     try {
       await api.put(`/users/${editTarget.id}`, {
         name: formData.name,
+        phone: formData.phone || undefined,
         role: formData.role,
         is_active: formData.is_active,
       });
@@ -228,6 +232,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         name: '',
         email: '',
         password: '',
+        phone: '',
         role: 'USER',
         is_active: true,
       });
@@ -247,6 +252,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       name: user.name,
       email: user.email,
       password: '',
+      phone: user.phone || '',
       role: user.role,
       is_active: user.is_active,
     });
@@ -271,6 +277,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       name: '',
       email: '',
       password: '',
+      phone: '',
       role: 'USER',
       is_active: true,
     });
@@ -785,6 +792,16 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
               />
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-medium">Phone</label>
+              <Input
+                placeholder="34666555444"
+                value={formData.phone}
+                onChange={(e) =>
+                  setFormData({ ...formData, phone: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-medium">Role</label>
               <select
                 value={formData.role}
@@ -851,6 +868,16 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Phone</label>
+              <Input
+                placeholder="34666555444"
+                value={formData.phone}
+                onChange={(e) =>
+                  setFormData({ ...formData, phone: e.target.value })
                 }
               />
             </div>
