@@ -163,27 +163,7 @@ export class HomeController {
   @UseGuards(PermissionsGuard)
   async linkUsers(@Body() data: LinksUUIDsDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.homeService.linksUserHomes(data, user.organization_id);
-    } catch (error) {
-      throw new BadRequestException('Bad request');
-    }
-  }
-
-  // ! Home - Device Links
-
-  @Get(':id/devices')
-  @Permissions([Role.ADMIN])
-  @UseGuards(PermissionsGuard)
-  async findAllDeviceLinks(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
-    return this.homeService.findDevicesAllLinks(id, user.organization_id);
-  }
-
-  @Post('devices/link')
-  @Permissions([Role.ADMIN])
-  @UseGuards(PermissionsGuard)
-  async linkDevices(@Body() data: LinksUUIDsDto, @GetUserInfo() user: SessionUser) {
-    try {
-      return await this.homeService.linksDeviceHomes(data, user.organization_id);
+      return await this.homeService.linksUsersHomes(data, user.organization_id);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }

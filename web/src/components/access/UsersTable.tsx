@@ -20,14 +20,18 @@ import {
   DialogDescription,
 } from '../ui/dialog';
 import { DropdownMenu, DropdownMenuItem } from '../ui/dropdown-menu';
+import { LinkDialog } from './LinkDialog';
 import {
   Users,
   Plus,
   Search,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
   ToggleLeft,
   ToggleRight,
   Loader2,
@@ -36,6 +40,8 @@ import {
   Pencil,
   Trash2,
   Shield,
+  Home,
+  AlertCircle,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
@@ -45,7 +51,7 @@ interface UserData {
   email: string;
   phone: string | null;
   role: string;
-  disabled: boolean;
+  is_active: boolean;
   is_org_admin: boolean;
   attributes: Record<string, unknown> | null;
   created_at: string;
@@ -64,11 +70,31 @@ interface PaginatedResponse<T> {
   };
 }
 
-export default function UsersTable() {
+interface UsersTableProps {
+  onDataChange?: () => void;
+}
+
+export default function UsersTable({ onDataChange }: UsersTableProps) {
+  const getStoredPageSize = () => {
+    const stored = localStorage.getItem('usersTable_pageSize');
+    if (stored) {
+      const num = parseInt(stored, 10);
+      if (!isNaN(num) && num >= 5 && num <= 50) return num;
+    }
+    return 10;
+  };
+
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [take] = useState(10);
+  const [take, setTakeState] = useState(getStoredPageSize);
+
+  const setTake = (value: number) => {
+    const validValue = Math.max(5, Math.min(50, value));
+    setTakeState(validValue);
+    localStorage.setItem('usersTable_pageSize', String(validValue));
+  };
+
   const [search, setSearch] = useState('');
   const [meta, setMeta] = useState({
     page: 1,
@@ -86,19 +112,28 @@ export default function UsersTable() {
   const [deleteTarget, setDeleteTarget] = useState<UserData | null>(null);
   const [editTarget, setEditTarget] = useState<UserData | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkTarget, setLinkTarget] = useState<UserData | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     role: 'USER',
+    is_active: true,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       let url = `/users?page=${page}&take=${take}`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (sortBy && sortOrder) {
+        url += `&orderBy=${sortBy}&sortOrder=${sortOrder}`;
+      }
 
       const response = await api.get<PaginatedResponse<UserData>>(url);
       setUsers(response.data.data);
@@ -108,7 +143,7 @@ export default function UsersTable() {
     } finally {
       setLoading(false);
     }
-  }, [page, take, search]);
+  }, [page, take, search, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchUsers();
@@ -126,6 +161,7 @@ export default function UsersTable() {
       await api.put(url, { uuids: selectedIds });
       setSelectedIds([]);
       fetchUsers();
+      onDataChange?.();
     } catch (error) {
       console.error('Failed to toggle status:', error);
     }
@@ -137,22 +173,40 @@ export default function UsersTable() {
       await api.delete(`/users/${deleteTarget.id}`);
       setDeleteTarget(null);
       setShowDeleteModal(false);
+      setModalError(null);
       fetchUsers();
-    } catch (error) {
+      onDataChange?.();
+    } catch (error: any) {
       console.error('Failed to delete user:', error);
+      setModalError(error.response?.data?.message || 'Failed to delete user');
     }
   };
 
   const handleAddUser = async () => {
     if (!formData.name || !formData.email || !formData.password) return;
     setSubmitting(true);
+    setModalError(null);
     try {
-      await api.post('/users', formData);
+      await api.post('/users', {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        is_active: formData.is_active,
+      });
       setShowAddModal(false);
-      setFormData({ name: '', email: '', password: '', role: 'USER' });
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        role: 'USER',
+        is_active: true,
+      });
       fetchUsers();
-    } catch (error) {
+      onDataChange?.();
+    } catch (error: any) {
       console.error('Failed to add user:', error);
+      setModalError(error.response?.data?.message || 'Failed to add user');
     } finally {
       setSubmitting(false);
     }
@@ -161,17 +215,27 @@ export default function UsersTable() {
   const handleEditUser = async () => {
     if (!editTarget || !formData.name) return;
     setSubmitting(true);
+    setModalError(null);
     try {
       await api.put(`/users/${editTarget.id}`, {
         name: formData.name,
         role: formData.role,
+        is_active: formData.is_active,
       });
       setShowEditModal(false);
       setEditTarget(null);
-      setFormData({ name: '', email: '', password: '', role: 'USER' });
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        role: 'USER',
+        is_active: true,
+      });
       fetchUsers();
-    } catch (error) {
+      onDataChange?.();
+    } catch (error: any) {
       console.error('Failed to edit user:', error);
+      setModalError(error.response?.data?.message || 'Failed to update user');
     } finally {
       setSubmitting(false);
     }
@@ -184,6 +248,7 @@ export default function UsersTable() {
       email: user.email,
       password: '',
       role: user.role,
+      is_active: user.is_active,
     });
     setShowEditModal(true);
     setOpenMenuId(null);
@@ -193,6 +258,24 @@ export default function UsersTable() {
     setDeleteTarget(user);
     setShowDeleteModal(true);
     setOpenMenuId(null);
+  };
+
+  const openLink = (user: UserData) => {
+    setLinkTarget(user);
+    setShowLinkModal(true);
+    setOpenMenuId(null);
+  };
+
+  const openAdd = () => {
+    setFormData({
+      name: '',
+      email: '',
+      password: '',
+      role: 'USER',
+      is_active: true,
+    });
+    setModalError(null);
+    setShowAddModal(true);
   };
 
   // Exclude org admins from selectable users
@@ -257,7 +340,7 @@ export default function UsersTable() {
             <Button variant="outline" size="icon" onClick={() => fetchUsers()}>
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button onClick={() => setShowAddModal(true)} className="gap-2">
+            <Button onClick={openAdd} className="gap-2">
               <Plus className="h-4 w-4" />
               Add User
             </Button>
@@ -317,10 +400,114 @@ export default function UsersTable() {
                     />
                   </TableHead>
                   <TableHead className="w-12"></TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'name') {
+                        setSortBy('name');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Name
+                      {sortBy === 'name' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'email') {
+                        setSortBy('email');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Email
+                      {sortBy === 'email' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'role') {
+                        setSortBy('role');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Role
+                      {sortBy === 'role' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'is_active') {
+                        setSortBy('is_active');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Status
+                      {sortBy === 'is_active' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead className="w-16">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -382,9 +569,9 @@ export default function UsersTable() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={user.disabled ? 'destructive' : 'success'}
+                          variant={user.is_active ? 'success' : 'destructive'}
                         >
-                          {user.disabled ? 'Disabled' : 'Enabled'}
+                          {user.is_active ? 'Enabled' : 'Disabled'}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -411,6 +598,10 @@ export default function UsersTable() {
                             <DropdownMenuItem onClick={() => openEdit(user)}>
                               <Pencil className="h-4 w-4" />
                               Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openLink(user)}>
+                              <Home className="h-4 w-4" />
+                              Link Homes
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               variant="destructive"
@@ -489,10 +680,36 @@ export default function UsersTable() {
             </Table>
 
             <div className="flex items-center justify-between mt-4">
-              <span className="text-sm text-muted-foreground">
-                Showing {users.length} of {meta.itemCount} users
-              </span>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">
+                  Total: {meta.itemCount} items
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Show:</span>
+                  <select
+                    value={take}
+                    onChange={(e) => {
+                      setTake(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(1)}
+                  disabled={meta.page === 1}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -511,6 +728,14 @@ export default function UsersTable() {
                   disabled={!meta.hasNextPage}
                 >
                   <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(meta.pageCount)}
+                  disabled={meta.page === meta.pageCount}
+                >
+                  <ChevronsRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -573,9 +798,35 @@ export default function UsersTable() {
                 <option value="ADMIN">Admin</option>
               </select>
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_active_add"
+                checked={formData.is_active}
+                onChange={(e) =>
+                  setFormData({ ...formData, is_active: e.target.checked })
+                }
+                className="h-4 w-4 rounded border-border"
+              />
+              <label htmlFor="is_active_add" className="text-sm font-medium">
+                Active
+              </label>
+            </div>
           </div>
+          {modalError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {modalError}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddModal(false);
+                setModalError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={handleAddUser} disabled={submitting}>
@@ -617,9 +868,35 @@ export default function UsersTable() {
                 <option value="ADMIN">Admin</option>
               </select>
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_active_edit"
+                checked={formData.is_active}
+                onChange={(e) =>
+                  setFormData({ ...formData, is_active: e.target.checked })
+                }
+                className="h-4 w-4 rounded border-border"
+              />
+              <label htmlFor="is_active_edit" className="text-sm font-medium">
+                Active
+              </label>
+            </div>
           </div>
+          {modalError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {modalError}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditModal(false);
+                setModalError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={handleEditUser} disabled={submitting}>
@@ -639,8 +916,20 @@ export default function UsersTable() {
               action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {modalError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {modalError}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteModal(false);
+                setModalError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
@@ -649,6 +938,24 @@ export default function UsersTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Link Homes Modal */}
+      {linkTarget && (
+        <LinkDialog
+          open={showLinkModal}
+          onClose={() => {
+            setShowLinkModal(false);
+            setLinkTarget(null);
+            fetchUsers();
+          }}
+          title={`Link Homes to "${linkTarget.name}"`}
+          entityId={linkTarget.id}
+          fetchUrl={`/users/${linkTarget.id}/homes`}
+          saveUrl="/users/homes/link"
+          itemLabelKey="name"
+          itemsKey="homes"
+        />
+      )}
     </Card>
   );
 }

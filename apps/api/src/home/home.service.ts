@@ -547,263 +547,51 @@ export class HomeService {
     return { users: usersWithLinks ?? [] };
   }
 
-  async linksUserHomes(data: LinksUUIDsDto, organization_id: string) {
+  async linksUsersHomes(data: LinksUUIDsDto, organization_id: string) {
     try {
-      const verifyPermissions = await this.verifyOrganizationUsersAccess(
+      const verifyUsersPermissions = await this.verifyOrganizationUsersAccess(
         [...data.toDelete, ...data.toUpdate],
         organization_id,
       );
-      if (!verifyPermissions.ok) {
-        throw new Error('Access denied to all request homes');
+      const verifyHomesPermissions = await this.verifyOrganizationHomesAccess(
+        data.uuids,
+        organization_id,
+      );
+      if (!verifyUsersPermissions.ok || !verifyHomesPermissions.ok) {
+        throw new Error('Access denied to all request homes or users');
       }
       await Promise.all(
-        data.uuids.map((homeId) => {
+        data.uuids.map((home_id) => {
           return this.dbService.userHome.createMany({
-            data: data.toUpdate.map((userId) => ({
-              home_id: homeId,
-              user_id: userId,
+            data: data.toUpdate.map((user_id) => ({
+              home_id,
+              user_id,
             })),
+            skipDuplicates: true,
           });
         }),
       );
-      // // ! Add to cache
-      // if (data.toUpdate.length > 0) {
-      //   const toAddToCache = await this.dbService.user.findMany({
-      //     where: {
-      //       id: {
-      //         in: data.toUpdate,
-      //       },
-      //       is_active: true,
-      //       organization_id,
-      //     },
-      //     select: {
-      //       id: true,
-      //       homes: {
-      //         select: {
-      //           home: {
-      //             select: {
-      //               id: true,
-      //               unique_id: true,
-      //               disabled: true,
-      //             },
-      //           },
-      //         },
-      //       },
-      //     },
-      //   });
-      //   // ! Add users to cache homes
-      //   await Promise.all(
-      //     await toAddToCache.map(async (user) => {
-      //       await user.homes?.map(async (home) => {
-      //         if (!home.home?.disabled) {
-      //           const redisKey = `h-user-id:${user.id}:homes-id`;
-      //           await this.cacheService.sAdd(redisKey, home.home.id.toString());
-      //         }
-      //       });
-      //     }),
-      //   );
-      // }
-      // // ! Delete from cache
-      // if (data.toDelete.length > 0) {
-      //   const toDeleteFromCache = await this.dbService.user.findMany({
-      //     where: {
-      //       id: {
-      //         in: data.toDelete,
-      //       },
-      //       is_active: true,
-      //       organization_id,
-      //     },
-      //     select: {
-      //       id: true,
-      //       homes: {
-      //         select: {
-      //           home: {
-      //             select: {
-      //               id: true,
-      //               unique_id: true,
-      //               disabled: true,
-      //             },
-      //           },
-      //         },
-      //       },
-      //     },
-      //   });
-      //   // ! Delete users from cache homes
-      //   await Promise.all(
-      //     await toDeleteFromCache.map(async (user) => {
-      //       await user.homes?.map(async (home) => {
-      //         if (!home.home?.disabled) {
-      //           const redisKey = `h-user-id:${user.id}:homes-id`;
-      //           await this.cacheService.sRem(redisKey, home.home.id.toString());
-      //         }
-      //       });
-      //     }),
-      //   );
-      // }
       await Promise.all(
-        data.uuids.map((homeId) => {
+        data.uuids.map((home_id) => {
           return this.dbService.userHome.deleteMany({
             where: {
               user_id: {
                 in: data.toDelete,
               },
-              home_id: homeId,
+              home_id,
             },
           });
         }),
       );
-      await this.refreshUserRulesSchedules([...data.toUpdate, ...data.toDelete]);
+      // await this.refreshUserRulesSchedules([...data.toUpdate, ...data.toDelete]);
       return { ok: true };
     } catch (error) {
       throw new Error(error);
     }
   }
 
-  async findDevicesAllLinks(homeId: string, organization_id: string) {
-    const devices = await this.dbService.device.findMany({
-      where: { organization_id },
-      select: {
-        id: true,
-        name: true,
-        unique_id: true,
-        disabled: true,
-      },
-    });
-    const homeDevices = await this.dbService.device.findMany({
-      where: { home_id: homeId },
-      select: { id: true },
-    });
-    const linkedDeviceIds = new Set(homeDevices.map((d) => d.id));
-    const devicesWithLinks = devices.map((device) => ({
-      ...device,
-      linked: linkedDeviceIds.has(device.id),
-    }));
-    return { devices: devicesWithLinks ?? [] };
-  }
-
-  async linksDeviceHomes(data: LinksUUIDsDto, organization_id: string) {
-    try {
-      const verifyPermissions = await this.verifyOrganizationDevicesAccess(
-        [...data.toDelete, ...data.toUpdate],
-        organization_id,
-      );
-      if (!verifyPermissions.ok) {
-        throw new Error('Access denied to all request devices');
-      }
-      // ! Update devices to link
-      if (data.toUpdate.length > 0) {
-        await Promise.all(
-          data.uuids.map((homeId) => {
-            return this.dbService.device.updateMany({
-              where: {
-                id: {
-                  in: data.toUpdate,
-                },
-                organization_id,
-              },
-              data: {
-                home_id: homeId,
-              },
-            });
-          }),
-        );
-        // ! Add to cache
-        //   const toAddToCache = await this.dbService.device.findMany({
-        //     where: {
-        //       id: {
-        //         in: data.toUpdate,
-        //       },
-        //       disabled: false,
-        //       organization_id,
-        //     },
-        //     select: {
-        //       id: true,
-        //       unique_id: true,
-        //       home_id: true,
-        //       home: {
-        //         select: {
-        //           id: true,
-        //           unique_id: true,
-        //           disabled: true,
-        //         },
-        //       },
-        //     },
-        //   });
-        //   // ! Add devices to cache homes
-        //   await Promise.all(
-        //     toAddToCache.map(async (device) => {
-        //       if (device.home_id && !device.home?.disabled) {
-        //         const redisKeyHomeIds = `h-home-id:${device.home_id}:devices-id`;
-        //         await this.cacheService.sAdd(redisKeyHomeIds, device.id);
-        //         const redisKeyHomeUniqueIds = `h-home-uniqueid:${device.home?.unique_id}:devices-uniqueid`;
-        //         await this.cacheService.sAdd(redisKeyHomeUniqueIds, device.unique_id);
-        //       }
-        //     }),
-        //   );
-        // }
-        // // ! Delete from cache and unlink devices
-        // if (data.toDelete.length > 0) {
-        //   const toDeleteFromCache = await this.dbService.device.findMany({
-        //     where: {
-        //       id: {
-        //         in: data.toDelete,
-        //       },
-        //       disabled: false,
-        //       organization_id: meta.organization_id,
-        //     },
-        //     select: {
-        //       id: true,
-        //       unique_id: true,
-        //       home_id: true,
-        //       home: {
-        //         select: {
-        //           id: true,
-        //           unique_id: true,
-        //           disabled: true,
-        //         },
-        //       },
-        //     },
-        //   });
-        //   // ! Delete devices from cache homes
-        //   await Promise.all(
-        //     toDeleteFromCache.map(async (device) => {
-        //       if (device.home_id && !device.home?.disabled) {
-        //         const redisKeyHomeIds = `h-home-id:${device.home_id}:devices-id`;
-        //         await this.cacheService.sRem(redisKeyHomeIds, device.id);
-        //         const redisKeyHomeUniqueIds = `h-home-uniqueid:${device.home?.unique_id}:devices-uniqueid`;
-        //         await this.cacheService.sRem(redisKeyHomeUniqueIds, device.unique_id);
-        //       }
-        //     }),
-        //   );
-        // ! Unlink devices
-        await this.dbService.device.updateMany({
-          where: {
-            id: {
-              in: data.toDelete,
-            },
-            organization_id,
-          },
-          data: {
-            home_id: null,
-          },
-        });
-      }
-      return { ok: true };
-    } catch (error) {
-      throw new Error(error);
-    }
-  }
-
-  async refreshUserRulesSchedules(ids: string[]) {
-    await this.natsClient.emit('rules.refresh_users_rules', { ids });
-    await this.natsClient.emit('schedules.refresh_users_schedules', { ids });
-    // userIds.map((id) => {
-    //   this.natsClient.emit('rules.refresh_user_rules', {
-    //     meta: { id },
-    //   });
-    //   this.natsClient.emit('schedules.refresh_user_schedules', {
-    //     meta: { id },
-    //   });
-    // });
-  }
+  // async refreshUserRulesSchedules(ids: string[]) {
+  //   await this.natsClient.emit('rules.refresh_users_rules', { ids });
+  //   await this.natsClient.emit('schedules.refresh_users_schedules', { ids });
+  // }
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useHomesStore } from '../../store/useHomesStore';
 import {
   Table,
   TableBody,
@@ -26,8 +27,11 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
   ToggleLeft,
   ToggleRight,
   Loader2,
@@ -35,6 +39,7 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
+  AlertCircle,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
@@ -68,11 +73,31 @@ interface PaginatedResponse<T> {
   };
 }
 
-export default function DevicesTable() {
+interface DevicesTableProps {
+  onDataChange?: () => void;
+}
+
+export default function DevicesTable({ onDataChange }: DevicesTableProps) {
+  const getStoredPageSize = () => {
+    const stored = localStorage.getItem('devicesTable_pageSize');
+    if (stored) {
+      const num = parseInt(stored, 10);
+      if (!isNaN(num) && num >= 5 && num <= 50) return num;
+    }
+    return 10;
+  };
+
   const [devices, setDevices] = useState<DeviceData[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [take] = useState(10);
+  const [take, setTakeState] = useState(getStoredPageSize);
+
+  const setTake = (value: number) => {
+    const validValue = Math.max(5, Math.min(50, value));
+    setTakeState(validValue);
+    localStorage.setItem('devicesTable_pageSize', String(validValue));
+  };
+
   const [search, setSearch] = useState('');
   const [meta, setMeta] = useState({
     page: 1,
@@ -95,14 +120,23 @@ export default function DevicesTable() {
     unique_id: '',
     category: '',
     description: '',
+    disabled: false,
+    home_id: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
+  const { homes, homeIds } = useHomesStore();
 
   const fetchDevices = useCallback(async () => {
     setLoading(true);
     try {
       let url = `/devices?page=${page}&take=${take}`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (sortBy && sortOrder) {
+        url += `&orderBy=${sortBy}&sortOrder=${sortOrder}`;
+      }
 
       const response = await api.get<PaginatedResponse<DeviceData>>(url);
       setDevices(response.data.data);
@@ -112,7 +146,7 @@ export default function DevicesTable() {
     } finally {
       setLoading(false);
     }
-  }, [page, take, search]);
+  }, [page, take, search, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchDevices();
@@ -130,6 +164,7 @@ export default function DevicesTable() {
       await api.put(url, { uuids: selectedIds });
       setSelectedIds([]);
       fetchDevices();
+      onDataChange?.();
     } catch (error) {
       console.error('Failed to toggle status:', error);
     }
@@ -141,22 +176,42 @@ export default function DevicesTable() {
       await api.delete(`/devices/${deleteTarget.id}`);
       setDeleteTarget(null);
       setShowDeleteModal(false);
+      setModalError(null);
       fetchDevices();
-    } catch (error) {
+      onDataChange?.();
+    } catch (error: any) {
       console.error('Failed to delete device:', error);
+      setModalError(error.response?.data?.message || 'Failed to delete device');
     }
   };
 
   const handleAddDevice = async () => {
-    if (!formData.name || !formData.unique_id) return;
+    if (!formData.name || !formData.unique_id || !formData.home_id) return;
     setSubmitting(true);
+    setModalError(null);
     try {
-      await api.post('/devices', formData);
+      await api.post('/devices', {
+        name: formData.name,
+        unique_id: formData.unique_id,
+        category: formData.category,
+        description: formData.description,
+        disabled: formData.disabled,
+        home_id: formData.home_id,
+      });
       setShowAddModal(false);
-      setFormData({ name: '', unique_id: '', category: '', description: '' });
+      setFormData({
+        name: '',
+        unique_id: '',
+        category: '',
+        description: '',
+        disabled: false,
+        home_id: '',
+      });
       fetchDevices();
-    } catch (error) {
+      onDataChange?.();
+    } catch (error: any) {
       console.error('Failed to add device:', error);
+      setModalError(error.response?.data?.message || 'Failed to add device');
     } finally {
       setSubmitting(false);
     }
@@ -165,18 +220,30 @@ export default function DevicesTable() {
   const handleEditDevice = async () => {
     if (!editTarget || !formData.name) return;
     setSubmitting(true);
+    setModalError(null);
     try {
       await api.put(`/devices/${editTarget.id}`, {
         name: formData.name,
         category: formData.category,
         description: formData.description,
+        disabled: formData.disabled,
+        home_id: formData.home_id || undefined,
       });
       setShowEditModal(false);
       setEditTarget(null);
-      setFormData({ name: '', unique_id: '', category: '', description: '' });
+      setFormData({
+        name: '',
+        unique_id: '',
+        category: '',
+        description: '',
+        disabled: false,
+        home_id: '',
+      });
       fetchDevices();
-    } catch (error) {
+      onDataChange?.();
+    } catch (error: any) {
       console.error('Failed to edit device:', error);
+      setModalError(error.response?.data?.message || 'Failed to update device');
     } finally {
       setSubmitting(false);
     }
@@ -189,6 +256,8 @@ export default function DevicesTable() {
       unique_id: device.unique_id,
       category: device.category || '',
       description: device.description || '',
+      disabled: device.disabled,
+      home_id: device.home_id || '',
     });
     setShowEditModal(true);
     setOpenMenuId(null);
@@ -198,6 +267,19 @@ export default function DevicesTable() {
     setDeleteTarget(device);
     setShowDeleteModal(true);
     setOpenMenuId(null);
+  };
+
+  const openAdd = () => {
+    setFormData({
+      name: '',
+      unique_id: '',
+      category: '',
+      description: '',
+      disabled: false,
+      home_id: '',
+    });
+    setModalError(null);
+    setShowAddModal(true);
   };
 
   const toggleSelect = (id: string) => {
@@ -250,7 +332,7 @@ export default function DevicesTable() {
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button onClick={() => setShowAddModal(true)} className="gap-2">
+            <Button onClick={openAdd} className="gap-2">
               <Plus className="h-4 w-4" />
               Add Device
             </Button>
@@ -310,11 +392,115 @@ export default function DevicesTable() {
                     />
                   </TableHead>
                   <TableHead className="w-12"></TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'name') {
+                        setSortBy('name');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Name
+                      {sortBy === 'name' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'category') {
+                        setSortBy('category');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Category
+                      {sortBy === 'category' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead>Home</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Updated At</TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'disabled') {
+                        setSortBy('disabled');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Status
+                      {sortBy === 'disabled' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'updated_at') {
+                        setSortBy('updated_at');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Updated At
+                      {sortBy === 'updated_at' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead className="w-16">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -460,10 +646,36 @@ export default function DevicesTable() {
             </Table>
 
             <div className="flex items-center justify-between mt-4">
-              <span className="text-sm text-muted-foreground">
-                Showing {devices.length} of {meta.itemCount} devices
-              </span>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">
+                  Total: {meta.itemCount} items
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Show:</span>
+                  <select
+                    value={take}
+                    onChange={(e) => {
+                      setTake(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(1)}
+                  disabled={meta.page === 1}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -482,6 +694,14 @@ export default function DevicesTable() {
                   disabled={!meta.hasNextPage}
                 >
                   <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(meta.pageCount)}
+                  disabled={meta.page === meta.pageCount}
+                >
+                  <ChevronsRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -538,9 +758,52 @@ export default function DevicesTable() {
                 }
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Home *</label>
+              <select
+                value={formData.home_id}
+                onChange={(e) =>
+                  setFormData({ ...formData, home_id: e.target.value })
+                }
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Select a home...</option>
+                {homeIds.map((id) => (
+                  <option key={id} value={id}>
+                    {homes[id]?.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="add-disabled"
+                checked={formData.disabled}
+                onChange={(e) =>
+                  setFormData({ ...formData, disabled: e.target.checked })
+                }
+                className="rounded border-border"
+              />
+              <label htmlFor="add-disabled" className="text-sm font-medium">
+                Disabled
+              </label>
+            </div>
           </div>
+          {modalError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {modalError}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddModal(false);
+                setModalError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={handleAddDevice} disabled={submitting}>
@@ -588,9 +851,52 @@ export default function DevicesTable() {
                 }
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Home</label>
+              <select
+                value={formData.home_id}
+                onChange={(e) =>
+                  setFormData({ ...formData, home_id: e.target.value })
+                }
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Select a home...</option>
+                {homeIds.map((id) => (
+                  <option key={id} value={id}>
+                    {homes[id]?.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="edit-disabled"
+                checked={formData.disabled}
+                onChange={(e) =>
+                  setFormData({ ...formData, disabled: e.target.checked })
+                }
+                className="rounded border-border"
+              />
+              <label htmlFor="edit-disabled" className="text-sm font-medium">
+                Disabled
+              </label>
+            </div>
           </div>
+          {modalError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {modalError}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditModal(false);
+                setModalError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={handleEditDevice} disabled={submitting}>
@@ -610,8 +916,20 @@ export default function DevicesTable() {
               action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {modalError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {modalError}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteModal(false);
+                setModalError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDelete}>

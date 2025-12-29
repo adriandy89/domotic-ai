@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect } from 'react';
 import { Home, Wifi, WifiOff, Search } from 'lucide-react';
 import { useHomesStore } from '../store/useHomesStore';
 import { useDevicesStore } from '../store/useDevicesStore';
@@ -8,8 +8,13 @@ import { Card, CardContent } from '../components/ui/card';
 import { cn } from '../lib/utils';
 
 export default function DevicesPage() {
-  const { homes, homeIds } = useHomesStore();
+  const { homes, homeIds, fetchHomes } = useHomesStore();
   const { devices, devicesByHome, devicesData } = useDevicesStore();
+
+  // Refresh homes data on page mount
+  useEffect(() => {
+    fetchHomes();
+  }, [fetchHomes]);
 
   // Send command to device
   const handleCommand = useCallback(

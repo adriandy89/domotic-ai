@@ -5,6 +5,7 @@ export const HomeOrderBy = {
   description: 'contact',
   icon: 'icon',
   disabled: 'disabled',
+  connected: 'connected',
   created_at: 'created_at',
   updated_at: 'updated_at',
   last_update: 'last_update',

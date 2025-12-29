@@ -20,14 +20,18 @@ import {
   DialogDescription,
 } from '../ui/dialog';
 import { DropdownMenu, DropdownMenuItem } from '../ui/dropdown-menu';
+import { LinkDialog } from './LinkDialog';
 import {
   Home,
   Plus,
   Search,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
   ToggleLeft,
   ToggleRight,
   Loader2,
@@ -39,6 +43,10 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
+  Users,
+  AlertCircle,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
@@ -76,11 +84,31 @@ interface PaginatedResponse<T> {
   };
 }
 
-export default function HomesTable() {
+interface HomesTableProps {
+  onDataChange?: () => void;
+}
+
+export default function HomesTable({ onDataChange }: HomesTableProps) {
+  const getStoredPageSize = () => {
+    const stored = localStorage.getItem('homesTable_pageSize');
+    if (stored) {
+      const num = parseInt(stored, 10);
+      if (!isNaN(num) && num >= 5 && num <= 50) return num;
+    }
+    return 10;
+  };
+
   const [homes, setHomes] = useState<HomeData[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [take] = useState(10);
+  const [take, setTakeState] = useState(getStoredPageSize);
+
+  const setTake = (value: number) => {
+    const validValue = Math.max(5, Math.min(50, value));
+    setTakeState(validValue);
+    localStorage.setItem('homesTable_pageSize', String(validValue));
+  };
+
   const [search, setSearch] = useState('');
   const [meta, setMeta] = useState({
     page: 1,
@@ -98,20 +126,31 @@ export default function HomesTable() {
   const [deleteTarget, setDeleteTarget] = useState<HomeData | null>(null);
   const [editTarget, setEditTarget] = useState<HomeData | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkTarget, setLinkTarget] = useState<HomeData | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    unique_id: '',
     description: '',
+    disabled: false,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
   const [mqttConfig, setMqttConfig] = useState<MqttConfig | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>(
+    {},
+  );
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
 
   const fetchHomes = useCallback(async () => {
     setLoading(true);
     try {
       let url = `/homes?page=${page}&take=${take}`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (sortBy && sortOrder) {
+        url += `&orderBy=${sortBy}&sortOrder=${sortOrder}`;
+      }
 
       const response = await api.get<PaginatedResponse<HomeData>>(url);
       setHomes(response.data.data);
@@ -121,7 +160,7 @@ export default function HomesTable() {
     } finally {
       setLoading(false);
     }
-  }, [page, take, search]);
+  }, [page, take, search, sortBy, sortOrder]);
 
   const fetchMqttConfig = useCallback(async () => {
     try {
@@ -149,6 +188,7 @@ export default function HomesTable() {
       await api.put(url, { uuids: selectedIds });
       setSelectedIds([]);
       fetchHomes();
+      onDataChange?.();
     } catch (error) {
       console.error('Failed to toggle status:', error);
     }
@@ -160,22 +200,32 @@ export default function HomesTable() {
       await api.delete(`/homes/${deleteTarget.id}`);
       setDeleteTarget(null);
       setShowDeleteModal(false);
+      setModalError(null);
       fetchHomes();
-    } catch (error) {
+      onDataChange?.();
+    } catch (error: any) {
       console.error('Failed to delete home:', error);
+      setModalError(error.response?.data?.message || 'Failed to delete home');
     }
   };
 
   const handleAddHome = async () => {
-    if (!formData.name || !formData.unique_id) return;
+    if (!formData.name) return;
     setSubmitting(true);
+    setModalError(null);
     try {
-      await api.post('/homes', formData);
+      await api.post('/homes', {
+        name: formData.name,
+        description: formData.description,
+        disabled: formData.disabled,
+      });
       setShowAddModal(false);
-      setFormData({ name: '', unique_id: '', description: '' });
+      setFormData({ name: '', description: '', disabled: false });
       fetchHomes();
-    } catch (error) {
+      onDataChange?.();
+    } catch (error: any) {
       console.error('Failed to add home:', error);
+      setModalError(error.response?.data?.message || 'Failed to add home');
     } finally {
       setSubmitting(false);
     }
@@ -184,17 +234,21 @@ export default function HomesTable() {
   const handleEditHome = async () => {
     if (!editTarget || !formData.name) return;
     setSubmitting(true);
+    setModalError(null);
     try {
       await api.put(`/homes/${editTarget.id}`, {
         name: formData.name,
         description: formData.description,
+        disabled: formData.disabled,
       });
       setShowEditModal(false);
       setEditTarget(null);
-      setFormData({ name: '', unique_id: '', description: '' });
+      setFormData({ name: '', description: '', disabled: false });
       fetchHomes();
-    } catch (error) {
+      onDataChange?.();
+    } catch (error: any) {
       console.error('Failed to edit home:', error);
+      setModalError(error.response?.data?.message || 'Failed to update home');
     } finally {
       setSubmitting(false);
     }
@@ -204,8 +258,8 @@ export default function HomesTable() {
     setEditTarget(home);
     setFormData({
       name: home.name,
-      unique_id: home.unique_id,
       description: home.description || '',
+      disabled: home.disabled,
     });
     setShowEditModal(true);
     setOpenMenuId(null);
@@ -215,6 +269,22 @@ export default function HomesTable() {
     setDeleteTarget(home);
     setShowDeleteModal(true);
     setOpenMenuId(null);
+  };
+
+  const openLink = (home: HomeData) => {
+    setLinkTarget(home);
+    setShowLinkModal(true);
+    setOpenMenuId(null);
+  };
+
+  const openAdd = () => {
+    setFormData({
+      name: '',
+      description: '',
+      disabled: false,
+    });
+    setModalError(null);
+    setShowAddModal(true);
   };
 
   const toggleSelect = (id: string) => {
@@ -269,7 +339,7 @@ export default function HomesTable() {
             <Button variant="outline" size="icon" onClick={() => fetchHomes()}>
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button onClick={() => setShowAddModal(true)} className="gap-2">
+            <Button onClick={openAdd} className="gap-2">
               <Plus className="h-4 w-4" />
               Add Home
             </Button>
@@ -328,10 +398,114 @@ export default function HomesTable() {
                     />
                   </TableHead>
                   <TableHead className="w-12"></TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Connection</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last Update</TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'name') {
+                        setSortBy('name');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Name
+                      {sortBy === 'name' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'connected') {
+                        setSortBy('connected');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Connection
+                      {sortBy === 'connected' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'disabled') {
+                        setSortBy('disabled');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Status
+                      {sortBy === 'disabled' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'last_update') {
+                        setSortBy('last_update');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Last Update
+                      {sortBy === 'last_update' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead className="w-16">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -407,6 +581,10 @@ export default function HomesTable() {
                             <Pencil className="h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openLink(home)}>
+                            <Users className="h-4 w-4" />
+                            Link Users
+                          </DropdownMenuItem>
                           <DropdownMenuItem
                             variant="destructive"
                             onClick={() => openDelete(home)}
@@ -452,7 +630,7 @@ export default function HomesTable() {
 
                             <div className="border-t border-border pt-4">
                               <h4 className="text-lg font-semibold mb-4 text-foreground">
-                                Zigbee2MQTT Configuration
+                                MQTT Configuration
                               </h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div className="bg-background/50 p-3 rounded-lg border border-border">
@@ -461,26 +639,47 @@ export default function HomesTable() {
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
-                                      {mqttConfig?.mqttHost || 'N/A'}:
-                                      {mqttConfig?.mqttPort || 'N/A'}
+                                      {visibleFields[`host-${home.id}`]
+                                        ? `${mqttConfig?.mqttHost || 'N/A'}:${mqttConfig?.mqttPort || 'N/A'}`
+                                        : '••••••••••••'}
                                     </p>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-6 w-6"
-                                      onClick={() =>
-                                        copyToClipboard(
-                                          `${mqttConfig?.mqttHost}:${mqttConfig?.mqttPort}`,
-                                          `host-${home.id}`,
-                                        )
-                                      }
-                                    >
-                                      {copiedField === `host-${home.id}` ? (
-                                        <Check className="h-3 w-3 text-emerald-500" />
-                                      ) : (
-                                        <Copy className="h-3 w-3" />
-                                      )}
-                                    </Button>
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        onClick={() =>
+                                          setVisibleFields((prev) => ({
+                                            ...prev,
+                                            [`host-${home.id}`]:
+                                              !prev[`host-${home.id}`],
+                                          }))
+                                        }
+                                      >
+                                        {visibleFields[`host-${home.id}`] ? (
+                                          <EyeOff className="h-3 w-3" />
+                                        ) : (
+                                          <Eye className="h-3 w-3" />
+                                        )}
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        onClick={() =>
+                                          copyToClipboard(
+                                            `${mqttConfig?.mqttHost}:${mqttConfig?.mqttPort}`,
+                                            `host-${home.id}`,
+                                          )
+                                        }
+                                      >
+                                        {copiedField === `host-${home.id}` ? (
+                                          <Check className="h-3 w-3 text-emerald-500" />
+                                        ) : (
+                                          <Copy className="h-3 w-3" />
+                                        )}
+                                      </Button>
+                                    </div>
                                   </div>
                                 </div>
                                 <div className="bg-background/50 p-3 rounded-lg border border-border">
@@ -489,27 +688,54 @@ export default function HomesTable() {
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
-                                      {home.mqtt_username || 'N/A'}
+                                      {visibleFields[`user-${home.id}`]
+                                        ? home.mqtt_username || 'N/A'
+                                        : '••••••••'}
                                     </p>
-                                    {home.mqtt_username && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6"
-                                        onClick={() =>
-                                          copyToClipboard(
-                                            home.mqtt_username!,
-                                            `user-${home.id}`,
-                                          )
-                                        }
-                                      >
-                                        {copiedField === `user-${home.id}` ? (
-                                          <Check className="h-3 w-3 text-emerald-500" />
-                                        ) : (
-                                          <Copy className="h-3 w-3" />
-                                        )}
-                                      </Button>
-                                    )}
+                                    <div className="flex gap-1">
+                                      {home.mqtt_username && (
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              setVisibleFields((prev) => ({
+                                                ...prev,
+                                                [`user-${home.id}`]:
+                                                  !prev[`user-${home.id}`],
+                                              }))
+                                            }
+                                          >
+                                            {visibleFields[
+                                              `user-${home.id}`
+                                            ] ? (
+                                              <EyeOff className="h-3 w-3" />
+                                            ) : (
+                                              <Eye className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              copyToClipboard(
+                                                home.mqtt_username!,
+                                                `user-${home.id}`,
+                                              )
+                                            }
+                                          >
+                                            {copiedField ===
+                                            `user-${home.id}` ? (
+                                              <Check className="h-3 w-3 text-emerald-500" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                                 <div className="bg-background/50 p-3 rounded-lg border border-border">
@@ -518,27 +744,54 @@ export default function HomesTable() {
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
-                                      {home.mqtt_password || 'N/A'}
+                                      {visibleFields[`pass-${home.id}`]
+                                        ? home.mqtt_password || 'N/A'
+                                        : '••••••••'}
                                     </p>
-                                    {home.mqtt_password && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6"
-                                        onClick={() =>
-                                          copyToClipboard(
-                                            home.mqtt_password!,
-                                            `pass-${home.id}`,
-                                          )
-                                        }
-                                      >
-                                        {copiedField === `pass-${home.id}` ? (
-                                          <Check className="h-3 w-3 text-emerald-500" />
-                                        ) : (
-                                          <Copy className="h-3 w-3" />
-                                        )}
-                                      </Button>
-                                    )}
+                                    <div className="flex gap-1">
+                                      {home.mqtt_password && (
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              setVisibleFields((prev) => ({
+                                                ...prev,
+                                                [`pass-${home.id}`]:
+                                                  !prev[`pass-${home.id}`],
+                                              }))
+                                            }
+                                          >
+                                            {visibleFields[
+                                              `pass-${home.id}`
+                                            ] ? (
+                                              <EyeOff className="h-3 w-3" />
+                                            ) : (
+                                              <Eye className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              copyToClipboard(
+                                                home.mqtt_password!,
+                                                `pass-${home.id}`,
+                                              )
+                                            }
+                                          >
+                                            {copiedField ===
+                                            `pass-${home.id}` ? (
+                                              <Check className="h-3 w-3 text-emerald-500" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                                 <div className="bg-background/50 p-3 rounded-lg border border-border">
@@ -547,27 +800,54 @@ export default function HomesTable() {
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
-                                      {home.mqtt_username || 'N/A'}
+                                      {visibleFields[`client-${home.id}`]
+                                        ? home.mqtt_username || 'N/A'
+                                        : '••••••••'}
                                     </p>
-                                    {home.mqtt_username && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6"
-                                        onClick={() =>
-                                          copyToClipboard(
-                                            home.mqtt_username!,
-                                            `client-${home.id}`,
-                                          )
-                                        }
-                                      >
-                                        {copiedField === `client-${home.id}` ? (
-                                          <Check className="h-3 w-3 text-emerald-500" />
-                                        ) : (
-                                          <Copy className="h-3 w-3" />
-                                        )}
-                                      </Button>
-                                    )}
+                                    <div className="flex gap-1">
+                                      {home.mqtt_username && (
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              setVisibleFields((prev) => ({
+                                                ...prev,
+                                                [`client-${home.id}`]:
+                                                  !prev[`client-${home.id}`],
+                                              }))
+                                            }
+                                          >
+                                            {visibleFields[
+                                              `client-${home.id}`
+                                            ] ? (
+                                              <EyeOff className="h-3 w-3" />
+                                            ) : (
+                                              <Eye className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              copyToClipboard(
+                                                home.mqtt_username!,
+                                                `client-${home.id}`,
+                                              )
+                                            }
+                                          >
+                                            {copiedField ===
+                                            `client-${home.id}` ? (
+                                              <Check className="h-3 w-3 text-emerald-500" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                                 <div className="bg-background/50 p-3 rounded-lg border border-border md:col-span-2">
@@ -576,27 +856,54 @@ export default function HomesTable() {
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
-                                      home/id/{home.mqtt_username}
+                                      {visibleFields[`topic-${home.id}`]
+                                        ? `home/id/${home.mqtt_username}`
+                                        : '••••••••••••••'}
                                     </p>
-                                    {home.mqtt_username && (
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6"
-                                        onClick={() =>
-                                          copyToClipboard(
-                                            `home/id/${home.mqtt_username}`,
-                                            `topic-${home.id}`,
-                                          )
-                                        }
-                                      >
-                                        {copiedField === `topic-${home.id}` ? (
-                                          <Check className="h-3 w-3 text-emerald-500" />
-                                        ) : (
-                                          <Copy className="h-3 w-3" />
-                                        )}
-                                      </Button>
-                                    )}
+                                    <div className="flex gap-1">
+                                      {home.mqtt_username && (
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              setVisibleFields((prev) => ({
+                                                ...prev,
+                                                [`topic-${home.id}`]:
+                                                  !prev[`topic-${home.id}`],
+                                              }))
+                                            }
+                                          >
+                                            {visibleFields[
+                                              `topic-${home.id}`
+                                            ] ? (
+                                              <EyeOff className="h-3 w-3" />
+                                            ) : (
+                                              <Eye className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              copyToClipboard(
+                                                `home/id/${home.mqtt_username}`,
+                                                `topic-${home.id}`,
+                                              )
+                                            }
+                                          >
+                                            {copiedField ===
+                                            `topic-${home.id}` ? (
+                                              <Check className="h-3 w-3 text-emerald-500" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
@@ -611,10 +918,36 @@ export default function HomesTable() {
             </Table>
 
             <div className="flex items-center justify-between mt-4">
-              <span className="text-sm text-muted-foreground">
-                Showing {homes.length} of {meta.itemCount} homes
-              </span>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">
+                  Total: {meta.itemCount} items
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Show:</span>
+                  <select
+                    value={take}
+                    onChange={(e) => {
+                      setTake(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(1)}
+                  disabled={meta.page === 1}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -633,6 +966,14 @@ export default function HomesTable() {
                   disabled={!meta.hasNextPage}
                 >
                   <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(meta.pageCount)}
+                  disabled={meta.page === meta.pageCount}
+                >
+                  <ChevronsRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>
@@ -661,16 +1002,6 @@ export default function HomesTable() {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Unique ID *</label>
-              <Input
-                placeholder="home-001"
-                value={formData.unique_id}
-                onChange={(e) =>
-                  setFormData({ ...formData, unique_id: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
               <label className="text-sm font-medium">Description</label>
               <Input
                 placeholder="Optional description"
@@ -680,9 +1011,35 @@ export default function HomesTable() {
                 }
               />
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="disabled_add"
+                checked={formData.disabled}
+                onChange={(e) =>
+                  setFormData({ ...formData, disabled: e.target.checked })
+                }
+                className="h-4 w-4 rounded border-border"
+              />
+              <label htmlFor="disabled_add" className="text-sm font-medium">
+                Disabled
+              </label>
+            </div>
           </div>
+          {modalError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {modalError}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddModal(false);
+                setModalError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={handleAddHome} disabled={submitting}>
@@ -721,9 +1078,35 @@ export default function HomesTable() {
                 }
               />
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="disabled_edit"
+                checked={formData.disabled}
+                onChange={(e) =>
+                  setFormData({ ...formData, disabled: e.target.checked })
+                }
+                className="h-4 w-4 rounded border-border"
+              />
+              <label htmlFor="disabled_edit" className="text-sm font-medium">
+                Disabled
+              </label>
+            </div>
           </div>
+          {modalError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {modalError}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditModal(false);
+                setModalError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={handleEditHome} disabled={submitting}>
@@ -744,8 +1127,20 @@ export default function HomesTable() {
               action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {modalError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {modalError}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteModal(false);
+                setModalError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
@@ -754,6 +1149,24 @@ export default function HomesTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Link Users Modal */}
+      {linkTarget && (
+        <LinkDialog
+          open={showLinkModal}
+          onClose={() => {
+            setShowLinkModal(false);
+            setLinkTarget(null);
+            fetchHomes();
+          }}
+          title={`Link Users to "${linkTarget.name}"`}
+          entityId={linkTarget.id}
+          fetchUrl={`/homes/${linkTarget.id}/users`}
+          saveUrl="/homes/users/link"
+          itemLabelKey="name"
+          itemsKey="users"
+        />
+      )}
     </Card>
   );
 }
