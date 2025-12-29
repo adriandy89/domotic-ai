@@ -44,6 +44,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import { useAuthStore } from '../../store/useAuthStore';
 
 interface UserData {
   id: string;
@@ -114,10 +115,12 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkTarget, setLinkTarget] = useState<UserData | null>(null);
+  const { user: currentUser } = useAuthStore();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
+    phone: '',
     role: 'USER',
     is_active: true,
   });
@@ -191,6 +194,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         name: formData.name,
         email: formData.email,
         password: formData.password,
+        phone: formData.phone || undefined,
         role: formData.role,
         is_active: formData.is_active,
       });
@@ -199,6 +203,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         name: '',
         email: '',
         password: '',
+        phone: '',
         role: 'USER',
         is_active: true,
       });
@@ -219,6 +224,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
     try {
       await api.put(`/users/${editTarget.id}`, {
         name: formData.name,
+        phone: formData.phone || undefined,
         role: formData.role,
         is_active: formData.is_active,
       });
@@ -228,6 +234,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         name: '',
         email: '',
         password: '',
+        phone: '',
         role: 'USER',
         is_active: true,
       });
@@ -247,6 +254,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       name: user.name,
       email: user.email,
       password: '',
+      phone: user.phone || '',
       role: user.role,
       is_active: user.is_active,
     });
@@ -271,6 +279,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       name: '',
       email: '',
       password: '',
+      phone: '',
       role: 'USER',
       is_active: true,
     });
@@ -576,9 +585,36 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                       </TableCell>
                       <TableCell>
                         {user.is_org_admin ? (
-                          <span className="text-xs text-muted-foreground">
-                            Protected
-                          </span>
+                          currentUser?.id === user.id ? (
+                            <DropdownMenu
+                              open={openMenuId === user.id}
+                              onOpenChange={(open) =>
+                                setOpenMenuId(open ? user.id : null)
+                              }
+                              trigger={
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8"
+                                >
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              }
+                            >
+                              <DropdownMenuItem onClick={() => openEdit(user)}>
+                                <Pencil className="h-4 w-4" />
+                                Edit Profile
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openLink(user)}>
+                                <Home className="h-4 w-4" />
+                                Link Homes
+                              </DropdownMenuItem>
+                            </DropdownMenu>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">
+                              Protected
+                            </span>
+                          )
                         ) : (
                           <DropdownMenu
                             open={openMenuId === user.id}
@@ -785,6 +821,16 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
               />
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-medium">Phone</label>
+              <Input
+                placeholder="34666555444"
+                value={formData.phone}
+                onChange={(e) =>
+                  setFormData({ ...formData, phone: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-medium">Role</label>
               <select
                 value={formData.role}
@@ -855,13 +901,24 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
               />
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-medium">Phone</label>
+              <Input
+                placeholder="34666555444"
+                value={formData.phone}
+                onChange={(e) =>
+                  setFormData({ ...formData, phone: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-medium">Role</label>
               <select
                 value={formData.role}
                 onChange={(e) =>
                   setFormData({ ...formData, role: e.target.value })
                 }
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                disabled={editTarget?.is_org_admin}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="USER">User</option>
                 <option value="MANAGER">Manager</option>
@@ -876,7 +933,8 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                 onChange={(e) =>
                   setFormData({ ...formData, is_active: e.target.checked })
                 }
-                className="h-4 w-4 rounded border-border"
+                disabled={editTarget?.is_org_admin}
+                className="h-4 w-4 rounded border-border disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <label htmlFor="is_active_edit" className="text-sm font-medium">
                 Active

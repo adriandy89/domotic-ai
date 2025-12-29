@@ -27,7 +27,7 @@ export class CreateUserDto {
   // phone
   @ApiProperty({
     description: 'phone with country code',
-    example: '341234567890',
+    example: '34692789012',
     minLength: 8,
     maxLength: 32,
     required: false,
