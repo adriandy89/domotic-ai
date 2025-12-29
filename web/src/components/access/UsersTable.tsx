@@ -20,6 +20,7 @@ import {
   DialogDescription,
 } from '../ui/dialog';
 import { DropdownMenu, DropdownMenuItem } from '../ui/dropdown-menu';
+import { LinkDialog } from './LinkDialog';
 import {
   Users,
   Plus,
@@ -36,6 +37,8 @@ import {
   Pencil,
   Trash2,
   Shield,
+  Home,
+  AlertCircle,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
@@ -45,7 +48,7 @@ interface UserData {
   email: string;
   phone: string | null;
   role: string;
-  disabled: boolean;
+  is_active: boolean;
   is_org_admin: boolean;
   attributes: Record<string, unknown> | null;
   created_at: string;
@@ -64,7 +67,11 @@ interface PaginatedResponse<T> {
   };
 }
 
-export default function UsersTable() {
+interface UsersTableProps {
+  onDataChange?: () => void;
+}
+
+export default function UsersTable({ onDataChange }: UsersTableProps) {
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -86,13 +93,17 @@ export default function UsersTable() {
   const [deleteTarget, setDeleteTarget] = useState<UserData | null>(null);
   const [editTarget, setEditTarget] = useState<UserData | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkTarget, setLinkTarget] = useState<UserData | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     role: 'USER',
+    is_active: true,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [modalError, setModalError] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -126,6 +137,7 @@ export default function UsersTable() {
       await api.put(url, { uuids: selectedIds });
       setSelectedIds([]);
       fetchUsers();
+      onDataChange?.();
     } catch (error) {
       console.error('Failed to toggle status:', error);
     }
@@ -137,22 +149,40 @@ export default function UsersTable() {
       await api.delete(`/users/${deleteTarget.id}`);
       setDeleteTarget(null);
       setShowDeleteModal(false);
+      setModalError(null);
       fetchUsers();
-    } catch (error) {
+      onDataChange?.();
+    } catch (error: any) {
       console.error('Failed to delete user:', error);
+      setModalError(error.response?.data?.message || 'Failed to delete user');
     }
   };
 
   const handleAddUser = async () => {
     if (!formData.name || !formData.email || !formData.password) return;
     setSubmitting(true);
+    setModalError(null);
     try {
-      await api.post('/users', formData);
+      await api.post('/users', {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        is_active: formData.is_active,
+      });
       setShowAddModal(false);
-      setFormData({ name: '', email: '', password: '', role: 'USER' });
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        role: 'USER',
+        is_active: true,
+      });
       fetchUsers();
-    } catch (error) {
+      onDataChange?.();
+    } catch (error: any) {
       console.error('Failed to add user:', error);
+      setModalError(error.response?.data?.message || 'Failed to add user');
     } finally {
       setSubmitting(false);
     }
@@ -161,17 +191,27 @@ export default function UsersTable() {
   const handleEditUser = async () => {
     if (!editTarget || !formData.name) return;
     setSubmitting(true);
+    setModalError(null);
     try {
       await api.put(`/users/${editTarget.id}`, {
         name: formData.name,
         role: formData.role,
+        is_active: formData.is_active,
       });
       setShowEditModal(false);
       setEditTarget(null);
-      setFormData({ name: '', email: '', password: '', role: 'USER' });
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        role: 'USER',
+        is_active: true,
+      });
       fetchUsers();
-    } catch (error) {
+      onDataChange?.();
+    } catch (error: any) {
       console.error('Failed to edit user:', error);
+      setModalError(error.response?.data?.message || 'Failed to update user');
     } finally {
       setSubmitting(false);
     }
@@ -184,6 +224,7 @@ export default function UsersTable() {
       email: user.email,
       password: '',
       role: user.role,
+      is_active: user.is_active,
     });
     setShowEditModal(true);
     setOpenMenuId(null);
@@ -192,6 +233,12 @@ export default function UsersTable() {
   const openDelete = (user: UserData) => {
     setDeleteTarget(user);
     setShowDeleteModal(true);
+    setOpenMenuId(null);
+  };
+
+  const openLink = (user: UserData) => {
+    setLinkTarget(user);
+    setShowLinkModal(true);
     setOpenMenuId(null);
   };
 
@@ -382,9 +429,9 @@ export default function UsersTable() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant={user.disabled ? 'destructive' : 'success'}
+                          variant={user.is_active ? 'success' : 'destructive'}
                         >
-                          {user.disabled ? 'Disabled' : 'Enabled'}
+                          {user.is_active ? 'Enabled' : 'Disabled'}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -411,6 +458,10 @@ export default function UsersTable() {
                             <DropdownMenuItem onClick={() => openEdit(user)}>
                               <Pencil className="h-4 w-4" />
                               Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => openLink(user)}>
+                              <Home className="h-4 w-4" />
+                              Link Homes
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               variant="destructive"
@@ -573,9 +624,35 @@ export default function UsersTable() {
                 <option value="ADMIN">Admin</option>
               </select>
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_active_add"
+                checked={formData.is_active}
+                onChange={(e) =>
+                  setFormData({ ...formData, is_active: e.target.checked })
+                }
+                className="h-4 w-4 rounded border-border"
+              />
+              <label htmlFor="is_active_add" className="text-sm font-medium">
+                Active
+              </label>
+            </div>
           </div>
+          {modalError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {modalError}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowAddModal(false);
+                setModalError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={handleAddUser} disabled={submitting}>
@@ -617,9 +694,35 @@ export default function UsersTable() {
                 <option value="ADMIN">Admin</option>
               </select>
             </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="is_active_edit"
+                checked={formData.is_active}
+                onChange={(e) =>
+                  setFormData({ ...formData, is_active: e.target.checked })
+                }
+                className="h-4 w-4 rounded border-border"
+              />
+              <label htmlFor="is_active_edit" className="text-sm font-medium">
+                Active
+              </label>
+            </div>
           </div>
+          {modalError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {modalError}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowEditModal(false);
+                setModalError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button onClick={handleEditUser} disabled={submitting}>
@@ -639,8 +742,20 @@ export default function UsersTable() {
               action cannot be undone.
             </DialogDescription>
           </DialogHeader>
+          {modalError && (
+            <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {modalError}
+            </div>
+          )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteModal(false);
+                setModalError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
@@ -649,6 +764,24 @@ export default function UsersTable() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Link Homes Modal */}
+      {linkTarget && (
+        <LinkDialog
+          open={showLinkModal}
+          onClose={() => {
+            setShowLinkModal(false);
+            setLinkTarget(null);
+            fetchUsers();
+          }}
+          title={`Link Homes to "${linkTarget.name}"`}
+          entityId={linkTarget.id}
+          fetchUrl={`/users/${linkTarget.id}/homes`}
+          saveUrl="/users/homes/link"
+          itemLabelKey="name"
+          itemsKey="homes"
+        />
+      )}
     </Card>
   );
 }
