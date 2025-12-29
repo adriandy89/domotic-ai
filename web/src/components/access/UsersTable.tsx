@@ -27,6 +27,8 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   ChevronDown,
   ChevronUp,
   ToggleLeft,
@@ -72,10 +74,26 @@ interface UsersTableProps {
 }
 
 export default function UsersTable({ onDataChange }: UsersTableProps) {
+  const getStoredPageSize = () => {
+    const stored = localStorage.getItem('usersTable_pageSize');
+    if (stored) {
+      const num = parseInt(stored, 10);
+      if (!isNaN(num) && num >= 5 && num <= 50) return num;
+    }
+    return 10;
+  };
+
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
-  const [take] = useState(10);
+  const [take, setTakeState] = useState(getStoredPageSize);
+
+  const setTake = (value: number) => {
+    const validValue = Math.max(5, Math.min(50, value));
+    setTakeState(validValue);
+    localStorage.setItem('usersTable_pageSize', String(validValue));
+  };
+
   const [search, setSearch] = useState('');
   const [meta, setMeta] = useState({
     page: 1,
@@ -540,10 +558,36 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
             </Table>
 
             <div className="flex items-center justify-between mt-4">
-              <span className="text-sm text-muted-foreground">
-                Showing {users.length} of {meta.itemCount} users
-              </span>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-muted-foreground">
+                  Total: {meta.itemCount} items
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">Show:</span>
+                  <select
+                    value={take}
+                    onChange={(e) => {
+                      setTake(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
               <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(1)}
+                  disabled={meta.page === 1}
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
                 <Button
                   variant="outline"
                   size="sm"
@@ -562,6 +606,14 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                   disabled={!meta.hasNextPage}
                 >
                   <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage(meta.pageCount)}
+                  disabled={meta.page === meta.pageCount}
+                >
+                  <ChevronsRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>
