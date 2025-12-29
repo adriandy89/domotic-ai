@@ -276,7 +276,7 @@ export class UserService {
       //     }
       //   });
       // }
-      await this.refreshUserRulesSchedules([id]);
+      // await this.refreshUserRulesSchedules([id]);
       return { ok: true, data: updated };
     } catch (error) {
       if (error.code === 'P2025') throw new Error('not found');
@@ -326,7 +326,7 @@ export class UserService {
       // }
       // const redisKeyAllUsersIds = `h-users-ids`;
       // await this.cacheService.sRem(redisKeyAllUsersIds, id.toString());
-      await this.refreshUserRulesSchedules([id]);
+      // await this.refreshUserRulesSchedules([id]);
       return { ok: true, data: deleted };
     } catch (error) {
       throw new Error(error);
@@ -415,7 +415,7 @@ export class UserService {
           is_active: false,
         },
       });
-      await this.refreshUserRulesSchedules(ids);
+      // await this.refreshUserRulesSchedules(ids);
       return { ok: true };
     } catch (error) {
       throw new Error(error);
@@ -468,7 +468,7 @@ export class UserService {
           is_active: true,
         },
       });
-      await this.refreshUserRulesSchedules(ids);
+      // await this.refreshUserRulesSchedules(ids);
       return { ok: true };
     } catch (error) {
       throw new Error(error);
@@ -483,7 +483,7 @@ export class UserService {
   }
 
   // ! User - Home
-  async findAllHomesLinks(userId: string, organization_id: string) {
+  async findAllHomesLinks(user_id: string, organization_id: string) {
     const homes = await this.dbService.home.findMany({
       where: { organization_id },
       select: {
@@ -494,7 +494,7 @@ export class UserService {
       },
     });
     const userHomes = await this.dbService.userHome.findMany({
-      where: { user_id: userId },
+      where: { user_id },
       select: { home_id: true },
     });
     const linkedHomeIds = new Set(userHomes.map((ud) => ud.home_id));
@@ -505,126 +505,51 @@ export class UserService {
     return { homes: homesWithLinks ?? [] };
   }
 
-  async linksHomesUser(data: LinksUUIDsDto, organization_id: string) {
+  async linksHomesUsers(data: LinksUUIDsDto, organization_id: string) {
     try {
-      const verifyPermissions = await this.verifyOrganizationHomesAccess(
+      const verifyHomesPermissions = await this.verifyOrganizationHomesAccess(
         [...data.toDelete, ...data.toUpdate],
         organization_id,
       );
-      if (!verifyPermissions.ok) {
-        throw new Error('Access denied to all request homes');
+      const verifyUsersPermissions = await this.verifyOrganizationUsersAccess(
+        data.uuids,
+        organization_id,
+      );
+      if (!verifyHomesPermissions.ok || !verifyUsersPermissions.ok) {
+        throw new Error('Access denied to all request homes or users');
       }
       await Promise.all(
-        data.uuids.map((userId) => {
+        data.uuids.map((user_id) => {
           return this.dbService.userHome.createMany({
-            data: data.toUpdate.map((homeId) => ({
-              home_id: homeId,
-              user_id: userId,
+            data: data.toUpdate.map((home_id) => ({
+              home_id,
+              user_id,
             })),
+            skipDuplicates: true,
           });
         }),
       );
-      // ! Add to cache
-      // if (data.toUpdate.length > 0) {
-      //   const toAddToCache = await this.dbService.home.findMany({
-      //     where: {
-      //       id: {
-      //         in: data.toUpdate,
-      //       },
-      //       disabled: false,
-      //       organization_id: meta.organization_id,
-      //     },
-      //     select: {
-      //       id: true,
-      //       users: {
-      //         select: {
-      //           user: {
-      //             select: {
-      //               id: true,
-      //               is_active: true,
-      //             },
-      //           },
-      //         },
-      //       },
-      //     },
-      //   });
-      //   // ! Add users to cache homes
-      //   await Promise.all(
-      //     toAddToCache.map(async (home) => {
-      //       home.users?.map(async (user) => {
-      //         if (user.user?.is_active) {
-      //           const redisKey = `h-user-id:${user.user.id}:homes-id`;
-      //           await this.cacheService.sAdd(redisKey, home.id.toString());
-      //         }
-      //       });
-      //     }),
-      //   );
-      // }
-      // // ! Delete from cache
-      // if (data.toDelete.length > 0) {
-      //   const toDeleteFromCache = await this.dbService.home.findMany({
-      //     where: {
-      //       id: {
-      //         in: data.toDelete,
-      //       },
-      //       disabled: false,
-      //       organization_id: meta.organization_id,
-      //     },
-      //     select: {
-      //       id: true,
-      //       users: {
-      //         select: {
-      //           user: {
-      //             select: {
-      //               id: true,
-      //               is_active: true,
-      //             },
-      //           },
-      //         },
-      //       },
-      //     },
-      //   });
-      //   // ! Delete users from cache homes
-      //   await Promise.all(
-      //     toDeleteFromCache.map(async (home) => {
-      //       home.users?.map(async (user) => {
-      //         if (user.user?.is_active) {
-      //           const redisKey = `h-user-id:${user.user.id}:homes-id`;
-      //           await this.cacheService.sRem(redisKey, home.id.toString());
-      //         }
-      //       });
-      //     }),
-      //   );
-      // }
       await Promise.all(
-        data.uuids.map((userId) => {
+        data.uuids.map((user_id) => {
           return this.dbService.userHome.deleteMany({
             where: {
               home_id: {
                 in: data.toDelete,
               },
-              user_id: userId,
+              user_id,
             },
           });
         }),
       );
-      await this.refreshUserRulesSchedules(data.uuids);
+      // await this.refreshUserRulesSchedules(data.uuids);
       return { ok: true };
     } catch (error) {
       throw new Error(error);
     }
   }
 
-  async refreshUserRulesSchedules(userIds: string[]) {
-    await this.natsClient.emit('rules.refresh_users_rules', { userIds });
-    await this.natsClient.emit('schedules.refresh_users_schedules', { userIds });
-    // userIds.map((id) => {
-    //   this.natsClient.emit('rules.refresh_user_rules', {
-    //     meta: { id },
-    //   });
-    //   this.natsClient.emit('schedules.refresh_user_schedules', {
-    //     meta: { id },
-    //   });
-    // });
-  }
+  // async refreshUserRulesSchedules(userIds: string[]) {
+  //   await this.natsClient.emit('rules.refresh_users_rules', { userIds });
+  //   await this.natsClient.emit('schedules.refresh_users_schedules', { userIds });
+  // }
 }

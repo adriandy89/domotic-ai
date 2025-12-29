@@ -160,7 +160,7 @@ export class UserController {
   @UseGuards(PermissionsGuard)
   async linkHomes(@Body() data: LinksUUIDsDto, @GetUserInfo() user: SessionUser) {
     try {
-      return await this.userService.linksHomesUser(data, user.organization_id);
+      return await this.userService.linksHomesUsers(data, user.organization_id);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
