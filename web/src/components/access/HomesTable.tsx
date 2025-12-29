@@ -31,6 +31,7 @@ import {
   ChevronsRight,
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
   ToggleLeft,
   ToggleRight,
   Loader2,
@@ -139,12 +140,17 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
   const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>(
     {},
   );
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
 
   const fetchHomes = useCallback(async () => {
     setLoading(true);
     try {
       let url = `/homes?page=${page}&take=${take}`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (sortBy && sortOrder) {
+        url += `&orderBy=${sortBy}&sortOrder=${sortOrder}`;
+      }
 
       const response = await api.get<PaginatedResponse<HomeData>>(url);
       setHomes(response.data.data);
@@ -154,7 +160,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
     } finally {
       setLoading(false);
     }
-  }, [page, take, search]);
+  }, [page, take, search, sortBy, sortOrder]);
 
   const fetchMqttConfig = useCallback(async () => {
     try {
@@ -271,6 +277,16 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
     setOpenMenuId(null);
   };
 
+  const openAdd = () => {
+    setFormData({
+      name: '',
+      description: '',
+      disabled: false,
+    });
+    setModalError(null);
+    setShowAddModal(true);
+  };
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id],
@@ -323,7 +339,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
             <Button variant="outline" size="icon" onClick={() => fetchHomes()}>
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button onClick={() => setShowAddModal(true)} className="gap-2">
+            <Button onClick={openAdd} className="gap-2">
               <Plus className="h-4 w-4" />
               Add Home
             </Button>
@@ -382,10 +398,114 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                     />
                   </TableHead>
                   <TableHead className="w-12"></TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Connection</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Last Update</TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'name') {
+                        setSortBy('name');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Name
+                      {sortBy === 'name' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'connected') {
+                        setSortBy('connected');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Connection
+                      {sortBy === 'connected' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'disabled') {
+                        setSortBy('disabled');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Status
+                      {sortBy === 'disabled' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'last_update') {
+                        setSortBy('last_update');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Last Update
+                      {sortBy === 'last_update' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead className="w-16">Actions</TableHead>
                 </TableRow>
               </TableHeader>

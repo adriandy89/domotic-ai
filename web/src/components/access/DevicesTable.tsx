@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useHomesStore } from '../../store/useHomesStore';
 import {
   Table,
   TableBody,
@@ -30,6 +31,7 @@ import {
   ChevronsRight,
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
   ToggleLeft,
   ToggleRight,
   Loader2,
@@ -118,15 +120,23 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
     unique_id: '',
     category: '',
     description: '',
+    disabled: false,
+    home_id: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
+  const { homes, homeIds } = useHomesStore();
 
   const fetchDevices = useCallback(async () => {
     setLoading(true);
     try {
       let url = `/devices?page=${page}&take=${take}`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (sortBy && sortOrder) {
+        url += `&orderBy=${sortBy}&sortOrder=${sortOrder}`;
+      }
 
       const response = await api.get<PaginatedResponse<DeviceData>>(url);
       setDevices(response.data.data);
@@ -136,7 +146,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
     } finally {
       setLoading(false);
     }
-  }, [page, take, search]);
+  }, [page, take, search, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchDevices();
@@ -176,13 +186,27 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
   };
 
   const handleAddDevice = async () => {
-    if (!formData.name || !formData.unique_id) return;
+    if (!formData.name || !formData.unique_id || !formData.home_id) return;
     setSubmitting(true);
     setModalError(null);
     try {
-      await api.post('/devices', formData);
+      await api.post('/devices', {
+        name: formData.name,
+        unique_id: formData.unique_id,
+        category: formData.category,
+        description: formData.description,
+        disabled: formData.disabled,
+        home_id: formData.home_id,
+      });
       setShowAddModal(false);
-      setFormData({ name: '', unique_id: '', category: '', description: '' });
+      setFormData({
+        name: '',
+        unique_id: '',
+        category: '',
+        description: '',
+        disabled: false,
+        home_id: '',
+      });
       fetchDevices();
       onDataChange?.();
     } catch (error: any) {
@@ -202,10 +226,19 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
         name: formData.name,
         category: formData.category,
         description: formData.description,
+        disabled: formData.disabled,
+        home_id: formData.home_id || undefined,
       });
       setShowEditModal(false);
       setEditTarget(null);
-      setFormData({ name: '', unique_id: '', category: '', description: '' });
+      setFormData({
+        name: '',
+        unique_id: '',
+        category: '',
+        description: '',
+        disabled: false,
+        home_id: '',
+      });
       fetchDevices();
       onDataChange?.();
     } catch (error: any) {
@@ -223,6 +256,8 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
       unique_id: device.unique_id,
       category: device.category || '',
       description: device.description || '',
+      disabled: device.disabled,
+      home_id: device.home_id || '',
     });
     setShowEditModal(true);
     setOpenMenuId(null);
@@ -232,6 +267,19 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
     setDeleteTarget(device);
     setShowDeleteModal(true);
     setOpenMenuId(null);
+  };
+
+  const openAdd = () => {
+    setFormData({
+      name: '',
+      unique_id: '',
+      category: '',
+      description: '',
+      disabled: false,
+      home_id: '',
+    });
+    setModalError(null);
+    setShowAddModal(true);
   };
 
   const toggleSelect = (id: string) => {
@@ -284,7 +332,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button onClick={() => setShowAddModal(true)} className="gap-2">
+            <Button onClick={openAdd} className="gap-2">
               <Plus className="h-4 w-4" />
               Add Device
             </Button>
@@ -344,11 +392,115 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                     />
                   </TableHead>
                   <TableHead className="w-12"></TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Category</TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'name') {
+                        setSortBy('name');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Name
+                      {sortBy === 'name' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'category') {
+                        setSortBy('category');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Category
+                      {sortBy === 'category' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead>Home</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Updated At</TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'disabled') {
+                        setSortBy('disabled');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Status
+                      {sortBy === 'disabled' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'updated_at') {
+                        setSortBy('updated_at');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Updated At
+                      {sortBy === 'updated_at' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead className="w-16">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -606,6 +758,37 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                 }
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Home *</label>
+              <select
+                value={formData.home_id}
+                onChange={(e) =>
+                  setFormData({ ...formData, home_id: e.target.value })
+                }
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Select a home...</option>
+                {homeIds.map((id) => (
+                  <option key={id} value={id}>
+                    {homes[id]?.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="add-disabled"
+                checked={formData.disabled}
+                onChange={(e) =>
+                  setFormData({ ...formData, disabled: e.target.checked })
+                }
+                className="rounded border-border"
+              />
+              <label htmlFor="add-disabled" className="text-sm font-medium">
+                Disabled
+              </label>
+            </div>
           </div>
           {modalError && (
             <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
@@ -667,6 +850,37 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                   setFormData({ ...formData, description: e.target.value })
                 }
               />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Home</label>
+              <select
+                value={formData.home_id}
+                onChange={(e) =>
+                  setFormData({ ...formData, home_id: e.target.value })
+                }
+                className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Select a home...</option>
+                {homeIds.map((id) => (
+                  <option key={id} value={id}>
+                    {homes[id]?.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="edit-disabled"
+                checked={formData.disabled}
+                onChange={(e) =>
+                  setFormData({ ...formData, disabled: e.target.checked })
+                }
+                className="rounded border-border"
+              />
+              <label htmlFor="edit-disabled" className="text-sm font-medium">
+                Disabled
+              </label>
             </div>
           </div>
           {modalError && (

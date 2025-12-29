@@ -31,6 +31,7 @@ import {
   ChevronsRight,
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
   ToggleLeft,
   ToggleRight,
   Loader2,
@@ -122,12 +123,17 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<string | null>(null);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
       let url = `/users?page=${page}&take=${take}`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (sortBy && sortOrder) {
+        url += `&orderBy=${sortBy}&sortOrder=${sortOrder}`;
+      }
 
       const response = await api.get<PaginatedResponse<UserData>>(url);
       setUsers(response.data.data);
@@ -137,7 +143,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
     } finally {
       setLoading(false);
     }
-  }, [page, take, search]);
+  }, [page, take, search, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchUsers();
@@ -260,6 +266,18 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
     setOpenMenuId(null);
   };
 
+  const openAdd = () => {
+    setFormData({
+      name: '',
+      email: '',
+      password: '',
+      role: 'USER',
+      is_active: true,
+    });
+    setModalError(null);
+    setShowAddModal(true);
+  };
+
   // Exclude org admins from selectable users
   const selectableUsers = users.filter((u) => !u.is_org_admin);
 
@@ -322,7 +340,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
             <Button variant="outline" size="icon" onClick={() => fetchUsers()}>
               <RefreshCw className="h-4 w-4" />
             </Button>
-            <Button onClick={() => setShowAddModal(true)} className="gap-2">
+            <Button onClick={openAdd} className="gap-2">
               <Plus className="h-4 w-4" />
               Add User
             </Button>
@@ -382,10 +400,114 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                     />
                   </TableHead>
                   <TableHead className="w-12"></TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'name') {
+                        setSortBy('name');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Name
+                      {sortBy === 'name' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'email') {
+                        setSortBy('email');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Email
+                      {sortBy === 'email' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'role') {
+                        setSortBy('role');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Role
+                      {sortBy === 'role' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'is_active') {
+                        setSortBy('is_active');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Status
+                      {sortBy === 'is_active' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead className="w-16">Actions</TableHead>
                 </TableRow>
               </TableHeader>
