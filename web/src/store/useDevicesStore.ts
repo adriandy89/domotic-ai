@@ -88,6 +88,7 @@ interface DevicesState {
 
     // Actions
     setDevices: (devices: Device[]) => void;
+    fetchDevices: () => Promise<void>;
     fetchDevicesData: () => Promise<void>;
     updateDevice: (deviceId: string, updates: Partial<Device>) => void;
     updateDeviceAttributes: (deviceId: string, attributes: Partial<DeviceAttributes>) => void;
@@ -141,6 +142,29 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
         } catch (error) {
             console.error('Failed to fetch devices data', error);
             set({ isLoadingData: false, error: 'Failed to fetch devices data' });
+        }
+    },
+
+    fetchDevices: async () => {
+        set({ isLoading: true });
+        try {
+            // We use the same endpoint as DevicesTable but without pagination to get all devices for the map state
+            // Or if backend supports unpaginated list. 
+            // DevicesTable uses /devices?page=...&take=...
+            // If we want all devices, we might need a param or loop. 
+            // For now let's assume /devices/all or just /devices with large limit?
+            // Actually, usually store should hold all devices for client side filtering?
+            // Let's assume user has a reasonable amount of devices or use existing logic.
+            // But currently DevicesTable handles fetching. 
+            // Let's try to fetch all devices.
+            const response = await api.get<{ data: Device[] }>('/devices?take=1000'); // Temporary large limit
+            if (response.data?.data) {
+                get().setDevices(response.data.data);
+            }
+            set({ isLoading: false });
+        } catch (error) {
+            console.error('Failed to fetch devices', error);
+            set({ isLoading: false, error: 'Failed to fetch devices' });
         }
     },
 

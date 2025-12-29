@@ -3,6 +3,7 @@ export * from './create-home-users.dto';
 export * from './create-home.dto';
 export * from './find-by-home-id.dto';
 export * from './find-home.dto';
+export * from './home-attributes.dto';
 export * from './home-page-meta.dto';
 export * from './home-page-options.dto';
 export * from './home-page.dto';

@@ -1005,6 +1005,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
             setShowLinkModal(false);
             setLinkTarget(null);
             fetchUsers();
+            onDataChange?.();
           }}
           title={`Link Homes to "${linkTarget.name}"`}
           entityId={linkTarget.id}

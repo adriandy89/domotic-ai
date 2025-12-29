@@ -5,7 +5,8 @@ import {
   CommandDeviceDto,
   CreateCommandDeviceDto,
   UpdateCommandNameDto,
-  UUIDArrayDto
+  UUIDArrayDto,
+  UpdatePositionDto
 } from '@app/models';
 import { DeviceService } from './device.service';
 import {
@@ -47,6 +48,21 @@ export class DeviceController {
     }
   }
 
+  @Put('position/:id')
+  @Permissions([Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async updatePosition(
+    @Param('id') id: string,
+    @Body() positionDTO: UpdatePositionDto,
+    @GetUserInfo() user: SessionUser
+  ) {
+    try {
+      return await this.deviceService.updatePosition(id, positionDTO, user.organization_id);
+    } catch (error) {
+      throw new BadRequestException('Bad request');
+    }
+  }
+
   @Put(':id')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
@@ -61,6 +77,9 @@ export class DeviceController {
       throw new BadRequestException('Bad request');
     }
   }
+
+
+
 
   @Delete(':id')
   @Permissions([Role.ADMIN])

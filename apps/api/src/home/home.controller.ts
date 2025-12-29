@@ -3,7 +3,8 @@ import {
   UpdateHomeDto,
   HomePageOptionsDto,
   LinksUUIDsDto,
-  UUIDArrayDto
+  UUIDArrayDto,
+  HomeAttributesDto
 } from '@app/models';
 import { HomeService } from './home.service';
 import {
@@ -65,6 +66,21 @@ export class HomeController {
   ) {
     try {
       return await this.homeService.update(id, homeDTO, user.organization_id);
+    } catch (error) {
+      throw new BadRequestException('Bad request');
+    }
+  }
+
+  @Put('attributes/:id')
+  @Permissions([Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async updateAttributes(
+    @Param('id') id: string,
+    @Body() attributes: HomeAttributesDto,
+    @GetUserInfo() user: SessionUser
+  ) {
+    try {
+      return await this.homeService.updateAttributes(id, attributes, user.organization_id);
     } catch (error) {
       throw new BadRequestException('Bad request');
     }

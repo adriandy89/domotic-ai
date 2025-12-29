@@ -7,6 +7,7 @@ import {
   CommandDeviceDto,
   CreateCommandDeviceDto,
   UpdateCommandNameDto,
+  UpdatePositionDto,
 } from '@app/models';
 import { DbService } from '@app/db';
 import { Prisma } from 'generated/prisma/client';
@@ -205,6 +206,48 @@ export class DeviceService {
       return { ok: true, data: updated };
     } catch (error) {
       if (error.code === 'P2025') throw new Error('role not found');
+      throw new Error(error);
+    }
+  }
+
+  async updatePosition(id: string, positionDTO: UpdatePositionDto, organization_id: string) {
+    try {
+      const verifyPermissions = await this.verifyOrganizationDevicesAccess(
+        [id],
+        organization_id,
+      );
+      if (!verifyPermissions.ok) {
+        throw new Error('Access denied to update request devices');
+      }
+
+      const updated = await this.dbService.device.update({
+        data: {
+          x: positionDTO.x,
+          y: positionDTO.y,
+          show_on_map: positionDTO.show_on_map,
+        },
+        select: {
+          id: true,
+          unique_id: true,
+          name: true,
+          description: true,
+          category: true,
+          attributes: true,
+          disabled: true,
+          created_at: true,
+          updated_at: true,
+          home_id: true,
+          icon: true,
+          model: true,
+          show_on_map: true,
+          x: true,
+          y: true,
+        },
+        where: { id },
+      });
+      return { ok: true, data: updated };
+    } catch (error) {
+      if (error.code === 'P2025') throw new Error('device not found');
       throw new Error(error);
     }
   }
