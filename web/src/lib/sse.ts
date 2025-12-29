@@ -41,7 +41,7 @@ type SSEEventHandler = {
 class SSEService {
     private eventSource: EventSource | null = null;
     private reconnectAttempts = 0;
-    private maxReconnectAttempts = 5;
+    private maxReconnectAttempts = 8;
     private reconnectDelay = 1000; // Start with 1 second
     private isConnecting = false;
     private shouldReconnect = true;
