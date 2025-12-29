@@ -259,6 +259,29 @@ export class HomeService {
     }
   }
 
+  async updateAttributes(id: string, attributesDto: { attributes: object }, organization_id: string) {
+    try {
+      const verifyPermissions = await this.verifyOrganizationHomesAccess(
+        [id],
+        organization_id,
+      );
+      if (!verifyPermissions.ok) {
+        throw new Error('Access denied to update home attributes');
+      }
+
+      const updated = await this.dbService.home.update({
+        data: { attributes: attributesDto.attributes },
+        select: this.prismaHomesSelect,
+        where: { id, organization_id },
+      });
+
+      return { ok: true, data: updated };
+    } catch (error) {
+      if (error.code === 'P2025') throw new Error('Home not found');
+      throw new Error(error);
+    }
+  }
+
   async delete(id: string, organization_id: string) {
     try {
       const verifyPermissions = await this.verifyOrganizationHomesAccess(

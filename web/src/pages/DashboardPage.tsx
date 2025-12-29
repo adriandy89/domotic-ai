@@ -29,13 +29,10 @@ interface SSEEvent {
 const MAX_EVENTS = 100;
 
 export default function DashboardPage() {
-  const { homes, homeIds, fetchHomes } = useHomesStore();
+  const { homes, homeIds } = useHomesStore();
   const { devices, devicesData } = useDevicesStore();
 
-  // Refresh homes data on page mount
-  useEffect(() => {
-    fetchHomes();
-  }, [fetchHomes]);
+  // Data is already fetched on auth - no need to refetch on page navigation
 
   const [events, setEvents] = useState<SSEEvent[]>([]);
   const eventIdRef = useRef(0);

@@ -15,3 +15,4 @@ export * from './update-device-icon.dto';
 export * from './update-device-map.dto';
 export * from './update-device.dto';
 export * from './update-restricted-device.dto';
+export * from './update-position.dto';

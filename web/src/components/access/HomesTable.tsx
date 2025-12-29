@@ -1158,6 +1158,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
             setShowLinkModal(false);
             setLinkTarget(null);
             fetchHomes();
+            onDataChange?.();
           }}
           title={`Link Users to "${linkTarget.name}"`}
           entityId={linkTarget.id}

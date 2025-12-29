@@ -16,6 +16,7 @@ import { api } from '../lib/api';
 import HomesTable from '../components/access/HomesTable';
 import DevicesTable from '../components/access/DevicesTable';
 import UsersTable from '../components/access/UsersTable';
+import { useHomesStore } from '../store/useHomesStore';
 
 interface HomeStatistics {
   totalHomes: number;
@@ -45,6 +46,9 @@ export default function AccessPage() {
   const [activeTab, setActiveTab] = useState('homes');
   const [stats, setStats] = useState<Statistics | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
+
+  // Get fetchHomes from global store to refresh after CRUD operations
+  const { fetchHomes } = useHomesStore();
 
   const fetchHomeStats = useCallback(async () => {
     try {
@@ -238,15 +242,30 @@ export default function AccessPage() {
         </TabsList>
 
         <TabsContent value="homes">
-          <HomesTable onDataChange={fetchHomeStats} />
+          <HomesTable
+            onDataChange={() => {
+              fetchHomeStats();
+              fetchHomes();
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="devices">
-          <DevicesTable onDataChange={fetchDeviceStats} />
+          <DevicesTable
+            onDataChange={() => {
+              fetchDeviceStats();
+              fetchHomes();
+            }}
+          />
         </TabsContent>
 
         <TabsContent value="users">
-          <UsersTable onDataChange={fetchUserStats} />
+          <UsersTable
+            onDataChange={() => {
+              fetchUserStats();
+              fetchHomes();
+            }}
+          />
         </TabsContent>
       </Tabs>
     </div>
