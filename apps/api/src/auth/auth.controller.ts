@@ -5,9 +5,12 @@ import { AuthenticatedGuard, PermissionsGuard } from './guards';
 import { GetUserInfo, Permissions } from './decorators';
 import { Role } from 'generated/prisma/enums';
 import type { SessionUser } from '@app/models';
+import { UserService } from '../user/user.service';
 
 @Controller('auth')
 export class AuthController {
+    constructor(private readonly userService: UserService) { }
+
     // ==================== GOOGLE OAUTH ====================
 
     @Get('google')
@@ -23,9 +26,12 @@ export class AuthController {
         if (!req.user) {
             return res.status(401).json({ message: 'Authentication failed' });
         }
-        req.login(req.user, (err) => {
+        req.login(req.user, async (err) => {
             if (err) {
                 return res.status(500).json({ message: 'Error logging in' });
+            }
+            if (req.user) {
+                await this.userService.saveUserSession((req.user as any).id, req.sessionID);
             }
             // Redirect to frontend dashboard or home
             res.redirect('/'); // Change this to your frontend URL
@@ -47,9 +53,12 @@ export class AuthController {
         if (!req.user) {
             return res.status(401).json({ message: 'Authentication failed' });
         }
-        req.login(req.user, (err) => {
+        req.login(req.user, async (err) => {
             if (err) {
                 return res.status(500).json({ message: 'Error logging in' });
+            }
+            if (req.user) {
+                await this.userService.saveUserSession((req.user as any).id, req.sessionID);
             }
             res.redirect('/');
         });
@@ -70,9 +79,12 @@ export class AuthController {
         if (!req.user) {
             return res.status(401).json({ message: 'Authentication failed' });
         }
-        req.login(req.user, (err) => {
+        req.login(req.user, async (err) => {
             if (err) {
                 return res.status(500).json({ message: 'Error logging in' });
+            }
+            if (req.user) {
+                await this.userService.saveUserSession((req.user as any).id, req.sessionID);
             }
             res.redirect('/');
         });
@@ -82,6 +94,9 @@ export class AuthController {
 
     @Get('logout')
     async logout(@Req() req: Request, @Res() res: Response) {
+        if (req.user && (req.user as any).id) {
+            await this.userService.removeUserSession((req.user as any).id, req.sessionID);
+        }
         req.logout((err) => {
             if (err) {
                 return res.status(500).json({ message: 'Error logging out' });

@@ -3,9 +3,11 @@ import {
   Logger,
   MessageEvent,
   OnModuleDestroy,
+  Req,
   Sse,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { ApiTags } from '@nestjs/swagger';
@@ -62,8 +64,9 @@ export class SSEController implements OnModuleDestroy {
 
   @UseGuards(AuthenticatedGuard)
   @Sse('stream')
-  stream(@GetUserInfo() user: SessionUser): Observable<MessageEvent> {
+  stream(@GetUserInfo() user: SessionUser, @Req() req: Request): Observable<MessageEvent> {
     this.logger.log(`User ${user.id} connected to unified SSE stream`);
+    const currentSessionId = (req as any).sessionID;
 
     const dataStream$ = this.message$.pipe(
       // Filter messages based on userIds in payload
@@ -89,6 +92,18 @@ export class SSEController implements OnModuleDestroy {
               const userSensorNotification = message.payload as IUserSensorNotification;
               // Check if notification is for this user
               hasPermission = userSensorNotification.userId === user.id;
+              break;
+
+            case 'user.attributes.updated':
+              const userAttributesUpdated = message.payload as { userId: string };
+              hasPermission = userAttributesUpdated.userId === user.id;
+              break;
+
+            case 'user.session.revoked':
+              const sessionRevoked = message.payload as { userId: string; excludedSessionId: string };
+              // Only send if userId matches AND session ID is NOT the excluded one
+              // We want to notify all *other* sessions
+              hasPermission = sessionRevoked.userId === user.id && sessionRevoked.excludedSessionId !== currentSessionId;
               break;
 
             default:
@@ -154,9 +169,26 @@ export class SSEController implements OnModuleDestroy {
     @Payload()
     payload: IUserSensorNotification,
   ) {
-    this.logger.log(`Received mqtt-core.user.sensor-notification: ${JSON.stringify(payload)}`);
     this.messageSubject.next({
       topic: 'user.sensor-notification',
+      payload,
+    });
+  }
+
+  @EventPattern('user.attributes.updated')
+  async handleUserAttributesUpdated(@Payload() payload: { userId: string }) {
+    this.logger.log(`Received user.attributes.updated: ${JSON.stringify(payload)}`);
+    this.messageSubject.next({
+      topic: 'user.attributes.updated',
+      payload,
+    });
+  }
+
+  @EventPattern('user.session.revoked')
+  async handleUserSessionRevoked(@Payload() payload: { userId: string; excludedSessionId: string }) {
+    this.logger.log(`Received user.session.revoked: ${JSON.stringify(payload)}`);
+    this.messageSubject.next({
+      topic: 'user.session.revoked',
       payload,
     });
   }

@@ -10,6 +10,8 @@ import RuleFormPage from './pages/RuleFormPage';
 import AccessPage from './pages/AccessPage';
 import HomesPage from './pages/HomesPage';
 import HomeMapPage from './pages/HomeMapPage';
+import SettingsPage from './pages/SettingsPage';
+import ActivityPage from './pages/ActivityPage';
 import ProtectedRoute from './ProtectedRoute';
 
 // Public Route wrapper to redirect authenticated users to dashboard
@@ -58,6 +60,8 @@ function App() {
             <Route path="/rules/new" element={<RuleFormPage />} />
             <Route path="/rules/edit/:id" element={<RuleFormPage />} />
             <Route path="/access" element={<AccessPage />} />
+            <Route path="/activity" element={<ActivityPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>
 

@@ -20,8 +20,10 @@ import {
   UseGuards,
   NotFoundException,
   BadRequestException,
-  ConflictException
+  ConflictException,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthenticatedGuard, PermissionsGuard } from '../auth/guards';
 import { GetUserInfo, Permissions } from '../auth/decorators';
 import { Role } from 'generated/prisma/enums';
@@ -62,9 +64,32 @@ export class UserController {
   @UseGuards(PermissionsGuard)
   async updateAttributes(
     @Body() userDTO: UpdateUserAttributesDto,
-    @GetUserInfo() user: SessionUser
+    @GetUserInfo() user: SessionUser,
+    @Req() req: Request
   ) {
-    return this.userService.updateAttributes(userDTO, user);
+    try {
+      const result = await this.userService.updateAttributes(userDTO, user);
+      if (result.ok) {
+        // 1. Update current session immediately
+        const session = (req as any).session;
+        if (session && session.passport && session.passport.user) {
+          session.passport.user.attributes = result.data.attributes;
+        }
+
+        // 2. Lazy index the current session
+        const sessionId = (req as any).sessionID;
+        if (sessionId) {
+          await this.userService.saveUserSession(user.id, sessionId);
+        }
+
+        // 3. Update all OTHER active sessions
+        await this.userService.updateAllUserSessions(user.id, result.data.attributes);
+      }
+      return result;
+    } catch (error) {
+      console.error('Error updating attributes:', error);
+      throw new BadRequestException('Bad request');
+    }
   }
 
   @Put('fmc-tokens')
@@ -122,6 +147,37 @@ export class UserController {
       throw new NotFoundException('Not Found');
     }
     return found;
+  }
+
+  @Get('me/attributes')
+  @Permissions([Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async findMeAttributes(@GetUserInfo() user: SessionUser) {
+    return user.attributes || {};
+  }
+
+  @Get('sessions/active')
+  @Permissions([Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async countActiveSessions(
+    @GetUserInfo() user: SessionUser,
+    @Req() req: Request
+  ) {
+    const sessionId = (req as any).sessionID;
+    const count = await this.userService.countOtherSessions(user.id, sessionId);
+    return { ok: true, count };
+  }
+
+  @Delete('sessions/others')
+  @Permissions([Role.ADMIN])
+  @UseGuards(PermissionsGuard)
+  async revokeOtherSessions(
+    @GetUserInfo() user: SessionUser,
+    @Req() req: Request
+  ) {
+    const sessionId = (req as any).sessionID;
+    await this.userService.revokeOtherSessions(user.id, sessionId);
+    return { ok: true };
   }
 
   @Put('disable/many')

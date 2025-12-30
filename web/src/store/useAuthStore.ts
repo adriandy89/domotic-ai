@@ -26,12 +26,19 @@ interface AuthState {
     isLoading: boolean;
     checkSession: () => Promise<void>;
     logout: () => Promise<void>;
+    updateUser: (user: Partial<User>) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
     user: null,
     isAuthenticated: false,
     isLoading: true, // Start in loading state to check session on mount
+
+    updateUser: (updates) => {
+        set((state) => ({
+            user: state.user ? { ...state.user, ...updates } : null,
+        }));
+    },
 
     checkSession: async () => {
         set({ isLoading: true });
