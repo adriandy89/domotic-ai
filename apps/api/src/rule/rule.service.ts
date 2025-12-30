@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 
 import { DbService } from '@app/db';
 import { Prisma } from 'generated/prisma/client';
@@ -68,55 +68,52 @@ export class RuleService {
     ) || [];
     const filteredResults: ICreateResult[] = results?.filter((action) => action.id !== undefined) || [];
     const newResults = results?.filter((action) => action.id === undefined) || [];
-
-    try {
-      const rule = await this.dbService.rule.update({
-        where: { id },
-        data: {
-          ...ruleData,
-          home: {
-            connect: { id: home_id },
-          },
-          conditions: {
-            deleteMany: {
-              id: {
-                notIn: filteredConditions.map((action) => action.id!),
-              },
-            },
-            updateMany: filteredConditions.map((action) => ({
-              where: { id: action.id },
-              data: action,
-            })),
-            createMany: {
-              data: newConditions,
+    return await this.dbService.rule.update({
+      where: { id },
+      data: {
+        ...ruleData,
+        home: {
+          connect: { id: home_id },
+        },
+        conditions: {
+          deleteMany: {
+            id: {
+              notIn: filteredConditions.map((action) => action.id!),
             },
           },
-          results: {
-            deleteMany: {
-              id: {
-                notIn: filteredResults.map((action) => action.id!),
-              },
-            },
-            updateMany: filteredResults.map((action) => ({
-              where: { id: action.id },
-              data: action,
-            })),
-            createMany: {
-              data: newResults,
-            },
+          updateMany: filteredConditions.map((action) => ({
+            where: { id: action.id },
+            data: action,
+          })),
+          createMany: {
+            data: newConditions,
           },
         },
-        select: this.selectRules,
-      });
-      return rule;
-    } catch (error) {
-      console.error('Error creating rule: ', error);
-    }
+        results: {
+          deleteMany: {
+            id: {
+              notIn: filteredResults.map((action) => action.id!),
+            },
+          },
+          updateMany: filteredResults.map((action) => ({
+            where: { id: action.id },
+            data: action,
+          })),
+          createMany: {
+            data: newResults,
+          },
+        },
+      },
+      select: this.selectRules,
+    });
   }
 
   async findAllByCurrentUser(user_id: string) {
     const rules = await this.dbService.rule.findMany({
-      select: this.selectRules,
+      select: {
+        ...this.selectRules,
+        _count: true,
+      },
       where: {
         user_id,
       },
@@ -148,6 +145,7 @@ export class RuleService {
               name: true,
             },
           },
+          _count: true,
         },
         where,
         orderBy: orderBy
@@ -170,9 +168,51 @@ export class RuleService {
         user_id,
       },
       select: {
-        ...this.selectRules,
-        conditions: true,
-        results: true,
+        id: true,
+        name: true,
+        description: true,
+        active: true,
+        all: true,
+        type: true,
+        user_id: true,
+        user: {
+          select: {
+            id: true,
+            organization_id: true,
+            phone: true,
+            name: true,
+          },
+        },
+        interval: true,
+        timestamp: true,
+        conditions: {
+          select: {
+            id: true,
+            device_id: true,
+            attribute: true,
+            operation: true,
+            data: true,
+          },
+        },
+        results: {
+          select: {
+            id: true,
+            device_id: true,
+            event: true,
+            attribute: true,
+            data: true,
+            type: true,
+            channel: true,
+            resend_after: true,
+          },
+        },
+        home_id: true,
+        home: {
+          select: {
+            name: true,
+          },
+        },
+        created_at: true,
       }
     });
   }

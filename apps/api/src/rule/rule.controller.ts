@@ -125,6 +125,7 @@ export class RuleController {
       }
       return await this.ruleService.updateRule(id, ruleDTO);
     } catch (error) {
+      console.log(error);
       if (error instanceof NotFoundException) throw error;
       throw new BadRequestException('Bad request');
     }

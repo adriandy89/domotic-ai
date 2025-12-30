@@ -197,6 +197,13 @@ export class MqttCoreService {
       const deviceUniqueId = topicParts[topicParts.length - 1];
 
       const message = JSON.parse(bufferMsg.toString().replace(/\u0000/g, ''));
+      if (!message) {
+        console.log(message);
+        this.logger.error(
+          `Invalid message for device = ${deviceUniqueId} for home = ${homeUniqueId}`,
+        );
+        return;
+      }
 
       // ? Save message to database
       const homeOrgId = await this.cacheService.get<string>(getKeyHomeUniqueIdOrgId(homeUniqueId));
@@ -225,7 +232,7 @@ export class MqttCoreService {
         },
       });
 
-      if (!device) {
+      if (!device?.id) {
         this.logger.error(
           `Not Found device = ${deviceUniqueId} for home = ${homeUniqueId}`,
         );

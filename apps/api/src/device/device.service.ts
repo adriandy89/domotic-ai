@@ -348,20 +348,28 @@ export class DeviceService {
     return await this.dbService.device.findUnique({
       where: { id, organization_id },
       select: {
-        ...this.prismaDeviceSelect,
+        id: true,
+        unique_id: true,
+        name: true,
+        description: true,
+        category: true,
         attributes: true,
-        home: {
-          select: {
-            unique_id: true,
-            name: true,
-          },
-        },
+        disabled: true,
+        created_at: true,
+        updated_at: true,
+        home_id: true,
+        icon: true,
+        model: true,
+        show_on_map: true,
+        x: true,
+        y: true,
         learned_commands: {
           select: {
             id: true,
             name: true,
             command: true,
-          },
+            updated_at: true,
+          }
         },
       },
     });

@@ -298,6 +298,10 @@ export class RulesEngineService {
         } else if (result.type === ResultType.NOTIFICATION) {
           await this.executeNotificationFromJob(jobData, result);
         }
+        await this.dbService.rule.update({
+          where: { id: jobData.ruleId },
+          data: { timestamp: new Date() },
+        });
       } catch (error) {
         this.logger.error(`Error executing delayed result ${result.id}: ${error}`);
       }
@@ -533,6 +537,10 @@ export class RulesEngineService {
           default:
             this.logger.warn(`Unknown result type: ${result.type}`);
         }
+        await this.dbService.rule.update({
+          where: { id: rule.id },
+          data: { timestamp: new Date() },
+        });
       } catch (error) {
         this.logger.error(`Error executing result ${result.id}: ${error}`);
       }

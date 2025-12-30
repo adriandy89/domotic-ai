@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Cpu,
   KeyRound,
+  Zap,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
@@ -28,6 +29,7 @@ export default function DashboardLayout() {
     { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
     { icon: Home, label: 'Homes', href: '/homes' },
     { icon: Cpu, label: 'Devices', href: '/devices' },
+    { icon: Zap, label: 'Rules', href: '/rules' },
     { icon: KeyRound, label: 'Access', href: '/access' },
     { icon: Activity, label: 'Activity', href: '/activity' },
     { icon: Settings, label: 'Settings', href: '/settings' },

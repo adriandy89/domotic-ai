@@ -24,6 +24,8 @@ import { Button } from '../ui/button';
 import { cn } from '../../lib/utils';
 import { Feature } from './Feature';
 import DeviceImage from './DeviceImage';
+import LearnIRModal from './LearnIRModal';
+import CommandSelector from './CommandSelector';
 import type { Device, DeviceData } from '../../store/useDevicesStore';
 
 interface DeviceCardProps {
@@ -105,15 +107,24 @@ export default function DeviceCard({
   const [showActions, setShowActions] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(device.name);
+  const [showLearnIR, setShowLearnIR] = useState(false);
+  const [showCommands, setShowCommands] = useState(false);
 
   const data = deviceData?.data || {};
   const exposes = device.attributes?.definition?.exposes || [];
 
   // Separate main exposes from diagnostic (diagnostic shown in footer)
   const mainExposes = useMemo(() => {
+    const hiddenExposes = [
+      'linkquality',
+      'learn_ir_code',
+      'learned_ir_code',
+      'ir_code_to_send',
+    ];
     return exposes.filter(
       (expose) =>
-        expose.category !== 'diagnostic' && expose.name !== 'linkquality',
+        expose.category !== 'diagnostic' &&
+        !hiddenExposes.includes(expose.name),
     );
   }, [exposes]);
 
@@ -235,47 +246,93 @@ export default function DeviceCard({
           )}
         </div>
 
-        {/* Features/Exposes */}
-        <div className="p-2 flex-1">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Properties ({mainExposes.length})
-            </span>
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="text-muted-foreground hover:text-foreground transition-colors"
+        {/* IR Remote Controls */}
+        {exposes.some((e) => e.name === 'learn_ir_code') && (
+          <div className="px-3 py-4 flex flex-col gap-4 border-b border-border/30">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowLearnIR(true)}
+              className="text-xs h-7"
             >
-              {isExpanded ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
-              )}
-            </button>
+              Learn IR
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setShowCommands(true)}
+              className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              Learned Commands ({device.learned_commands?.length || 0})
+            </Button>
+
+            <LearnIRModal
+              deviceId={device.id}
+              isOpen={showLearnIR}
+              onClose={() => setShowLearnIR(false)}
+              onCommand={(cmd) =>
+                handleChange('learn_ir_code', cmd.learn_ir_code)
+              }
+              learnedIrCode={data.learned_ir_code as string}
+            />
+
+            <CommandSelector
+              deviceId={device.id}
+              commands={device.learned_commands || []}
+              isOpen={showCommands}
+              onClose={() => setShowCommands(false)}
+              onCommand={(cmd) => {
+                if (onCommand) {
+                  onCommand(device.id, cmd);
+                }
+              }}
+            />
           </div>
+        )}
 
-          {isExpanded && (
-            <div
-              className="space-y-0 max-h-[390px] overflow-y-auto"
-              style={{ scrollbarWidth: 'thin' }}
-            >
-              {mainExposes.map((expose) => (
-                <Feature
-                  key={expose.property || expose.name}
-                  expose={expose}
-                  value={data[expose.property]}
-                  onChange={handleChange}
-                  data={data}
-                />
-              ))}
-
-              {mainExposes.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  No properties available
-                </p>
-              )}
+        {/* Features/Exposes */}
+        {mainExposes.length > 0 && (
+          <div className="p-2 flex-1">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                Properties ({mainExposes.length})
+              </span>
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {isExpanded ? (
+                  <ChevronUp className="h-4 w-4" />
+                ) : (
+                  <ChevronDown className="h-4 w-4" />
+                )}
+              </button>
             </div>
-          )}
-        </div>
+
+            {isExpanded && (
+              <div
+                className="space-y-0 max-h-[390px] overflow-y-auto"
+                style={{ scrollbarWidth: 'thin' }}
+              >
+                {mainExposes.map((expose) => (
+                  <Feature
+                    key={expose.property || expose.name}
+                    expose={expose}
+                    value={data[expose.property]}
+                    onChange={handleChange}
+                    data={data}
+                  />
+                ))}
+
+                {mainExposes.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No properties available
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Footer with badges - pushed to bottom */}
         <div className="mt-auto px-3 py-2 bg-background/20 border-t border-border/30">
