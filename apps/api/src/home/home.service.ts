@@ -362,6 +362,14 @@ export class HomeService {
             show_on_map: true,
             x: true,
             y: true,
+            learned_commands: {
+              select: {
+                id: true,
+                name: true,
+                command: true,
+                updated_at: true,
+              }
+            },
           }
         }
       },

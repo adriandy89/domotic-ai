@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Zap, Plus, Loader2, Filter, Home } from 'lucide-react';
 import { useRulesStore } from '../store/useRulesStore';
 import { useHomesStore } from '../store/useHomesStore';
@@ -7,6 +8,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 
 export default function RulesPage() {
+  const navigate = useNavigate();
   const { rules, isLoading, error, fetchRules, toggleRule, deleteRule } =
     useRulesStore();
   const { homes, homeIds } = useHomesStore();
@@ -40,7 +42,10 @@ export default function RulesPage() {
             Automate your smart home with conditional rules
           </p>
         </div>
-        <Button className="flex items-center gap-2" disabled>
+        <Button
+          className="flex items-center gap-2"
+          onClick={() => navigate('/rules/new')}
+        >
           <Plus className="w-4 h-4" />
           New Rule
         </Button>
@@ -148,6 +153,7 @@ export default function RulesPage() {
               rule={rule}
               onToggle={toggleRule}
               onDelete={deleteRule}
+              onEdit={(id) => navigate(`/rules/edit/${id}`)}
             />
           ))}
         </div>

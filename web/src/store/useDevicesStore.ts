@@ -19,6 +19,13 @@ export interface DeviceExpose {
     features?: DeviceExpose[];
 }
 
+export interface DeviceLearnedCommand {
+    id: string;
+    name: string;
+    command: string;
+    updated_at: string;
+}
+
 export interface DeviceDefinition {
     model: string;
     source: string;
@@ -64,6 +71,7 @@ export interface Device {
     show_on_map: boolean;
     x: number;
     y: number;
+    learned_commands?: DeviceLearnedCommand[];
 }
 
 // Last data received from device sensors/states

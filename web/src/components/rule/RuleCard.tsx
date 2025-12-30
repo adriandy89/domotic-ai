@@ -1,11 +1,5 @@
 import { useState } from 'react';
-import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '../ui/card';
+import { Card, CardContent, CardFooter, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
 import {
   Edit,
@@ -15,6 +9,7 @@ import {
   MoreVertical,
   Zap,
   GitBranch,
+  Home,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { Rule } from '../../store/useRulesStore';
@@ -39,7 +34,8 @@ function formatDate(date: string): string {
   return new Date(date).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
-    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   });
 }
 
@@ -69,26 +65,42 @@ export default function RuleCard({
 
   return (
     <>
-      <Card className="bg-card/50 hover:bg-card/70 transition-all duration-300 border-border/50 hover:border-primary/30 group relative h-full flex flex-col">
-        <CardHeader className="pb-2">
+      <Card
+        className={cn(
+          'bg-card/50 hover:bg-card/70 transition-all duration-300 border-border/50 hover:border-primary/30 group relative h-full flex flex-col',
+          rule.active && 'border-emerald-500/30 hover:border-emerald-500/50',
+        )}
+      >
+        <CardHeader className="p-4 pb-2">
           <div className="flex items-start justify-between gap-2">
-            <CardTitle className="text-base font-semibold truncate flex-1">
-              {rule.name}
-            </CardTitle>
-            <div className="flex items-center gap-1 relative">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-foreground truncate">
+                  {rule.name}
+                </h3>
+                <div className="text-xs capitalize bg-primary/10 text-primary rounded px-2 py-1">
+                  {rule.type.toLowerCase()}
+                </div>
+              </div>
+
+              <p className="text-xs text-muted-foreground line-clamp-1 truncate h-4">
+                {rule.description || ' '}
+              </p>
+            </div>
+
+            {/* Actions Menu */}
+            <div className="relative">
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7"
                 onClick={() => setShowActions(!showActions)}
-                title="Actions"
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
 
-              {/* Action dropdown */}
               {showActions && (
-                <div className="absolute right-0 top-8 z-10 bg-card border border-border rounded-lg shadow-lg p-1 min-w-[120px]">
+                <div className="absolute right-0 top-8 z-50 bg-card border border-border rounded-lg shadow-lg p-1 min-w-[120px]">
                   {onEdit && (
                     <button
                       onClick={() => {
@@ -115,51 +127,40 @@ export default function RuleCard({
               )}
             </div>
           </div>
-          {rule.description && (
-            <p className="text-xs text-muted-foreground line-clamp-2">
-              {rule.description}
-            </p>
-          )}
         </CardHeader>
 
-        <CardContent className="flex-1 pb-2">
+        <CardContent className="flex-1 p-4 pt-2">
           <div className="flex items-center gap-4">
             {/* Stats */}
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-2 text-sm">
+            <div className="flex-1 flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1.5 text-sm">
                 <GitBranch className="w-4 h-4 text-amber-500" />
-                <span className="text-muted-foreground">Conditions:</span>
-                <span className="font-medium">{rule._count.conditions}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Zap className="w-4 h-4 text-blue-500" />
-                <span className="text-muted-foreground">Actions:</span>
-                <span className="font-medium">{rule._count.results}</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span
-                  className={cn(
-                    'px-2 py-0.5 rounded-full text-xs font-medium',
-                    rule.all
-                      ? 'bg-purple-500/20 text-purple-400'
-                      : 'bg-cyan-500/20 text-cyan-400',
-                  )}
-                >
-                  {rule.all ? 'All match' : 'Any match'}
+                <span className="text-muted-foreground">
+                  {rule._count.conditions}
+                </span>
+                <span className="text-xs text-muted-foreground/70">
+                  conditions
                 </span>
               </div>
-              <div className="text-xs text-muted-foreground capitalize">
-                {rule.type.toLowerCase()}
+              <div className="flex items-center gap-1.5 text-sm">
+                <Zap className="w-4 h-4 text-blue-500" />
+                <span className="text-muted-foreground">
+                  {rule._count.results}
+                </span>
+                <span className="text-xs text-muted-foreground/70">
+                  actions
+                </span>
               </div>
             </div>
 
-            {/* Power Toggle Button */}
+            {/* Power Toggle */}
             <Button
               className={cn(
-                'w-16 h-16 rounded-full flex flex-col items-center justify-center cursor-pointer transition-all duration-300',
+                'w-14 h-14 rounded-full flex flex-col items-center justify-center cursor-pointer transition-all duration-300',
                 rule.active
-                  ? 'bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-[0_0_20px_rgba(52,211,153,0.5)] hover:shadow-[0_0_30px_rgba(52,211,153,0.7)]'
-                  : 'bg-gradient-to-b from-gray-400 to-gray-600 opacity-70 hover:opacity-90',
+                  ? 'bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-[0_0_20px_rgba(52,211,153,0.4)] hover:shadow-[0_0_25px_rgba(52,211,153,0.6)]'
+                  : 'bg-gradient-to-b from-muted to-muted-foreground/50 opacity-60 hover:opacity-80',
+                isToggling && 'opacity-50 scale-95',
               )}
               onClick={handleToggle}
               disabled={isToggling}
@@ -179,12 +180,15 @@ export default function RuleCard({
           </div>
         </CardContent>
 
-        <CardFooter className="pt-2 border-t border-border/30">
+        <CardFooter className="p-4 pt-2 border-t border-border/30">
           <div className="flex items-center justify-between w-full text-xs text-muted-foreground">
-            <span>{rule.timestamp ? formatDate(rule.timestamp) : '—'}</span>
-            <span className="px-2 py-0.5 bg-muted/50 rounded text-muted-foreground">
-              {homeName}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span>{rule.timestamp ? formatDate(rule.timestamp) : '—'}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-muted/50 rounded text-muted-foreground">
+              <Home className="w-3 h-3" />
+              <span>{homeName}</span>
+            </div>
           </div>
         </CardFooter>
       </Card>

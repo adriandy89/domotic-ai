@@ -308,7 +308,8 @@ enum NotificationChannel {
   EMAIL
   SMS
   PUSH
-  WHATSAPP
+  TELEGRAM
+  WEBHOOK
 }
 
 enum ScheduleFrequency {

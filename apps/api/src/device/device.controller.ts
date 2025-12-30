@@ -78,9 +78,6 @@ export class DeviceController {
     }
   }
 
-
-
-
   @Delete(':id')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
