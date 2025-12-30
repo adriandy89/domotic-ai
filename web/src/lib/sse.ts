@@ -27,6 +27,10 @@ export interface UserSensorNotificationPayload {
     sensorValue: string | number | boolean;
 }
 
+export interface UserAttributesUpdatedPayload {
+    userId: string;
+}
+
 export interface PingPayload {
     timestamp: number;
 }
@@ -35,6 +39,7 @@ type SSEEventHandler = {
     'sensor.data': (payload: SensorDataPayload) => void;
     'home.status': (payload: HomeStatusPayload) => void;
     'user.sensor-notification': (payload: UserSensorNotificationPayload) => void;
+    'user.attributes.updated': (payload: UserAttributesUpdatedPayload) => void;
     'ping': (payload: PingPayload) => void;
 };
 
@@ -111,6 +116,14 @@ class SSEService {
                     this.handleUserNotification(message.payload as UserSensorNotificationPayload);
                     break;
 
+                case 'user.attributes.updated':
+                    this.handleUserAttributesUpdated(message.payload as UserAttributesUpdatedPayload);
+                    break;
+
+                case 'user.session.revoked':
+                    this.handleUserSessionRevoked();
+                    break;
+
                 case 'ping':
                     // Ping received, connection is alive
                     console.log('[SSE] Ping received');
@@ -151,6 +164,27 @@ class SSEService {
         // For now, just log - can be extended for toast notifications, etc.
         console.log('[SSE] User notification:', payload);
         // TODO: Integrate with a notification system
+    }
+
+    private async handleUserAttributesUpdated(payload: UserAttributesUpdatedPayload): Promise<void> {
+        console.log('[SSE] User attributes updated:', payload);
+        try {
+            // Fetch latest attributes via the store or api directly and update store
+            const { useAuthStore } = await import('../store/useAuthStore');
+            const { api } = await import('./api');
+            const response = await api.get('/users/me/attributes');
+            if (response.data) {
+                useAuthStore.getState().updateUser({ attributes: response.data });
+            }
+        } catch (error) {
+            console.error('[SSE] Failed to update user attributes:', error);
+        }
+    }
+
+    private handleUserSessionRevoked(): void {
+        console.warn('[SSE] Session revoked by another device. Reloading...');
+        // Force reload to clear state and redirect to login
+        window.location.reload();
     }
 
     private handleError(): void {

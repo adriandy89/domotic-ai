@@ -18,6 +18,9 @@ import {
 import { cn } from '../../lib/utils';
 import { Button } from '../ui/button';
 import { ThemeToggle } from '../ui/theme-toggle';
+import { useActivityStore } from '../../store/useActivityStore';
+import { sseService } from '../../lib/sse';
+import { useEffect } from 'react';
 
 export default function DashboardLayout() {
   const { logout, user } = useAuthStore();
@@ -34,6 +37,33 @@ export default function DashboardLayout() {
     { icon: Activity, label: 'Activity', href: '/activity' },
     { icon: Settings, label: 'Settings', href: '/settings' },
   ];
+
+  const { addEvent } = useActivityStore();
+
+  useEffect(() => {
+    const unsubSensor = sseService.on('sensor.data', (payload) => {
+      addEvent('sensor.data', payload);
+    });
+
+    const unsubHome = sseService.on('home.status', (payload) => {
+      addEvent('home.status', payload);
+    });
+
+    const unsubNotif = sseService.on('user.sensor-notification', (payload) => {
+      addEvent('user.sensor-notification', payload);
+    });
+
+    const unsubAttrs = sseService.on('user.attributes.updated', (payload) => {
+      addEvent('user.attributes.updated', payload);
+    });
+
+    return () => {
+      unsubSensor();
+      unsubHome();
+      unsubNotif();
+      unsubAttrs();
+    };
+  }, [addEvent]);
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden transition-colors duration-300">

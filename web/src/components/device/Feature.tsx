@@ -28,6 +28,10 @@ export function BinaryFeature({ expose, value, onChange }: FeatureProps) {
     onChange(expose.property, newValue);
   }, [canSet, isOn, valueOn, valueOff, expose.property, onChange]);
 
+  const isContact = expose.name === 'contact' || expose.property === 'contact';
+  const displayOn = isContact ? 'Closed' : 'ON';
+  const displayOff = isContact ? 'Open' : 'OFF';
+
   if (!canSet) {
     return (
       <div className="flex items-center justify-between py-1 px-2 bg-background/30 rounded">
@@ -37,7 +41,7 @@ export function BinaryFeature({ expose, value, onChange }: FeatureProps) {
         <span
           className={`text-xs font-medium ${isOn ? 'text-emerald-500' : 'text-muted-foreground'}`}
         >
-          {value === undefined ? 'N/A' : isOn ? 'ON' : 'OFF'}
+          {value === undefined ? 'N/A' : isOn ? displayOn : displayOff}
         </span>
       </div>
     );
@@ -53,7 +57,7 @@ export function BinaryFeature({ expose, value, onChange }: FeatureProps) {
           onClick={() => onChange(expose.property, valueOff)}
           className={`text-[10px] px-1.5 py-0.5 rounded ${!isOn ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
         >
-          OFF
+          {displayOff}
         </button>
         <label className="relative inline-flex items-center cursor-pointer">
           <input
@@ -68,7 +72,7 @@ export function BinaryFeature({ expose, value, onChange }: FeatureProps) {
           onClick={() => onChange(expose.property, valueOn)}
           className={`text-[10px] px-1.5 py-0.5 rounded ${isOn ? 'bg-primary/20 text-primary' : 'text-muted-foreground hover:text-foreground'}`}
         >
-          ON
+          {displayOn}
         </button>
       </div>
     </div>

@@ -152,25 +152,15 @@ export class UserService {
     return { user: newUser };
   }
 
-
-  // only update attributes from home app by logged user
   async updateAttributes(userDTO: UpdateUserAttributesDto, meta: SessionUser) {
     const organization_id = meta?.organization_id;
     if (!organization_id) throw new Error('Organization not found');
-    try {
-      const updated = await this.dbService.user.update({
-        data: { attributes: userDTO.attributes },
-        select: this.prismaUserSelect,
-        where: { id: meta.id, organization_id },
-      });
-      // update user attributes in cache
-      // const redisKey = `h-user-id:${meta.id}:attributes`;
-      // await this.cacheService.set(redisKey, JSON.stringify(updated.attributes));
-      return { ok: true, data: updated };
-    } catch (error) {
-      if (error.code === 'P2025') throw new Error('not found');
-      throw new Error(error);
-    }
+    const updated = await this.dbService.user.update({
+      data: { attributes: userDTO.attributes },
+      select: { attributes: true },
+      where: { id: meta.id, organization_id },
+    });
+    return { ok: true, data: updated };
   }
 
   async updateFmcTokens(fmcDTO: UpdateUserFmcTokenDto, meta: SessionUser) {
@@ -548,8 +538,77 @@ export class UserService {
     }
   }
 
+  // ! Session Management
+  async saveUserSession(userId: string, sessionId: string) {
+    // 3 days expiration matching session cookie
+    const TTL = 60 * 60 * 24 * 3;
+    await this.cacheService.set(`user-session:${userId}:${sessionId}`, '1', TTL);
+  }
+
+  async removeUserSession(userId: string, sessionId: string) {
+    await this.cacheService.del(`user-session:${userId}:${sessionId}`);
+  }
+
+  async updateAllUserSessions(userId: string, attributes: any) {
+    try {
+      const pattern = `user-session:${userId}:*`;
+      const keys = await this.cacheService.keys(pattern);
+
+      for (const key of keys) {
+        // Extract sessionId from key: user-session:{userId}:{sessionId}
+        const sessionId = key.split(':').pop();
+        if (sessionId) {
+          const sessionKey = `sess:${sessionId}`;
+          const sessionData = await this.cacheService.get<any>(sessionKey);
+
+          if (sessionData && sessionData.passport && sessionData.passport.user) {
+            sessionData.passport.user.attributes = attributes;
+            // Get original TTL to preserve it (optional, or just reset to max)
+            const ttl = await this.cacheService.ttl(sessionKey);
+            if (ttl > 0) {
+              await this.cacheService.set(sessionKey, sessionData, ttl);
+            }
+          }
+        }
+      }
+
+      // Notify via NATS for SSE
+      await this.natsClient.emit('user.attributes.updated', { userId });
+
+    } catch (error) {
+      console.error('Failed to update user sessions:', error);
+    }
+  }
+
   // async refreshUserRulesSchedules(userIds: string[]) {
   //   await this.natsClient.emit('rules.refresh_users_rules', { userIds });
   //   await this.natsClient.emit('schedules.refresh_users_schedules', { userIds });
   // }
+  async countOtherSessions(userId: string, currentSessionId: string): Promise<number> {
+    const pattern = `user-session:${userId}:*`;
+    const keys = await this.cacheService.keys(pattern);
+    // Filter out current session
+    const otherSessions = keys.filter(key => !key.includes(currentSessionId));
+    return otherSessions.length;
+  }
+
+  async revokeOtherSessions(userId: string, currentSessionId: string) {
+    const pattern = `user-session:${userId}:*`;
+    const keys = await this.cacheService.keys(pattern);
+
+    for (const key of keys) {
+      if (!key.includes(currentSessionId)) {
+        const sessionId = key.split(':').pop();
+        if (sessionId) {
+          // Delete actual session
+          await this.cacheService.del(`sess:${sessionId}`);
+          // Delete index
+          await this.cacheService.del(key);
+        }
+      }
+    }
+
+    // Notify via NATS for SSE to force reload on other devices
+    await this.natsClient.emit('user.session.revoked', { userId, excludedSessionId: currentSessionId });
+  }
 }

@@ -1,12 +1,11 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from '../components/ui/card';
 import {
-  Activity,
   Home,
   Wifi,
   WifiOff,
@@ -14,19 +13,15 @@ import {
   Radio,
   Battery,
   Thermometer,
+  ShieldCheck,
+  ShieldAlert,
+  Droplets,
+  Wind,
+  SignalLow,
 } from 'lucide-react';
 import { useHomesStore } from '../store/useHomesStore';
 import { useDevicesStore } from '../store/useDevicesStore';
 import { sseService } from '../lib/sse';
-
-interface SSEEvent {
-  id: number;
-  timestamp: Date;
-  topic: string;
-  payload: string;
-}
-
-const MAX_EVENTS = 100;
 
 export default function DashboardPage() {
   const { homes, homeIds } = useHomesStore();
@@ -34,84 +29,102 @@ export default function DashboardPage() {
 
   // Data is already fetched on auth - no need to refetch on page navigation
 
-  const [events, setEvents] = useState<SSEEvent[]>([]);
-  const eventIdRef = useRef(0);
-  const eventsContainerRef = useRef<HTMLDivElement>(null);
-
   // Calculate summaries from real data
   const totalHomes = homeIds.length;
   const connectedHomes = homeIds.filter((id) => homes[id]?.connected).length;
   const disconnectedHomes = totalHomes - connectedHomes;
   const totalDevices = Object.keys(devices).length;
 
-  // Count devices with battery
-  const batteryDevices = Object.values(devices).filter((d) =>
-    d.attributes?.power_source?.toLowerCase().includes('battery'),
-  );
-  const lowBatteryDevices = batteryDevices.filter((d) => {
-    const data = devicesData[d.id]?.data;
-    const battery = data?.battery as number | undefined;
-    return battery !== undefined && battery < 20;
-  });
-
-  // Count devices with recent data (active in last 5 minutes)
-  const now = Date.now();
   const activeDevices = Object.values(devicesData).filter((d) => {
     if (!d.timestamp) return false;
     const lastUpdate = new Date(d.timestamp).getTime();
-    return now - lastUpdate < 5 * 60 * 1000; // 5 minutes
+    return Date.now() - lastUpdate < 5 * 60 * 1000;
   }).length;
 
-  // Get average temperature from devices that have temperature
-  const tempValues = Object.values(devicesData)
-    .map((d) => d.data?.temperature as number | undefined)
-    .filter((t): t is number => t !== undefined);
-  const avgTemperature =
-    tempValues.length > 0
-      ? (tempValues.reduce((a, b) => a + b, 0) / tempValues.length).toFixed(1)
+  // --- SECURITY ANALYTICS ---
+  const securityIssues = Object.values(devices)
+    .map((device) => {
+      const data = devicesData[device.id]?.data || {};
+      const exposes = device.attributes?.definition?.exposes || [];
+      const hasContact = exposes.some(
+        (e) => e.name === 'contact' || e.property === 'contact',
+      );
+      const hasSmoke = exposes.some(
+        (e) => e.name === 'smoke' || e.property === 'smoke',
+      );
+      const hasWater = exposes.some(
+        (e) => e.name === 'water_leak' || e.property === 'water_leak',
+      );
+
+      if (hasContact && data.contact === false)
+        return {
+          device,
+          type: 'Open',
+          icon: ShieldAlert,
+          color: 'text-red-500',
+        };
+      if (hasSmoke && data.smoke === true)
+        return {
+          device,
+          type: 'Smoke',
+          icon: ShieldAlert,
+          color: 'text-red-500 animate-pulse',
+        };
+      if (hasWater && data.water_leak === true)
+        return {
+          device,
+          type: 'Water Leak',
+          icon: Droplets,
+          color: 'text-blue-500 animate-pulse',
+        };
+      return null;
+    })
+    .filter((i): i is NonNullable<typeof i> => i !== null);
+
+  const isSecure = securityIssues.length === 0;
+
+  // --- CLIMATE ANALYTICS ---
+  const climateSensors = Object.values(devices)
+    .map((device) => {
+      const data = devicesData[device.id]?.data;
+      if (!data || data.temperature === undefined) return null;
+      return {
+        id: device.id,
+        name: device.name,
+        temp: data.temperature as number,
+        humidity: data.humidity as number | undefined,
+      };
+    })
+    .filter((s): s is NonNullable<typeof s> => s !== null)
+    .sort((a, b) => b.temp - a.temp);
+
+  const avgTemp =
+    climateSensors.length > 0
+      ? (
+          climateSensors.reduce((sum, s) => sum + s.temp, 0) /
+          climateSensors.length
+        ).toFixed(1)
       : null;
 
-  // Handle incoming SSE events
-  const handleSSEEvent = useCallback((topic: string, payload: unknown) => {
-    const newEvent: SSEEvent = {
-      id: ++eventIdRef.current,
-      timestamp: new Date(),
-      topic,
-      payload: JSON.stringify(payload, null, 2),
-    };
+  // --- MAINTENANCE ANALYTICS ---
+  const lowBatteryDevices = Object.values(devices)
+    .map((device) => {
+      const data = devicesData[device.id]?.data;
+      const battery = data?.battery as number | undefined;
+      if (battery !== undefined && battery < 20) return { device, battery };
+      return null;
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null);
 
-    setEvents((prev) => {
-      const updated = [newEvent, ...prev];
-      // Keep only last 100 events
-      return updated.slice(0, MAX_EVENTS);
-    });
-  }, []);
-
-  // Subscribe to SSE events
-  useEffect(() => {
-    const unsubSensor = sseService.on('sensor.data', (payload) => {
-      handleSSEEvent('sensor.data', payload);
-    });
-
-    const unsubHome = sseService.on('home.status', (payload) => {
-      handleSSEEvent('home.status', payload);
-    });
-
-    const unsubNotif = sseService.on('user.sensor-notification', (payload) => {
-      handleSSEEvent('user.sensor-notification', payload);
-    });
-
-    const unsubPing = sseService.on('ping', (payload) => {
-      handleSSEEvent('ping', payload);
-    });
-
-    return () => {
-      unsubSensor();
-      unsubHome();
-      unsubNotif();
-      unsubPing();
-    };
-  }, [handleSSEEvent]);
+  const poorSignalDevices = Object.values(devices)
+    .map((device) => {
+      const data = devicesData[device.id]?.data;
+      const lqi = data?.linkquality as number | undefined;
+      // LQI < 40 usually indicates weak signal
+      if (lqi !== undefined && lqi < 40) return { device, lqi };
+      return null;
+    })
+    .filter((d): d is NonNullable<typeof d> => d !== null);
 
   const summaryCards = [
     {
@@ -139,29 +152,7 @@ export default function DashboardPage() {
       color:
         connectedHomes === totalHomes ? 'text-emerald-400' : 'text-amber-400',
     },
-    {
-      title: 'Battery Status',
-      icon: Battery,
-      value: `${batteryDevices.length} devices`,
-      subtitle:
-        lowBatteryDevices.length > 0
-          ? `${lowBatteryDevices.length} low battery`
-          : 'All OK',
-      color:
-        lowBatteryDevices.length > 0 ? 'text-amber-400' : 'text-emerald-400',
-    },
   ];
-
-  // Add temperature card if we have data
-  if (avgTemperature !== null) {
-    summaryCards.push({
-      title: 'Avg Temperature',
-      icon: Thermometer,
-      value: `${avgTemperature}°C`,
-      subtitle: `From ${tempValues.length} sensors`,
-      color: 'text-rose-400',
-    });
-  }
 
   return (
     <div className="space-y-6">
@@ -186,8 +177,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+      {/* Summary Cards Row */}
+      <div className="grid gap-4 md:grid-cols-3">
         {summaryCards.map((item, i) => (
           <Card key={i} className="bg-card/40 border-border">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -208,60 +199,190 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      {/* Live Events Section */}
-      <Card className="bg-card/40 border-border">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-xl text-foreground flex items-center gap-2">
-            <Activity className="h-5 w-5" />
-            Live Events
-          </CardTitle>
-          <span className="text-xs text-muted-foreground">
-            {events.length} events (max {MAX_EVENTS})
-          </span>
-        </CardHeader>
-        <CardContent>
-          <div
-            ref={eventsContainerRef}
-            className="h-[400px] overflow-y-auto space-y-2 font-mono text-xs"
-            style={{ scrollbarWidth: 'thin' }}
-          >
-            {events.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
-                <p>Waiting for events...</p>
+      {/* Detailed Insights Grid */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {/* NETWORK HEALTH */}
+        <Card className="bg-card/40 border-border col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Wifi className="h-5 w-5 text-primary" />
+              Network Health
+            </CardTitle>
+            <CardDescription>Signal quality and connectivity</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {poorSignalDevices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-6 text-emerald-500 gap-2">
+                <Wifi className="h-10 w-10 opacity-50" />
+                <span className="font-medium">Signals Strong</span>
+                <p className="text-xs text-muted-foreground">
+                  All devices reporting good LQI
+                </p>
               </div>
             ) : (
-              events.map((event) => (
-                <div
-                  key={event.id}
-                  className="p-2 bg-background/50 rounded border border-border/50"
-                >
-                  <div className="flex items-center gap-2 mb-1">
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                        event.topic === 'sensor.data'
-                          ? 'bg-cyan-500/20 text-cyan-400'
-                          : event.topic === 'home.status'
-                            ? 'bg-amber-500/20 text-amber-400'
-                            : event.topic === 'ping'
-                              ? 'bg-gray-500/20 text-gray-400'
-                              : 'bg-purple-500/20 text-purple-400'
-                      }`}
+              <div className="space-y-3">
+                <p className="text-sm font-medium text-amber-500">
+                  {poorSignalDevices.length} devices with potential weak signal
+                </p>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                  {poorSignalDevices.map((item) => (
+                    <div
+                      key={item.device.id}
+                      className="flex justify-between items-center bg-background/30 p-2 rounded"
                     >
-                      {event.topic}
-                    </span>
-                    <span className="text-muted-foreground">
-                      {event.timestamp.toLocaleTimeString()}
+                      <span
+                        className="text-sm truncate max-w-[150px]"
+                        title={item.device.name}
+                      >
+                        {item.device.name}
+                      </span>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <SignalLow className="h-3 w-3" />
+                        {item.lqi} LQI
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* SECURITY STATUS */}
+        <Card className="bg-card/40 border-border col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              {isSecure ? (
+                <ShieldCheck className="h-5 w-5 text-emerald-500" />
+              ) : (
+                <ShieldAlert className="h-5 w-5 text-red-500 animate-pulse" />
+              )}
+              Security Status
+            </CardTitle>
+            <CardDescription>
+              {isSecure
+                ? 'All monitored zones are secure'
+                : 'Attention required'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isSecure ? (
+              <div className="flex flex-col items-center justify-center py-6 text-emerald-500 gap-2">
+                <ShieldCheck className="h-12 w-12 opacity-50" />
+                <span className="font-medium">System Secure</span>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
+                {securityIssues.map((issue, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between p-3 rounded bg-red-500/10 border border-red-500/20"
+                  >
+                    <div className="flex items-center gap-2">
+                      <issue.icon className={`h-4 w-4 ${issue.color}`} />
+                      <span className="text-sm font-medium">
+                        {issue.device.name}
+                      </span>
+                    </div>
+                    <span className="text-xs font-bold text-red-400 uppercase">
+                      {issue.type}
                     </span>
                   </div>
-                  <pre className="text-muted-foreground overflow-x-auto whitespace-pre-wrap break-all">
-                    {event.payload}
-                  </pre>
-                </div>
-              ))
+                ))}
+              </div>
             )}
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        {/* CLIMATE OVERVIEW */}
+        <Card className="bg-card/40 border-border col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Thermometer className="h-5 w-5 text-rose-500" />
+              Climate
+            </CardTitle>
+            <CardDescription>
+              {avgTemp
+                ? `Avg. Temperature: ${avgTemp}°C`
+                : 'No temperature data'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {climateSensors.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-6 text-muted-foreground gap-2">
+                <Wind className="h-10 w-10 opacity-20" />
+                <span className="text-sm">No climate sensors active</span>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-xs text-muted-foreground pb-1 border-b border-border/50">
+                  <span>Room</span>
+                  <span>Temp / Humidity</span>
+                </div>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                  {climateSensors.map((sensor) => (
+                    <div
+                      key={sensor.id}
+                      className="flex items-center justify-between py-1"
+                    >
+                      <span
+                        className="text-sm truncate max-w-[140px]"
+                        title={sensor.name}
+                      >
+                        {sensor.name}
+                      </span>
+                      <div className="flex items-center gap-3">
+                        <span
+                          className={`text-sm font-medium ${sensor.temp > 25 ? 'text-amber-500' : 'text-emerald-400'}`}
+                        >
+                          {sensor.temp.toFixed(1)}°C
+                        </span>
+                        {sensor.humidity && (
+                          <span className="text-xs text-blue-400 flex items-center gap-0.5">
+                            <Droplets className="h-3 w-3" />
+                            {sensor.humidity}%
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* BATTERY HEALTH (Only if issues exist) */}
+        {lowBatteryDevices.length > 0 && (
+          <Card className="bg-card/40 border-border col-span-1 md:col-span-2 lg:col-span-3 border-amber-500/30">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg text-amber-500">
+                <Battery className="h-5 w-5" />
+                Low Battery Warnings
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {lowBatteryDevices.map((item) => (
+                  <div
+                    key={item.device.id}
+                    className="flex items-center justify-between p-2 rounded bg-amber-500/10 border border-amber-500/20"
+                  >
+                    <span className="text-sm font-medium truncate">
+                      {item.device.name}
+                    </span>
+                    <span
+                      className={`text-xs font-bold ${item.battery < 10 ? 'text-red-500' : 'text-amber-500'}`}
+                    >
+                      {item.battery}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
