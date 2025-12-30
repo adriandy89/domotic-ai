@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import DevicesPage from './pages/DevicesPage';
+import RulesPage from './pages/RulesPage';
 import AccessPage from './pages/AccessPage';
 import HomesPage from './pages/HomesPage';
 import HomeMapPage from './pages/HomeMapPage';
@@ -52,6 +53,7 @@ function App() {
             <Route path="/homes" element={<HomesPage />} />
             <Route path="/homes/:id" element={<HomeMapPage />} />
             <Route path="/devices" element={<DevicesPage />} />
+            <Route path="/rules" element={<RulesPage />} />
             <Route path="/access" element={<AccessPage />} />
           </Route>
         </Route>

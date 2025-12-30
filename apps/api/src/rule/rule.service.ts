@@ -116,7 +116,10 @@ export class RuleService {
 
   async findAllByCurrentUser(user_id: string) {
     const rules = await this.dbService.rule.findMany({
-      select: this.selectRules,
+      select: {
+        ...this.selectRules,
+        _count: true,
+      },
       where: {
         user_id,
       },
@@ -148,6 +151,7 @@ export class RuleService {
               name: true,
             },
           },
+          _count: true,
         },
         where,
         orderBy: orderBy
