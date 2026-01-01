@@ -354,7 +354,7 @@ export default function DashboardPage() {
 
         {/* BATTERY HEALTH (Only if issues exist) */}
         {lowBatteryDevices.length > 0 && (
-          <Card className="bg-card/40 border-border col-span-1 md:col-span-2 lg:col-span-3 border-amber-500/30">
+          <Card className="bg-card/40 col-span-1 md:col-span-2 lg:col-span-3 border-amber-500/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg text-amber-500">
                 <Battery className="h-5 w-5" />

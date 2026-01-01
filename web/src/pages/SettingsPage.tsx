@@ -159,19 +159,14 @@ export default function SettingsPage() {
 
       <Card className="bg-card/40 border-border">
         <CardHeader className="flex flex-row items-center space-x-2 pb-3">
-          <div className="p-2 bg-primary/10 rounded-full">
+          <div className="p-3 bg-primary/10 rounded-full">
             <User className="h-8 w-8 text-primary" />
           </div>
           <div>
             <CardTitle className="text-xl">{user?.name}</CardTitle>
-            <CardDescription className="flex items-center gap-2 mt-1">
+            <CardDescription className="flex md:flex-row flex-col md:gap-2">
               <span>{user?.email}</span>
-              {user?.phone && (
-                <>
-                  <span>•</span>
-                  <span>+{user.phone}</span>
-                </>
-              )}
+              {user?.phone && <span>+{user.phone}</span>}
             </CardDescription>
           </div>
         </CardHeader>
