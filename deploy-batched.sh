@@ -35,7 +35,7 @@ sleep 10
 
 # Batch 3: Last services
 echo "📦 Deploying Batch 3: Last Services"
-deploy_batch "rules-engine notifications"
+deploy_batch "rules-engine"
 
 # Limpiar imágenes al final
 cleanup_images

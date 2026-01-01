@@ -42,6 +42,9 @@ import {
   Shield,
   Home,
   AlertCircle,
+  MessageCircle,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -54,10 +57,21 @@ interface UserData {
   role: string;
   is_active: boolean;
   is_org_admin: boolean;
-  attributes: Record<string, unknown> | null;
   created_at: string;
   updated_at: string | null;
+  channels: NotificationChannel[];
 }
+
+const NotificationChannel = {
+  TELEGRAM: 'TELEGRAM',
+  EMAIL: 'EMAIL',
+  PUSH: 'PUSH',
+  WEBHOOK: 'WEBHOOK',
+  SMS: 'SMS',
+} as const;
+
+type NotificationChannel =
+  (typeof NotificationChannel)[keyof typeof NotificationChannel];
 
 interface PaginatedResponse<T> {
   data: T[];
@@ -123,11 +137,17 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
     phone: '',
     role: 'USER',
     is_active: true,
+    channels: [] as NotificationChannel[],
   });
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
+
+  // Telegram Code State
+  const [showTelegramModal, setShowTelegramModal] = useState(false);
+  const [telegramCode, setTelegramCode] = useState<string | null>(null);
+  const [botLink, setBotLink] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -197,6 +217,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         phone: formData.phone || undefined,
         role: formData.role,
         is_active: formData.is_active,
+        channels: formData.channels,
       });
       setShowAddModal(false);
       setFormData({
@@ -206,6 +227,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         phone: '',
         role: 'USER',
         is_active: true,
+        channels: [],
       });
       fetchUsers();
       onDataChange?.();
@@ -227,6 +249,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         phone: formData.phone || undefined,
         role: formData.role,
         is_active: formData.is_active,
+        channels: formData.channels,
       });
       setShowEditModal(false);
       setEditTarget(null);
@@ -237,6 +260,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         phone: '',
         role: 'USER',
         is_active: true,
+        channels: [],
       });
       fetchUsers();
       onDataChange?.();
@@ -257,6 +281,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       phone: user.phone || '',
       role: user.role,
       is_active: user.is_active,
+      channels: user.channels || [],
     });
     setShowEditModal(true);
     setOpenMenuId(null);
@@ -282,9 +307,34 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       phone: '',
       role: 'USER',
       is_active: true,
+      channels: [],
     });
     setModalError(null);
     setShowAddModal(true);
+  };
+
+  const handleGenerateTelegramCode = async (user: UserData) => {
+    try {
+      const response = await api.post<{
+        success: boolean;
+        code: string;
+        instructions: string;
+        botLink?: string;
+        error?: string;
+      }>(`/telegram/user/${user.id}/generate-code`);
+
+      if (response.data.success) {
+        setTelegramCode(response.data.code);
+        setBotLink(response.data.botLink || null);
+        setShowTelegramModal(true);
+        setOpenMenuId(null);
+      } else {
+        console.error('Failed to generate Telegram code:', response.data.error);
+        // Optionally show toast or alert here
+      }
+    } catch (error) {
+      console.error('Error generating Telegram code:', error);
+    }
   };
 
   // Exclude org admins from selectable users
@@ -609,6 +659,12 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                                 <Home className="h-4 w-4" />
                                 Link Homes
                               </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleGenerateTelegramCode(user)}
+                              >
+                                <MessageCircle className="h-4 w-4" />
+                                Telegram
+                              </DropdownMenuItem>
                             </DropdownMenu>
                           ) : (
                             <span className="text-xs text-muted-foreground">
@@ -638,6 +694,12 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                             <DropdownMenuItem onClick={() => openLink(user)}>
                               <Home className="h-4 w-4" />
                               Link Homes
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleGenerateTelegramCode(user)}
+                            >
+                              <MessageCircle className="h-4 w-4" />
+                              Telegram Link
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               variant="destructive"
@@ -676,6 +738,28 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                                 </span>
                                 <p className="font-medium">{user.role}</p>
                               </div>
+                              <div>
+                                <span className="text-sm text-muted-foreground">
+                                  Channels
+                                </span>
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {user.channels && user.channels.length > 0 ? (
+                                    user.channels.map((channel) => (
+                                      <Badge
+                                        key={channel}
+                                        variant="outline"
+                                        className="text-xs"
+                                      >
+                                        {channel}
+                                      </Badge>
+                                    ))
+                                  ) : (
+                                    <span className="text-muted-foreground text-sm">
+                                      None
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
                               <div>
@@ -695,17 +779,6 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                                 </p>
                               </div>
                             </div>
-                            {user.attributes &&
-                              Object.keys(user.attributes).length > 0 && (
-                                <div className="border-t border-border pt-4">
-                                  <h4 className="text-sm font-semibold mb-2">
-                                    Attributes
-                                  </h4>
-                                  <pre className="bg-background/50 p-3 rounded-lg text-xs font-mono overflow-x-auto">
-                                    {JSON.stringify(user.attributes, null, 2)}
-                                  </pre>
-                                </div>
-                              )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -858,10 +931,40 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                 Active
               </label>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Notification Channels
+              </label>
+              <div className="flex flex-wrap gap-4 pt-2">
+                {Object.values(NotificationChannel).map((channel) => (
+                  <div key={channel} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id={`channel_${channel}_add`}
+                      checked={formData.channels.includes(channel)}
+                      onChange={(e) => {
+                        const newChannels = e.target.checked
+                          ? [...formData.channels, channel]
+                          : formData.channels.filter((c) => c !== channel);
+                        setFormData({ ...formData, channels: newChannels });
+                      }}
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    <label
+                      htmlFor={`channel_${channel}_add`}
+                      className="text-sm font-medium capitalize"
+                    >
+                      {channel.toLowerCase()}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
           {modalError && (
             <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <AlertCircle className="h-4 w-4 shrink-0" />
               {modalError}
             </div>
           )}
@@ -940,10 +1043,40 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                 Active
               </label>
             </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">
+                Notification Channels
+              </label>
+              <div className="flex flex-wrap gap-4 pt-2">
+                {Object.values(NotificationChannel).map((channel) => (
+                  <div key={channel} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id={`channel_${channel}_edit`}
+                      checked={formData.channels.includes(channel)}
+                      onChange={(e) => {
+                        const newChannels = e.target.checked
+                          ? [...formData.channels, channel]
+                          : formData.channels.filter((c) => c !== channel);
+                        setFormData({ ...formData, channels: newChannels });
+                      }}
+                      className="h-4 w-4 rounded border-border"
+                    />
+                    <label
+                      htmlFor={`channel_${channel}_edit`}
+                      className="text-sm font-medium capitalize"
+                    >
+                      {channel.toLowerCase()}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
           {modalError && (
             <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <AlertCircle className="h-4 w-4 shrink-0" />
               {modalError}
             </div>
           )}
@@ -976,7 +1109,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
           </DialogHeader>
           {modalError && (
             <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <AlertCircle className="h-4 w-4 shrink-0" />
               {modalError}
             </div>
           )}
@@ -993,6 +1126,83 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
             <Button variant="destructive" onClick={handleDelete}>
               Delete
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showTelegramModal} onOpenChange={setShowTelegramModal}>
+        <DialogContent
+          onClose={() => setShowTelegramModal(false)}
+          className="sm:max-w-md"
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-primary" />
+              Connect Telegram
+            </DialogTitle>
+            <DialogDescription>
+              Link your account to receive notifications.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex flex-col items-center justify-center py-6 space-y-6">
+            <div className="w-full space-y-2">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Verification Code
+              </label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 text-center text-2xl font-mono font-bold tracking-widest bg-muted/50 border border-border p-4 rounded-lg select-all">
+                  <span className="text-lg">/verify </span> {telegramCode}
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-14 w-14 shrink-0"
+                  onClick={() => {
+                    if (telegramCode) {
+                      navigator.clipboard.writeText(`/verify ${telegramCode}`);
+                      // Could add a toast here
+                    }
+                  }}
+                  title="Copy Code"
+                >
+                  <Copy className="h-5 w-5" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg text-sm text-blue-800 dark:text-blue-200 w-full">
+              <p className="font-semibold mb-1">Instructions:</p>
+              <ol className="list-decimal list-inside space-y-1 opacity-90">
+                <li>Open the Telegram bot</li>
+                <li>
+                  Click <strong>Start</strong> or send <code>/start</code>
+                </li>
+                <li>Copy the verification code above</li>
+                <li>
+                  Send the command: <code>/verify {telegramCode}</code>
+                </li>
+              </ol>
+            </div>
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowTelegramModal(false)}
+              className="sm:flex-1"
+            >
+              Close
+            </Button>
+            {botLink && (
+              <Button
+                onClick={() => window.open(botLink, '_blank')}
+                className="sm:flex-1 gap-2 bg-[#229ED9] hover:bg-[#1f8rbc] text-white"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open Telegram Bot
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

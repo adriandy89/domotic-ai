@@ -4,7 +4,7 @@ import { getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, getKeyHomeUn
 import { NatsClientService } from '@app/nats-client';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { JsonValue } from '@prisma/client/runtime/client';
-import { SensorData } from 'generated/prisma/client';
+import { NotificationChannel, SensorData } from 'generated/prisma/client';
 import { MqttClient } from 'mqtt';
 
 const sanitizeInput = (input: any): any => {
@@ -223,6 +223,7 @@ export class MqttCoreService {
         },
         select: {
           id: true,
+          name: true,
           disabled: true,
           conditions: {
             select: {
@@ -293,11 +294,15 @@ export class MqttCoreService {
         data: { last_update: new Date() },
         select: {
           id: true,
+          name: true,
           users: {
             select: {
               user: {
                 select: {
                   id: true,
+                  channels: true,
+                  telegram_chat_id: true,
+                  is_active: true,
                   attributes: true,
                 }
               }
@@ -326,6 +331,7 @@ export class MqttCoreService {
         }
         // compare last data with new data
         await this.globalUserAttributesNotification(
+          device.name,
           newSensorData,
           prevSensorData,
           updatedHome,
@@ -339,14 +345,19 @@ export class MqttCoreService {
 
 
   async globalUserAttributesNotification(
+    deviceName: string,
     newSensorData: Pick<SensorData, 'data' | 'device_id'>,
     prevData: Pick<SensorData, 'data'>,
     home: {
       id: string;
+      name: string;
       users: {
         user: {
           id: string;
           attributes: JsonValue;
+          channels: NotificationChannel[];
+          telegram_chat_id: string | null;
+          is_active: boolean;
         };
       }[];
     },
@@ -376,7 +387,10 @@ export class MqttCoreService {
 
     // Iterar sobre los usuarios del home
     for (const { user } of home.users) {
-      if (!user.attributes || typeof user.attributes !== 'object') continue;
+      if (!user.attributes ||
+        typeof user.attributes !== 'object' ||
+        !user.channels || user.channels.length === 0 ||
+        !user.is_active) continue;
 
       const userAttrObj = user.attributes as Record<string, any>;
 
@@ -401,8 +415,10 @@ export class MqttCoreService {
                   `Notifying user ${user.id} for ${keyAttr} on home ${home.id}`,
                 );
                 await this.natsClient.emit<IUserSensorNotification>('mqtt-core.user.sensor-notification', {
-                  userId: user.id,
+                  deviceName,
+                  homeName: home.name,
                   homeId: home.id,
+                  user,
                   deviceId: newSensorData.device_id,
                   attributeKey: keyAttr,
                   sensorKey: key,

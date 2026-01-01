@@ -8,8 +8,8 @@ import {
   MinLength,
   IsEmail,
 } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
-import { Role } from 'generated/prisma/enums';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { NotificationChannel, Role } from 'generated/prisma/enums';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -78,4 +78,12 @@ export class CreateUserDto {
   @IsOptional()
   @IsEnum(Role)
   readonly role?: Role;
+
+  @ApiPropertyOptional({
+    enum: [NotificationChannel],
+    default: [NotificationChannel.EMAIL],
+  })
+  @IsString({ each: true })
+  @IsOptional()
+  readonly channels: NotificationChannel[];
 }

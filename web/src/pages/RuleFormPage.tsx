@@ -346,9 +346,20 @@ export default function RuleFormPage() {
       all,
       home_id: homeId,
       conditions: conditions.filter((c) => c.device_id && c.attribute),
-      results: results.filter((r) =>
-        r.type === 'NOTIFICATION' ? r.event : r.device_id && r.attribute,
-      ),
+      results: results
+        .filter((r) =>
+          r.type === 'NOTIFICATION' ? r.event : r.device_id && r.attribute,
+        )
+        .map((r) => ({
+          ...r,
+          // For NOTIFICATION type, don't send device_id, attribute, or data if empty
+          device_id:
+            r.type === 'NOTIFICATION' || !r.device_id ? undefined : r.device_id,
+          attribute:
+            r.type === 'NOTIFICATION' || !r.attribute ? undefined : r.attribute,
+          data:
+            r.type === 'NOTIFICATION' || !r.data?.value ? undefined : r.data,
+        })),
     };
 
     let success = false;
@@ -883,32 +894,34 @@ export default function RuleFormPage() {
                             }
                             className="md:col-span-2"
                           />
-                          {/* Channel Select */}
-                          <Select
-                            value={result.channel?.[0] || ''}
-                            onValueChange={(v: string) =>
-                              updateResult(index, 'channel', [
-                                v as NotificationChannel,
-                              ])
-                            }
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Channel">
-                                {result.channel?.[0]
-                                  ? NOTIFICATION_CHANNELS.find(
-                                      (c) => c.value === result.channel[0],
-                                    )?.label
-                                  : null}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {NOTIFICATION_CHANNELS.map((ch) => (
-                                <SelectItem key={ch.value} value={ch.value}>
-                                  {ch.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                          {/* Channel Multi-Select */}
+                          <div className="flex flex-wrap gap-3 items-center">
+                            {NOTIFICATION_CHANNELS.map((ch) => (
+                              <label
+                                key={ch.value}
+                                className="flex items-center gap-1.5 text-sm cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={
+                                    result.channel?.includes(ch.value) || false
+                                  }
+                                  onChange={(e) => {
+                                    const currentChannels =
+                                      result.channel || [];
+                                    const newChannels = e.target.checked
+                                      ? [...currentChannels, ch.value]
+                                      : currentChannels.filter(
+                                          (c) => c !== ch.value,
+                                        );
+                                    updateResult(index, 'channel', newChannels);
+                                  }}
+                                  className="h-4 w-4 rounded border-border"
+                                />
+                                {ch.label}
+                              </label>
+                            ))}
+                          </div>
                         </>
                       )}
                     </div>
