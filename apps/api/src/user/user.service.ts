@@ -31,6 +31,7 @@ export class UserService {
     created_at: true,
     role: true,
     expiration_time: true,
+    channels: true,
     notification_batch_minutes: true,
   };
 
