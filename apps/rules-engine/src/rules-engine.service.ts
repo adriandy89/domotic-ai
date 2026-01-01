@@ -546,15 +546,87 @@ export class RulesEngineService {
     result: { id: string; event: string; channel: string[] | NotificationChannel[] },
   ): Promise<void> {
     this.logger.log(`Executing notification for rule ${ruleInfo.ruleId}, result ${result.id}`);
-    console.log({
-      ruleId: ruleInfo.ruleId,
-      ruleName: ruleInfo.ruleName,
-      resultId: result.id,
-      event: result.event,
-      userId: ruleInfo.userId,
-      homeId: ruleInfo.homeId,
-      channels: result.channel,
+
+    // Fetch user with their configured notification channels
+    const user = await this.dbService.user.findUnique({
+      where: { id: ruleInfo.userId },
+      select: {
+        id: true,
+        channels: true,
+        telegram_chat_id: true,
+        email: true,
+        phone: true,
+        fmc_tokens: true,
+      },
     });
+
+    const home = await this.dbService.home.findUnique({
+      where: { id: ruleInfo.homeId },
+      select: { name: true },
+    });
+
+    if (!user) {
+      this.logger.warn(`User ${ruleInfo.userId} not found for notification`);
+      return;
+    }
+
+    // Find matching channels between result.channel and user.channels
+    const resultChannels = result.channel as NotificationChannel[];
+    const userChannels = user.channels || [];
+    const matchingChannels = resultChannels.filter((ch) => userChannels.includes(ch));
+
+    if (matchingChannels.length === 0) {
+      this.logger.verbose(`No matching channels for user ${ruleInfo.userId}. Result channels: ${resultChannels}, User channels: ${userChannels}`);
+      return;
+    }
+
+    this.logger.log(`Sending notification via channels: ${matchingChannels.join(', ')}`);
+
+    // Emit notification for each matching channel
+    for (const channel of matchingChannels) {
+      const notificationPayload = {
+        ruleId: ruleInfo.ruleId,
+        ruleName: ruleInfo.ruleName,
+        resultId: result.id,
+        event: result.event,
+        userId: ruleInfo.userId,
+        homeId: ruleInfo.homeId,
+        homeName: home?.name,
+      };
+
+      switch (channel) {
+        case NotificationChannel.TELEGRAM:
+          if (user.telegram_chat_id) {
+            this.logger.log(`Emitting telegram notification for user ${ruleInfo.userId}`);
+            await this.natsClient.emit('notification.telegram', {
+              ...notificationPayload,
+              chatId: user.telegram_chat_id,
+            });
+          } else {
+            this.logger.warn(`User ${ruleInfo.userId} has TELEGRAM channel enabled but no chat_id linked`);
+          }
+          break;
+
+        case NotificationChannel.EMAIL:
+          this.logger.log(`EMAIL notification not implemented yet. Payload: ${JSON.stringify(notificationPayload)}`);
+          break;
+
+        case NotificationChannel.SMS:
+          this.logger.log(`SMS notification not implemented yet. Payload: ${JSON.stringify(notificationPayload)}`);
+          break;
+
+        case NotificationChannel.PUSH:
+          this.logger.log(`PUSH notification not implemented yet. Payload: ${JSON.stringify(notificationPayload)}`);
+          break;
+
+        case NotificationChannel.WEBHOOK:
+          this.logger.log(`WEBHOOK notification not implemented yet. Payload: ${JSON.stringify(notificationPayload)}`);
+          break;
+
+        default:
+          this.logger.warn(`Unknown notification channel: ${channel}`);
+      }
+    }
   }
 
   /**

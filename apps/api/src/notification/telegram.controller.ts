@@ -1,4 +1,5 @@
 import { Body, Controller, Headers, HttpCode, HttpStatus, Logger, Param, Post, UseGuards } from '@nestjs/common';
+import { EventPattern, Payload } from '@nestjs/microservices';
 import { TelegramService } from './telegram.service';
 import { AuthenticatedGuard } from '../auth';
 import { ApiParam } from '@nestjs/swagger';
@@ -6,6 +7,18 @@ import { GetUserInfo, Permissions } from '../auth/decorators';
 import { Role } from 'generated/prisma/enums';
 import { PermissionsGuard } from '../auth/guards';
 import type { SessionUser } from '@app/models';
+
+// Interface for rule notification payload
+interface IRuleNotificationPayload {
+  ruleId: string;
+  ruleName: string;
+  resultId: string;
+  event: string;
+  userId: string;
+  homeId: string;
+  homeName: string;
+  chatId: string;
+}
 
 @Controller('telegram')
 export class TelegramController {
@@ -66,5 +79,42 @@ export class TelegramController {
         error: 'Could not generate verification code',
       };
     }
+  }
+
+  // NATS Event Handler for Rule Notifications
+  @EventPattern('notification.telegram')
+  async handleRuleNotification(
+    @Payload() payload: IRuleNotificationPayload,
+  ) {
+    this.logger.log(`Received telegram notification for rule ${payload.ruleId}`);
+
+    try {
+      // Build beautiful notification message
+      const message = `🔔 <b>Rule Alert</b>
+
+🏠 ${this.escapeHtml(payload.homeName)}
+📋 ${this.escapeHtml(payload.ruleName)}
+
+💬 ${this.escapeHtml(payload.event)}
+`;
+
+      const success = await this.telegramService.sendMessage(payload.chatId, message);
+
+      if (success) {
+        this.logger.log(`Telegram notification sent successfully for rule ${payload.ruleId}`);
+      } else {
+        this.logger.warn(`Failed to send telegram notification for rule ${payload.ruleId}`);
+      }
+    } catch (error) {
+      this.logger.error(`Error sending telegram notification: ${error.message}`, error.stack);
+    }
+  }
+
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 }

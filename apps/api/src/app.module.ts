@@ -10,7 +10,7 @@ import { DbModule } from '@app/db';
 import { HttpModule } from '@nestjs/axios';
 import { SSEModule } from './sse';
 import { RuleModule } from './rule';
-import { TelegramModule } from './telegram';
+import { NotificationModule } from './notification';
 
 @Module({
   imports: [
@@ -32,7 +32,7 @@ import { TelegramModule } from './telegram';
     UserModule,
     DeviceModule,
     RuleModule,
-    TelegramModule,
+    NotificationModule,
   ],
   controllers: [],
   providers: [],
