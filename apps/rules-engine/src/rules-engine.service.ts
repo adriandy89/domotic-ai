@@ -294,9 +294,14 @@ export class RulesEngineService {
     for (const result of jobData.results) {
       try {
         if (result.type === ResultType.COMMAND) {
-          await this.executeCommandFromJob(jobData.homeUniqueId, result);
+          await this.executeCommand(jobData.homeUniqueId, result);
         } else if (result.type === ResultType.NOTIFICATION) {
-          await this.executeNotificationFromJob(jobData, result);
+          await this.executeNotification({
+            ruleId: jobData.ruleId,
+            ruleName: jobData.ruleName,
+            userId: jobData.userId,
+            homeId: jobData.homeId,
+          }, result);
         }
         await this.dbService.rule.update({
           where: { id: jobData.ruleId },
@@ -312,11 +317,11 @@ export class RulesEngineService {
   }
 
   /**
-   * Execute command from delayed job data
+   * Execute command (unified for both immediate and delayed execution)
    */
-  private async executeCommandFromJob(
+  private async executeCommand(
     homeUniqueId: string,
-    result: IDelayedRuleJob['results'][0],
+    result: { id: string; device_id: string | null; attribute: string | null; data: any },
   ): Promise<void> {
     if (!result.device_id) {
       this.logger.warn(`Result ${result.id} has no device_id`);
@@ -333,9 +338,9 @@ export class RulesEngineService {
       return;
     }
 
-    const command = this.buildCommandFromResult(result);
+    const command = this.buildCommandUnified(result);
 
-    this.logger.log(`Sending delayed command to device ${device.unique_id}`);
+    this.logger.log(`Sending command to device ${device.unique_id}: ${JSON.stringify(command)}`);
 
     await this.natsClient.emit<{
       homeUniqueId: string;
@@ -349,28 +354,9 @@ export class RulesEngineService {
   }
 
   /**
-   * Execute notification from delayed job data
+   * Build command payload (unified for both result types)
    */
-  private async executeNotificationFromJob(
-    jobData: IDelayedRuleJob,
-    result: IDelayedRuleJob['results'][0],
-  ): Promise<void> {
-    this.logger.log(`Executing delayed notification for rule ${jobData.ruleId}`);
-    console.log({
-      ruleId: jobData.ruleId,
-      ruleName: jobData.ruleName,
-      resultId: result.id,
-      event: result.event,
-      userId: jobData.userId,
-      homeId: jobData.homeId,
-      channels: result.channel,
-    });
-  }
-
-  /**
-   * Build command from result data
-   */
-  private buildCommandFromResult(result: IDelayedRuleJob['results'][0]): Record<string, any> {
+  private buildCommandUnified(result: { attribute: string | null; data: any }): Record<string, any> {
     const command: Record<string, any> = {};
 
     if (result.attribute && result.data) {
@@ -529,10 +515,15 @@ export class RulesEngineService {
       try {
         switch (result.type) {
           case ResultType.COMMAND:
-            await this.executeCommand(rule, result);
+            await this.executeCommand(rule.home.unique_id, result);
             break;
           case ResultType.NOTIFICATION:
-            await this.executeNotification(rule, result);
+            await this.executeNotification({
+              ruleId: rule.id,
+              ruleName: rule.name,
+              userId: rule.user.id,
+              homeId: rule.home.id,
+            }, result);
             break;
           default:
             this.logger.warn(`Unknown result type: ${result.type}`);
@@ -548,75 +539,20 @@ export class RulesEngineService {
   }
 
   /**
-   * Execute a COMMAND result
-   */
-  private async executeCommand(
-    rule: RuleSelected,
-    result: RuleSelected['results'][0],
-  ): Promise<void> {
-    if (!result.device_id) {
-      this.logger.warn(`Result ${result.id} has no device_id`);
-      return;
-    }
-
-    const device = await this.dbService.device.findUnique({
-      where: { id: result.device_id },
-      select: { unique_id: true },
-    });
-
-    if (!device) {
-      this.logger.warn(`Device ${result.device_id} not found`);
-      return;
-    }
-
-    const command = this.buildCommand(result);
-
-    this.logger.log(`Sending command to device ${device.unique_id}: ${JSON.stringify(command)}`);
-
-    await this.natsClient.emit<{
-      homeUniqueId: string;
-      deviceUniqueId: string;
-      command: any
-    }>('mqtt-core.publish-command', {
-      homeUniqueId: rule.home.unique_id,
-      deviceUniqueId: device.unique_id,
-      command,
-    });
-  }
-
-  /**
-   * Build command payload from result
-   */
-  private buildCommand(result: RuleSelected['results'][0]): Record<string, any> {
-    const command: Record<string, any> = {};
-
-    if (result.attribute && result.data) {
-      const dataValue = (result.data as { value: any })?.value;
-      if (dataValue !== undefined) {
-        command[result.attribute] = dataValue;
-      }
-    } else if (result.data) {
-      return result.data as Record<string, any>;
-    }
-
-    return command;
-  }
-
-  /**
-   * Execute a NOTIFICATION result
+   * Execute notification (unified for both immediate and delayed execution)
    */
   private async executeNotification(
-    rule: RuleSelected,
-    result: RuleSelected['results'][0],
+    ruleInfo: { ruleId: string; ruleName: string; userId: string; homeId: string },
+    result: { id: string; event: string; channel: string[] | NotificationChannel[] },
   ): Promise<void> {
-    this.logger.log(`Executing notification for rule ${rule.id}, result ${result.id}`);
+    this.logger.log(`Executing notification for rule ${ruleInfo.ruleId}, result ${result.id}`);
     console.log({
-      ruleId: rule.id,
-      ruleName: rule.name,
+      ruleId: ruleInfo.ruleId,
+      ruleName: ruleInfo.ruleName,
       resultId: result.id,
       event: result.event,
-      userId: rule.user.id,
-      homeId: rule.home.id,
+      userId: ruleInfo.userId,
+      homeId: ruleInfo.homeId,
       channels: result.channel,
     });
   }
