@@ -30,6 +30,12 @@ export class RuleService {
   async createRule(createRuleDto: CreateRuleDto, user_id: string) {
     const { conditions, results, home_id, ...ruleData } = createRuleDto;
 
+    // Sanitize results: convert empty string device_id to null for NOTIFICATION type
+    const sanitizedResults = results?.map((result) => ({
+      ...result,
+      device_id: result.device_id === '' || result.device_id === undefined ? null : result.device_id,
+    })) || [];
+
     try {
       return await this.dbService.rule.create({
         data: {
@@ -47,7 +53,7 @@ export class RuleService {
           },
           results: {
             createMany: {
-              data: results,
+              data: sanitizedResults,
             },
           },
         },
@@ -60,14 +66,21 @@ export class RuleService {
 
   async updateRule(id: string, updateRuleDto: UpdateRuleDto) {
     const { conditions, results, home_id, ...ruleData } = updateRuleDto;
+
+    // Sanitize results: convert empty string device_id to null for NOTIFICATION type
+    const sanitizedResults = results?.map((result) => ({
+      ...result,
+      device_id: result.device_id === '' || result.device_id === undefined ? null : result.device_id,
+    })) || [];
+
     const filteredConditions: ICreateCondition[] = conditions?.filter(
       (action) => action?.id !== undefined,
     ) || [];
     const newConditions = conditions?.filter(
       (action) => action.id === undefined,
     ) || [];
-    const filteredResults: ICreateResult[] = results?.filter((action) => action.id !== undefined) || [];
-    const newResults = results?.filter((action) => action.id === undefined) || [];
+    const filteredResults = sanitizedResults.filter((action) => action.id !== undefined);
+    const newResults = sanitizedResults.filter((action) => action.id === undefined);
     return await this.dbService.rule.update({
       where: { id },
       data: {
