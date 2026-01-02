@@ -116,6 +116,18 @@ export function HomeMap({ home }: HomeMapProps) {
     }
   };
 
+  const handleCommand = async (deviceId: string, command: Record<string, unknown>) => {
+    try {
+      await api.post('/devices/command/send', {
+        device_id: deviceId,
+        command,
+      });
+      console.log('Command sent:', deviceId, command);
+    } catch (error) {
+      console.error('Failed to send command:', error);
+    }
+  };
+
   const handleDeviceMouseDown = (device: Device, e: React.MouseEvent) => {
     if (!isEditMode) return;
     e.preventDefault();
@@ -325,6 +337,7 @@ export function HomeMap({ home }: HomeMapProps) {
                   <DeviceCard
                     device={selectedDevice}
                     deviceData={selectedDeviceData ?? undefined}
+                    onCommand={handleCommand}
                   />
                 </div>
               );
