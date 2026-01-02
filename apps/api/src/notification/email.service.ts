@@ -1,5 +1,3 @@
-import { CacheService } from '@app/cache';
-import { DbService } from '@app/db';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 const nodemailer = require("nodemailer");
@@ -16,8 +14,6 @@ export class EmailService {
 
   constructor(
     private readonly config: ConfigService,
-    private readonly dbService: DbService,
-    private readonly cacheService: CacheService,
   ) {
     this.baseUrl = this.config.get<string>('PUBLIC_APP_URL', 'http://localhost:3003');
     this.emailUser = this.config.get<string>('EMAIL_USER', '');

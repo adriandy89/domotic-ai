@@ -1,4 +1,5 @@
-import { useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
+import convert from 'color-convert';
 import type { DeviceExpose } from '../../store/useDevicesStore';
 
 // Feature access modes (bitmask)
@@ -88,6 +89,20 @@ export function NumericFeature({ expose, value, onChange }: FeatureProps) {
   const step = expose.value_step ?? 1;
   const unit = expose.unit || '';
 
+  // Use local state to avoid sending commands while dragging
+  const [currentValue, setCurrentValue] = useState(numValue);
+
+  // Update local state when prop value changes
+  useEffect(() => {
+    setCurrentValue(numValue);
+  }, [numValue]);
+
+  const handleCommit = () => {
+    if (currentValue !== numValue) {
+      onChange(expose.property, currentValue);
+    }
+  };
+
   if (!canSet) {
     return (
       <div className="flex items-center justify-between py-1 px-2 bg-background/30 rounded">
@@ -110,13 +125,12 @@ export function NumericFeature({ expose, value, onChange }: FeatureProps) {
         <div className="flex items-center gap-1">
           <input
             type="number"
-            value={numValue}
+            value={currentValue}
             min={min}
             max={max}
             step={step}
-            onChange={(e) =>
-              onChange(expose.property, parseFloat(e.target.value))
-            }
+            onChange={(e) => setCurrentValue(parseFloat(e.target.value))}
+            onBlur={handleCommit}
             className="w-16 h-5 text-xs text-right bg-background border border-border rounded px-1 focus:outline-none focus:ring-1 focus:ring-primary"
           />
           <span className="text-[10px] text-muted-foreground">{unit}</span>
@@ -124,11 +138,13 @@ export function NumericFeature({ expose, value, onChange }: FeatureProps) {
       </div>
       <input
         type="range"
-        value={numValue}
+        value={currentValue}
         min={min}
         max={max}
         step={step}
-        onChange={(e) => onChange(expose.property, parseFloat(e.target.value))}
+        onChange={(e) => setCurrentValue(parseFloat(e.target.value))}
+        onMouseUp={handleCommit}
+        onTouchEnd={handleCommit}
         className="w-full h-1.5 bg-muted-foreground/20 rounded-lg appearance-none cursor-pointer accent-primary"
       />
     </div>
@@ -166,11 +182,10 @@ export function EnumFeature({ expose, value, onChange }: FeatureProps) {
             <button
               key={val}
               onClick={() => onChange(expose.property, val)}
-              className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
-                currentValue === val
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-              }`}
+              className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${currentValue === val
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                }`}
             >
               {val}
             </button>
@@ -208,6 +223,26 @@ export function TextFeature({ expose, value, onChange }: FeatureProps) {
   const canSet = (expose.access & FeatureAccessMode.SET) !== 0;
   const textValue = typeof value === 'string' ? value : '';
 
+  // Use local state to avoid sending commands on every keystroke
+  const [currentText, setCurrentText] = useState(textValue);
+
+  useEffect(() => {
+    setCurrentText(textValue);
+  }, [textValue]);
+
+  const handleCommit = () => {
+    if (currentText !== textValue) {
+      onChange(expose.property, currentText);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleCommit();
+      (e.target as HTMLInputElement).blur();
+    }
+  };
+
   if (!canSet) {
     return (
       <div className="flex items-center justify-between py-1 px-2 bg-background/30 rounded">
@@ -231,8 +266,10 @@ export function TextFeature({ expose, value, onChange }: FeatureProps) {
       </span>
       <input
         type="text"
-        value={textValue}
-        onChange={(e) => onChange(expose.property, e.target.value)}
+        value={currentText}
+        onChange={(e) => setCurrentText(e.target.value)}
+        onBlur={handleCommit}
+        onKeyDown={handleKeyDown}
         className="w-24 h-5 text-xs bg-background border border-border rounded px-1 focus:outline-none focus:ring-1 focus:ring-primary"
       />
     </div>
@@ -271,9 +308,168 @@ export function ValueDisplay({
   );
 }
 
+// Color conversion helpers
+type AnyColor = { x?: number; y?: number; hue?: number; saturation?: number; r?: number; g?: number; b?: number };
+type ColorFormat = 'color_xy' | 'color_hs' | 'color_rgb';
+
+const toRGB = (source: AnyColor, sourceFormat: ColorFormat): string => {
+  switch (sourceFormat) {
+    case 'color_xy': {
+      const { x = 0, y = 0 } = source;
+      const z = 1.0 - x - y;
+      const Y = 1;
+      const X = (Y / y) * x;
+      const Z = (Y / y) * z;
+      return '#' + convert.xyz.hex([X * 100.0, Y * 100.0, Z * 100.0]);
+    }
+    case 'color_hs': {
+      const { hue = 0, saturation = 0 } = source;
+      return '#' + convert.hsv.hex([hue, saturation, 100]);
+    }
+    case 'color_rgb': {
+      const { r = 0, g = 0, b = 0 } = source;
+      return '#' + convert.rgb.hex([r, g, b]);
+    }
+    default:
+      return '#FFFFFF';
+  }
+};
+
+const pridePalette = ['#FF0018', '#FFA52C', '#FFFF41', '#008018', '#0000F9', '#86007D'];
+const whitePalette = ['#FFFFFF', '#FDF4DC', '#F4FDFF'];
+
+// Color feature for lights with color_xy, color_hs, color_rgb
+export function ColorFeature({ expose, onChange, data }: FeatureProps) {
+  const features = expose.features || [];
+  const format = expose.name as ColorFormat;
+
+  // Build current color value from sub-features
+  // Use innerFeature.name as key (e.g., "x", "y") not property
+  const value: AnyColor = {};
+  for (const innerFeature of features) {
+    const val = data?.[innerFeature.property];
+    if (val !== undefined) {
+      value[innerFeature.name as keyof AnyColor] = val as number;
+    }
+  }
+
+  const [currentColor, setCurrentColor] = useState<string>(toRGB(value, format));
+
+  // Update currentColor when device color changes
+  // Use JSON.stringify to properly detect object changes
+  useEffect(() => {
+    const newColor = toRGB(value, format);
+    setCurrentColor(newColor);
+  }, [JSON.stringify(value), format]);
+
+  // Just sends the command
+  const sendColorCommand = (hexColor: string) => {
+    // Send hex directly - backend will convert to the appropriate format
+    // This matches old frontend behavior where ColorEditor sends { hex: color }
+    console.log('Color change - sending hex:', expose.property, { hex: hexColor });
+    onChange(expose.property, { hex: hexColor });
+  };
+
+  // Updates local state + sends command (for palette buttons)
+  const handlePaletteClick = (hexColor: string) => {
+    setCurrentColor(hexColor);
+    sendColorCommand(hexColor);
+  };
+
+  // Only updates local state (for picker dragging)
+  const handlePickerChange = (hexColor: string) => {
+    setCurrentColor(hexColor);
+  };
+
+  // Commits the current local state (for picker blur/close)
+  const handlePickerCommit = () => {
+    sendColorCommand(currentColor);
+  };
+
+  return (
+    <div className="py-2 px-2 bg-background/30 rounded space-y-2">
+      <span className="text-xs text-muted-foreground font-medium">{expose.label || 'Color'}</span>
+
+      {/* Color palettes */}
+      <div className="flex gap-1 flex-wrap">
+        {pridePalette.map((color) => (
+          <button
+            key={color}
+            onClick={() => handlePaletteClick(color)}
+            className="w-8 h-8 rounded border-2 border-border hover:scale-110 transition-transform cursor-pointer"
+            style={{ backgroundColor: color }}
+            title={color}
+          />
+        ))}
+      </div>
+      <div className="flex gap-1 flex-wrap">
+        {whitePalette.map((color) => (
+          <button
+            key={color}
+            onClick={() => handlePaletteClick(color)}
+            className="w-8 h-8 rounded border-2 border-border hover:scale-110 transition-transform cursor-pointer"
+            style={{ backgroundColor: color }}
+            title={color}
+          />
+        ))}
+      </div>
+
+      {/* Color picker - click to open browser's native color selector */}
+      <div className="flex items-center gap-3 pt-1">
+        <div className="relative w-12 h-12">
+          <input
+            type="color"
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            value={currentColor}
+            onChange={(e) => handlePickerChange(e.target.value)}
+            onBlur={handlePickerCommit}
+            title="Click to open color picker"
+          />
+          <div
+            className="w-full h-full rounded-full border-4 border-border shadow-lg cursor-pointer hover:scale-105 transition-transform"
+            style={{ backgroundColor: currentColor }}
+          />
+        </div>
+        <div className="flex-1">
+          <div className="text-xs text-muted-foreground">Current Color</div>
+          <div className="text-xs font-mono font-bold text-foreground">{currentColor.toUpperCase()}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Composite feature with sub-features (switch, light, cover, lock, climate, fan)
 export function CompositeFeature({ expose, onChange, data }: FeatureProps) {
   const features = expose.features || [];
+
+  // Check if this is a color feature (color_xy or color_hs)
+  const isColorFeature = expose.type === 'composite' &&
+    (expose.name === 'color_xy' || expose.name === 'color_hs' || expose.name === 'color_rgb');
+
+  // If it's a color feature, render ColorFeature instead
+  // Color values (x, y) are nested under expose.property
+  if (isColorFeature) {
+    const colorData = expose.property && data?.[expose.property]
+      ? data[expose.property] as Record<string, unknown>
+      : data;
+
+    return (
+      <ColorFeature
+        expose={expose}
+        value={data?.[expose.property]}
+        onChange={onChange}
+        data={colorData}
+      />
+    );
+  }
+
+  // For composite features with a property, check if data is nested under that property
+  // This is needed for types like 'light' where the composite has a property name
+  // and sub-features (state, brightness, etc.) are nested under it
+  const featureData = expose.property && data?.[expose.property]
+    ? data[expose.property] as Record<string, unknown>
+    : data;
 
   if (features.length === 0) {
     return <ValueDisplay expose={expose} value={data?.[expose.property]} />;
@@ -285,9 +481,9 @@ export function CompositeFeature({ expose, onChange, data }: FeatureProps) {
         <Feature
           key={subExpose.property || subExpose.name}
           expose={subExpose}
-          value={data?.[subExpose.property]}
+          value={featureData?.[subExpose.property]}
           onChange={onChange}
-          data={data}
+          data={featureData}
         />
       ))}
     </div>
@@ -335,6 +531,7 @@ export function Feature({ expose, value, onChange, data }: FeatureProps) {
       );
 
     // Composite types with sub-features
+    // Note: color_xy, color_hs, color_rgb are handled inside CompositeFeature
     case 'switch':
     case 'light':
     case 'cover':
