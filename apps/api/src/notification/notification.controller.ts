@@ -16,6 +16,14 @@ export class NotificationController {
     async handleSensorNotification(
         @Payload() payload: IUserSensorNotification,
     ) {
+        // Debug: log the raw payload to see its structure
+        this.logger.debug(`Raw payload received: ${JSON.stringify(payload)}`);
+
+        if (!payload || !payload.user) {
+            this.logger.error(`Invalid payload received: missing user data.`);
+            return;
+        }
+
         this.logger.log(`Received sensor notification for user ${payload.user.id}`);
 
         const { user, deviceName, homeName, attributeKey, sensorKey, sensorValue } = payload;
