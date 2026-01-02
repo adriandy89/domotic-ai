@@ -91,7 +91,7 @@ export class SSEController implements OnModuleDestroy {
             case 'user.sensor-notification':
               const userSensorNotification = message.payload as IUserSensorNotification;
               // Check if notification is for this user
-              hasPermission = userSensorNotification.userId === user.id;
+              hasPermission = userSensorNotification.user.id === user.id;
               break;
 
             case 'user.attributes.updated':
@@ -160,17 +160,6 @@ export class SSEController implements OnModuleDestroy {
     this.logger.log(`Received mqtt-core.home.connected: ${JSON.stringify(payload)}`);
     this.messageSubject.next({
       topic: 'home.status',
-      payload,
-    });
-  }
-
-  @EventPattern('mqtt-core.user.sensor-notification')
-  async handleUserSensorNotification(
-    @Payload()
-    payload: IUserSensorNotification,
-  ) {
-    this.messageSubject.next({
-      topic: 'user.sensor-notification',
       payload,
     });
   }
