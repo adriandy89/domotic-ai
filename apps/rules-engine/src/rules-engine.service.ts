@@ -608,7 +608,15 @@ export class RulesEngineService {
           break;
 
         case NotificationChannel.EMAIL:
-          this.logger.log(`EMAIL notification not implemented yet. Payload: ${JSON.stringify(notificationPayload)}`);
+          if (user.email) {
+            this.logger.log(`Emitting email notification for user ${ruleInfo.userId}`);
+            await this.natsClient.emit('notification.email', {
+              ...notificationPayload,
+              email: user.email,
+            });
+          } else {
+            this.logger.warn(`User ${ruleInfo.userId} has EMAIL channel enabled but no email address`);
+          }
           break;
 
         case NotificationChannel.SMS:
