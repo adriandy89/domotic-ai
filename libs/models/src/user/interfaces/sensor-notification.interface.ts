@@ -9,6 +9,7 @@ export interface IUserSensorNotification {
         attributes: JsonValue;
         channels: NotificationChannel[];
         telegram_chat_id: string | null;
+        email: string | null;
         is_active: boolean;
     };
     homeId: string;

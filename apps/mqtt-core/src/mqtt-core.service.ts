@@ -294,6 +294,7 @@ export class MqttCoreService {
                   id: true,
                   channels: true,
                   telegram_chat_id: true,
+                  email: true,
                   is_active: true,
                   attributes: true,
                 }
@@ -349,6 +350,7 @@ export class MqttCoreService {
           attributes: JsonValue;
           channels: NotificationChannel[];
           telegram_chat_id: string | null;
+          email: string | null;
           is_active: boolean;
         };
       }[];

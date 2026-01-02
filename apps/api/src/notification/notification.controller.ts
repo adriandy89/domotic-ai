@@ -1,6 +1,7 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { TelegramService } from './telegram.service';
+import { EmailService } from './email.service';
 import type { IUserSensorNotification, userAttr } from '@app/models';
 import { NotificationChannel } from 'generated/prisma/enums';
 
@@ -16,12 +17,37 @@ const userAttrKeys: {
     waterLeakTrue: 'Water Leak',
 };
 
+// Interface for rule notification payload
+interface IRuleTelegramNotificationPayload {
+    ruleId: string;
+    ruleName: string;
+    resultId: string;
+    event: string;
+    userId: string;
+    homeId: string;
+    homeName: string;
+    chatId: string;
+}
+
+// Interface for email rule notification payload
+interface IRuleEmailNotificationPayload {
+    ruleId: string;
+    ruleName: string;
+    resultId: string;
+    event: string;
+    userId: string;
+    homeId: string;
+    homeName: string;
+    email: string;
+}
+
 @Controller('notification')
 export class NotificationController {
     private readonly logger = new Logger(NotificationController.name);
 
     constructor(
         private readonly telegramService: TelegramService,
+        private readonly emailService: EmailService,
     ) { }
 
     @EventPattern('mqtt-core.user.sensor-notification')
@@ -52,7 +78,11 @@ export class NotificationController {
                     break;
 
                 case NotificationChannel.EMAIL:
-                    this.logger.log(`EMAIL notification not implemented. User: ${user.id}, Device: ${deviceName}, Attribute: ${attributeKey}`);
+                    if (user.email) {
+                        await this.sendEmailNotification(user.email, deviceName, homeName, attributeKey);
+                    } else {
+                        this.logger.warn(`User ${user.id} has EMAIL channel but no email address`);
+                    }
                     break;
 
                 case NotificationChannel.SMS:
@@ -73,6 +103,57 @@ export class NotificationController {
         }
     }
 
+    // NATS Event Handler for Rule Telegram Notifications
+    @EventPattern('notification.telegram')
+    async handleRuleTelegramNotification(
+        @Payload() payload: IRuleTelegramNotificationPayload,
+    ) {
+        this.logger.log(`Received telegram notification for rule ${payload.ruleId}`);
+
+        try {
+            // Build beautiful notification message
+            const message = `🔔 <b>Rule Alert</b>
+
+🏠 ${this.escapeHtml(payload.homeName)}
+📋 ${this.escapeHtml(payload.ruleName)}
+
+💬 ${this.escapeHtml(payload.event)}
+`;
+
+            const success = await this.telegramService.sendMessage(payload.chatId, message);
+
+            if (success) {
+                this.logger.log(`Telegram notification sent successfully for rule ${payload.ruleId}`);
+            } else {
+                this.logger.warn(`Failed to send telegram notification for rule ${payload.ruleId}`);
+            }
+        } catch (error) {
+            this.logger.error(`Error sending telegram notification: ${error.message}`, error.stack);
+        }
+    }
+
+    // NATS Event Handler for Rule Email Notifications
+    @EventPattern('notification.email')
+    async handleRuleEmailNotification(
+        @Payload() payload: IRuleEmailNotificationPayload,
+    ) {
+        this.logger.log(`Received email notification for rule ${payload.ruleId}`);
+
+        try {
+            await this.emailService.sendRuleNotificationEmail(
+                payload.email,
+                payload.homeName,
+                payload.ruleName,
+                payload.event,
+            );
+            this.logger.log(`Email notification sent successfully for rule ${payload.ruleId}`);
+        } catch (error) {
+            this.logger.error(`Error sending email notification: ${error.message}`, error.stack);
+        }
+    }
+
+    // === Private Methods ===
+
     private async sendTelegramNotification(
         chatId: string,
         deviceName: string,
@@ -91,6 +172,25 @@ export class NotificationController {
             this.logger.log(`Telegram sensor notification sent to ${chatId}`);
         } else {
             this.logger.warn(`Failed to send telegram sensor notification to ${chatId}`);
+        }
+    }
+
+    private async sendEmailNotification(
+        email: string,
+        deviceName: string,
+        homeName: string,
+        attributeKey: string,
+    ): Promise<void> {
+        try {
+            await this.emailService.sendNotificationEmail(
+                email,
+                homeName,
+                deviceName,
+                userAttrKeys[attributeKey as userAttr],
+            );
+            this.logger.log(`Email sensor notification sent to ${email}`);
+        } catch (error) {
+            this.logger.error(`Failed to send email sensor notification to ${email}: ${error.message}`);
         }
     }
 
