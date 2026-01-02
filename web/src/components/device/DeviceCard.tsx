@@ -206,16 +206,18 @@ export default function DeviceCard({
             </div>
 
             {/* Action buttons */}
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7"
-                onClick={() => setShowActions(!showActions)}
-                title="Actions"
-              >
-                <MoreVertical className="h-4 w-4" />
-              </Button>
+            <div className="flex items-center gap-1 shrink-0">
+              {(onRename && onRemove) && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => setShowActions(!showActions)}
+                  title="Actions"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           </div>
 
@@ -387,15 +389,15 @@ export default function DeviceCard({
           {(data.battery_low === true ||
             data.tamper === true ||
             data.device_fault === true) && (
-            <div className="mt-2 flex items-center gap-1 text-amber-500">
-              <AlertTriangle className="h-3.5 w-3.5" />
-              <span className="text-xs">
-                {data.battery_low === true && 'Low Battery • '}
-                {data.tamper === true && 'Tamper Alert • '}
-                {data.device_fault === true && 'Device Fault'}
-              </span>
-            </div>
-          )}
+              <div className="mt-2 flex items-center gap-1 text-amber-500">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                <span className="text-xs">
+                  {data.battery_low === true && 'Low Battery • '}
+                  {data.tamper === true && 'Tamper Alert • '}
+                  {data.device_fault === true && 'Device Fault'}
+                </span>
+              </div>
+            )}
         </div>
       </CardContent>
     </Card>
