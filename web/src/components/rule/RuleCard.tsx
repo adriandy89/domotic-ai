@@ -158,8 +158,8 @@ export default function RuleCard({
               className={cn(
                 'w-14 h-14 rounded-full flex flex-col items-center justify-center cursor-pointer transition-all duration-300',
                 rule.active
-                  ? 'bg-gradient-to-b from-emerald-400 to-emerald-600 shadow-[0_0_20px_rgba(52,211,153,0.4)] hover:shadow-[0_0_25px_rgba(52,211,153,0.6)]'
-                  : 'bg-gradient-to-b from-muted to-muted-foreground/50 opacity-60 hover:opacity-80',
+                  ? 'bg-linear-to-b from-emerald-400 to-emerald-600 shadow-[0_0_20px_rgba(52,211,153,0.4)] hover:shadow-[0_0_25px_rgba(52,211,153,0.6)]'
+                  : 'bg-linear-to-b from-muted to-muted-foreground/50 opacity-60 hover:opacity-80',
                 isToggling && 'opacity-50 scale-95',
               )}
               onClick={handleToggle}

@@ -853,6 +853,48 @@ export default function RuleFormPage() {
                                 ))}
                               </SelectContent>
                             </Select>
+                          ) : selectedExpose?.property === 'ir_code_to_send' ||
+                            selectedExpose?.name === 'ir_code_to_send' ? (
+                            // IR Remote Control - show learned commands selector
+                            <Select
+                              value={String(result.data?.value || '')}
+                              onValueChange={(v: string) =>
+                                updateResult(index, 'data', { value: v })
+                              }
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select command">
+                                  {result.data?.value && result.device_id
+                                    ? devices[
+                                        result.device_id
+                                      ]?.learned_commands?.find(
+                                        (cmd) =>
+                                          cmd.command === result.data?.value,
+                                      )?.name || String(result.data.value)
+                                    : null}
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {result.device_id &&
+                                devices[result.device_id]?.learned_commands
+                                  ?.length ? (
+                                  devices[
+                                    result.device_id
+                                  ]?.learned_commands?.map((cmd) => (
+                                    <SelectItem
+                                      key={cmd.id}
+                                      value={cmd.command}
+                                    >
+                                      {cmd.name}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                                    No learned commands
+                                  </div>
+                                )}
+                              </SelectContent>
+                            </Select>
                           ) : (
                             <Input
                               type={
