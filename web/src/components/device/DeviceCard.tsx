@@ -166,7 +166,7 @@ export default function DeviceCard({
             {/* Device Image */}
             <DeviceImage
               device={device}
-              className="h-10 w-10 rounded-lg flex-shrink-0"
+              className="h-10 w-10 rounded-lg shrink-0"
               FallbackIcon={getDeviceIcon(device)}
             />
 
