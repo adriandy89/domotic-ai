@@ -1,6 +1,6 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
-import { getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, getKeyHomeUniqueIdsDisconnected, IHomeConnectedEvent, IRulesSensorData, ISensorData, IUserSensorNotification } from '@app/models';
+import { getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, getKeyHomeUniqueIdsDisconnected, IHomeConnectedEvent, IRulesSensorData, ISensorData, IUserSensorNotification, userAttr } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { JsonValue } from '@prisma/client/runtime/client';
@@ -22,14 +22,6 @@ const sanitizeInput = (input: any): any => {
   return input; // Return as is for numbers, booleans, etc.
 };
 
-type userAttr =
-  | 'contactTrue'
-  | 'contactFalse'
-  | 'vibrationTrue'
-  | 'occupancyTrue'
-  | 'presenceTrue'
-  | 'smokeTrue'
-  | 'waterLeakTrue';
 const userAttrKeys: {
   [key in userAttr]: string;
 } = {

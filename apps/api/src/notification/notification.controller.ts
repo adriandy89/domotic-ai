@@ -1,8 +1,20 @@
 import { Controller, Logger } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { TelegramService } from './telegram.service';
-import type { IUserSensorNotification } from '@app/models';
+import type { IUserSensorNotification, userAttr } from '@app/models';
 import { NotificationChannel } from 'generated/prisma/enums';
+
+const userAttrKeys: {
+    [key in userAttr]: string;
+} = {
+    contactTrue: 'Contact Closed',
+    contactFalse: 'Contact Opened',
+    vibrationTrue: 'Vibration',
+    occupancyTrue: 'Occupancy',
+    presenceTrue: 'Presence',
+    smokeTrue: 'Smoke',
+    waterLeakTrue: 'Water Leak',
+};
 
 @Controller('notification')
 export class NotificationController {
@@ -16,6 +28,14 @@ export class NotificationController {
     async handleSensorNotification(
         @Payload() payload: IUserSensorNotification,
     ) {
+        // Debug: log the raw payload to see its structure
+        this.logger.debug(`Raw payload received: ${JSON.stringify(payload)}`);
+
+        if (!payload || !payload.user) {
+            this.logger.error(`Invalid payload received: missing user data.`);
+            return;
+        }
+
         this.logger.log(`Received sensor notification for user ${payload.user.id}`);
 
         const { user, deviceName, homeName, attributeKey, sensorKey, sensorValue } = payload;
@@ -25,7 +45,7 @@ export class NotificationController {
             switch (channel) {
                 case NotificationChannel.TELEGRAM:
                     if (user.telegram_chat_id) {
-                        await this.sendTelegramNotification(user.telegram_chat_id, deviceName, homeName, attributeKey, sensorKey, sensorValue);
+                        await this.sendTelegramNotification(user.telegram_chat_id, deviceName, homeName, attributeKey);
                     } else {
                         this.logger.warn(`User ${user.id} has TELEGRAM channel but no chat_id linked`);
                     }
@@ -58,16 +78,11 @@ export class NotificationController {
         deviceName: string,
         homeName: string,
         attributeKey: string,
-        sensorKey: string,
-        sensorValue: string | number | boolean,
     ): Promise<void> {
         const message = `🏠 <b>${this.escapeHtml(homeName)}</b> 
-        
-📱 <b>Device:</b> ${this.escapeHtml(deviceName)}
-🔑 <b>Attribute:</b> ${this.escapeHtml(attributeKey)}
-📊 <b>Sensor:</b> ${this.escapeHtml(sensorKey)}
+📱 ${this.escapeHtml(deviceName)}
 
-📈 <b>Value:</b> ${this.escapeHtml(String(sensorValue))}
+📈 <b>${userAttrKeys[attributeKey as userAttr]} detected</b>
 `;
 
         const success = await this.telegramService.sendMessage(chatId, message);
