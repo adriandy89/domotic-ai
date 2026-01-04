@@ -1,20 +1,19 @@
-import { BadRequestException, Inject, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { CacheService } from '@app/cache';
+import { DbService } from '@app/db';
 import {
   CreateHomeDto,
-  SessionUser,
-  UpdateHomeDto,
+  getKeyHomeUniqueIdOrgId,
   HomePageMetaDto,
   HomePageOptionsDto,
   LinksUUIDsDto,
-  getKeyHomeUniqueIdOrgId,
+  UpdateHomeDto
 } from '@app/models';
-import { DbService } from '@app/db';
-import { Prisma } from 'generated/prisma/client';
-import { MqttConnectionService } from './mqtt-connection.service';
-import { ConfigService } from '@nestjs/config';
-import { CacheService } from '@app/cache';
-import { decrypt } from '../utils';
 import { NatsClientService } from '@app/nats-client';
+import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Prisma } from 'generated/prisma/client';
+import { decrypt } from '../utils';
+import { MqttConnectionService } from './mqtt-connection.service';
 
 @Injectable()
 export class HomeService {

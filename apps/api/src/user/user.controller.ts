@@ -1,33 +1,34 @@
+import type { SessionUser } from '@app/models';
 import {
+  AiProvider,
   CreateUserDto,
-  LinksUUIDsDto,
-  UpdateUserAttributesDto,
+  LinksUUIDsDto, OrgAiConfigDto, UpdateUserAttributesDto,
   UpdateUserDto,
   UpdateUserFmcTokenDto,
   UserPageOptionsDto,
-  UUIDArrayDto,
+  UUIDArrayDto
 } from '@app/models';
-import { UserService } from './user.service';
 import {
+  BadRequestException,
+  Body,
+  ConflictException,
   Controller,
+  Delete,
   Get,
+  NotFoundException,
+  Param,
   Post,
   Put,
-  Delete,
-  Body,
-  Param,
   Query,
-  UseGuards,
-  NotFoundException,
-  BadRequestException,
-  ConflictException,
   Req,
+  UseGuards,
 } from '@nestjs/common';
+import { ApiBody } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { AuthenticatedGuard, PermissionsGuard } from '../auth/guards';
-import { GetUserInfo, Permissions } from '../auth/decorators';
 import { Role } from 'generated/prisma/enums';
-import type { SessionUser } from '@app/models';
+import { GetUserInfo, Permissions } from '../auth/decorators';
+import { AuthenticatedGuard, PermissionsGuard } from '../auth/guards';
+import { UserService } from './user.service';
 
 @Controller('users')
 @UseGuards(AuthenticatedGuard)
@@ -200,6 +201,42 @@ export class UserController {
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
+  }
+
+  @Put('org/attributes/ai')
+  @ApiBody({
+    type: OrgAiConfigDto,
+    examples: {
+      example1: {
+        value: {
+          provider: AiProvider.OPENAI,
+          model: 'gpt-4.1-nano',
+          apiKey: 'sk-...',
+          temperature: 0.5,
+          enabled: true,
+        } satisfies OrgAiConfigDto,
+      },
+    },
+  })
+
+  @Permissions([Role.ADMIN])
+  @UseGuards(PermissionsGuard)
+  async updateAiConfig(
+    @Body() aiConfig: OrgAiConfigDto,
+    @GetUserInfo() user: SessionUser
+  ) {
+    try {
+      return await this.userService.updateAiConfig(aiConfig, user.organization_id);
+    } catch (error) {
+      throw new BadRequestException('Bad request');
+    }
+  }
+
+  @Get('org/attributes/ai')
+  @Permissions([Role.ADMIN])
+  @UseGuards(PermissionsGuard)
+  async findAiConfig(@GetUserInfo() user: SessionUser) {
+    return this.userService.findAiConfig(user.organization_id);
   }
 
   // ! User - Home Links

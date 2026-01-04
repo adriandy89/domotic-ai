@@ -1,30 +1,30 @@
+import type { SessionUser } from '@app/models';
 import {
   CreateHomeDto,
-  UpdateHomeDto,
+  HomeAttributesDto,
   HomePageOptionsDto,
   LinksUUIDsDto,
-  UUIDArrayDto,
-  HomeAttributesDto
+  UpdateHomeDto,
+  UUIDArrayDto
 } from '@app/models';
-import { HomeService } from './home.service';
 import {
+  BadRequestException,
+  Body,
+  ConflictException,
   Controller,
+  Delete,
   Get,
+  NotFoundException,
+  Param,
   Post,
   Put,
-  Delete,
-  Body,
-  Param,
   Query,
-  UseGuards,
-  NotFoundException,
-  BadRequestException,
-  ConflictException
+  UseGuards
 } from '@nestjs/common';
-import { AuthenticatedGuard, PermissionsGuard } from '../auth/guards';
-import { GetUserInfo, Permissions } from '../auth/decorators';
 import { Role } from 'generated/prisma/enums';
-import type { SessionUser } from '@app/models';
+import { GetUserInfo, Permissions } from '../auth/decorators';
+import { AuthenticatedGuard, PermissionsGuard } from '../auth/guards';
+import { HomeService } from './home.service';
 
 @Controller('homes')
 @UseGuards(AuthenticatedGuard)
