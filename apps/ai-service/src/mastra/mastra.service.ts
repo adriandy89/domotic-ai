@@ -140,10 +140,12 @@ export class MastraService implements OnModuleInit {
       requestContext.set('organizationId', user.organization_id);
       requestContext.set('userRole', user.role);
       requestContext.set('timeZone', timeZone);
+      requestContext.set('dbService', this.dbService);
 
       const now = new Date();
 
       const result = await agent.generate(message, {
+        maxSteps: 3, // Limit tool execution steps to prevent duplicate calls
         memory: {
           thread: conversationId,
           resource: userId,
@@ -151,7 +153,8 @@ export class MastraService implements OnModuleInit {
         requestContext,
         system: [
           'ALWAYS WAIT FOR TOOLS AND WORKFLOWS FINISHED TO GENERATE A RESPONSE.',
-          `⚠️ CRITICAL: Current year is ${now.getFullYear()}, month is ${now.getMonth() + 1}, day is ${now.getDate()}`,
+          'DO NOT EXECUTE TWO TIMES THE SAME TOOL OR WORKFLOW IN A ROW.',
+          `⚠️ CRITICAL: Current full date is ${now.toISOString()}`,
         ].join('\n'),
       });
 

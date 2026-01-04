@@ -13,7 +13,7 @@ import { PgVector, PostgresStore } from '@mastra/pg';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TopicValidatorProcessor } from './processors';
-import { weatherTool } from './tools';
+import { sensorDataTool, weatherTool } from './tools';
 import { AIProviderConfig, DEFAULT_AI_PROVIDER_CONFIGS } from './types';
 
 /**
@@ -91,6 +91,7 @@ export class MastraAgentFactory {
         }),
       ],
       tools: {
+        sensorDataTool,
         weatherTool,
       },
       model,
