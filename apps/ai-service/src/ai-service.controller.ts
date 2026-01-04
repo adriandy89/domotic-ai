@@ -33,9 +33,4 @@ export class AiServiceController {
       handleError();
     });;
   }
-
-  @EventPattern('ai.stats')
-  getStats() {
-    return this.aiServiceService.getAgentStats();
-  }
 }

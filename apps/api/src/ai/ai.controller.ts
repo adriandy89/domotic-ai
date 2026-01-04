@@ -1,6 +1,6 @@
 import type { SessionUser } from '@app/models';
 import { ChatMessageDto } from '@app/models';
-import { Body, Controller, Get, Logger, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Logger, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { GetUserInfo } from '../auth/decorators';
 import { AuthenticatedGuard } from '../auth/guards';
@@ -41,14 +41,5 @@ export class AiController {
       message: response.response,
       conversationId: response.conversationId,
     };
-  }
-
-  @Get('stats')
-  @ApiOperation({
-    summary: 'Get AI agent statistics',
-    description: 'Returns statistics about active AI agent instances.',
-  })
-  async getStats() {
-    return this.aiService.getStats();
   }
 }

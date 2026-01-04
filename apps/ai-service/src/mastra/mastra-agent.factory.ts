@@ -13,7 +13,7 @@ import { PgVector, PostgresStore } from '@mastra/pg';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TopicValidatorProcessor } from './processors';
-import { weatherTool } from './tools';
+import { sensorDataTool, weatherTool } from './tools';
 import { AIProviderConfig, DEFAULT_AI_PROVIDER_CONFIGS } from './types';
 
 /**
@@ -78,56 +78,10 @@ export class MastraAgentFactory {
             'home automation',
             'devices',
             'sensors',
-            'device control',
-            'automation rules',
-            'schedules',
-            'triggers',
-            'actions',
-            'conditions',
             'sensor data',
-            'device states',
-            'temperature',
-            'humidity',
-            'motion detection',
-            'door sensors',
-            'window sensors',
-            'lighting',
-            'lights control',
-            'climate control',
-            'thermostat',
-            'heating',
-            'cooling',
-            'HVAC',
-            'security',
-            'cameras',
-            'alarms',
-            'locks',
-            'energy monitoring',
-            'power consumption',
-            'electricity usage',
-            'notifications',
-            'alerts',
-            'scenes',
-            'routines',
-            'voice control',
-            'device status',
-            'home monitoring',
-            'presence detection',
-            'occupancy',
-            'water sensors',
-            'smoke detectors',
-            'CO2 sensors',
-            'air quality',
-            'blinds',
-            'curtains',
-            'switches',
-            'plugs',
-            'outlets',
-            'smart appliances',
-            'irrigation',
-            'garage door',
-            'doorbell',
-            'intercom',
+            'energy management',
+            'device control',
+            'climate'
           ],
           model,
           blockStrategy: 'block',
@@ -137,6 +91,7 @@ export class MastraAgentFactory {
         }),
       ],
       tools: {
+        sensorDataTool,
         weatherTool,
       },
       model,
@@ -346,8 +301,9 @@ You have access to information about:
 - Automation rules and schedules
 - User preferences and settings
 
-Always provide helpful, accurate, and safe responses. If you're unsure about something,
-ask for clarification rather than making assumptions.`;
+Always provide helpful, accurate, and safe responses. 
+NEVER RESPOND TO UNRELATED TOPICS.
+USE AVAILABLE TOOLS.`;
   }
 
   /**

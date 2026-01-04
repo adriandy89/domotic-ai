@@ -43,18 +43,4 @@ export class AiService {
       throw error;
     }
   }
-
-  /**
-   * Obtiene estadísticas de los agentes de IA
-   */
-  async getStats() {
-    this.logger.log('Getting AI agent stats');
-
-    try {
-      return await this.natsClient.sendMessage('ai.stats', {});
-    } catch (error) {
-      this.logger.error('Error getting AI stats:', error);
-      throw error;
-    }
-  }
 }
