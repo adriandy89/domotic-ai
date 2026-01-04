@@ -1,6 +1,6 @@
+import { Bot, Monitor, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useAuthStore } from '../store/useAuthStore';
-import { api } from '../lib/api';
+import { Button } from '../components/ui/button';
 import {
   Card,
   CardContent,
@@ -8,11 +8,6 @@ import {
   CardHeader,
   CardTitle,
 } from '../components/ui/card';
-import { Label } from '../components/ui/label';
-import { Switch } from '../components/ui/switch';
-import { Separator } from '../components/ui/separator';
-import { Monitor, User } from 'lucide-react';
-import { Button } from '../components/ui/button';
 import {
   Dialog,
   DialogContent,
@@ -21,6 +16,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../components/ui/dialog';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select';
+import { Separator } from '../components/ui/separator';
+import { Switch } from '../components/ui/switch';
+import { api } from '../lib/api';
+import { useAuthStore } from '../store/useAuthStore';
 
 // Define the attribute keys matching the old example
 type UserAttr =
@@ -42,6 +50,13 @@ const ATTRIBUTE_LABELS: Record<UserAttr, string> = {
   waterLeakTrue: 'Water Leak Detected',
 };
 
+interface AiConfig {
+  provider: string;
+  model: string;
+  apiKey?: string;
+  enabled: boolean;
+}
+
 export default function SettingsPage() {
   const { user, checkSession, updateUser } = useAuthStore();
 
@@ -49,6 +64,15 @@ export default function SettingsPage() {
   const [activeSessionsCount, setActiveSessionsCount] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [aiConfig, setAiConfig] = useState<AiConfig | null>(null);
+  const [isAiConfigOpen, setIsAiConfigOpen] = useState(false);
+  const [editingAiConfig, setEditingAiConfig] = useState<AiConfig>({
+    provider: 'openai',
+    model: 'gpt-4o',
+    apiKey: '',
+    enabled: true,
+  });
+
   const [userAttributes, setUserAttributes] = useState<
     Record<UserAttr, boolean>
   >({
@@ -63,7 +87,41 @@ export default function SettingsPage() {
 
   useEffect(() => {
     fetchActiveSessions();
-  }, []);
+    if (user?.role === 'ADMIN') {
+      fetchAiConfig();
+    }
+  }, [user]);
+
+  const fetchAiConfig = async () => {
+    try {
+      const response = await api.get('/users/org/attributes/ai');
+      if (response.data?.ai) {
+        const configData = response.data.ai;
+
+        setAiConfig(configData);
+        setEditingAiConfig({
+          ...configData,
+          apiKey: '', // Clear API key for security when editing
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch AI config', error);
+    }
+  };
+
+  const handleUpdateAiConfig = async () => {
+    try {
+      setLoading(true);
+      await api.put('/users/org/attributes/ai', editingAiConfig);
+      await fetchAiConfig();
+      setIsAiConfigOpen(false);
+    } catch (error) {
+      console.error('Failed to update AI config', error);
+      setError('Failed to update AI configuration');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchActiveSessions = async () => {
     try {
@@ -209,6 +267,158 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* HERE */}
+
+      {user?.role === 'ADMIN' && (
+        <Card className="bg-card/40 border-border">
+          <CardHeader className="flex flex-row items-center space-x-2 pb-3">
+            <div className="p-3 bg-primary/10 rounded-full">
+              <Bot className="h-8 w-8 text-primary" />
+            </div>
+            <div>
+              <CardTitle className="text-xl">AI Configuration</CardTitle>
+              <CardDescription>
+                Configure the AI provider for your organization.
+              </CardDescription>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {aiConfig ? (
+              <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-background/50">
+                <div className="space-y-1">
+                  <p className="font-medium capitalize">
+                    {aiConfig.provider} - {aiConfig.model}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    API Key:{' '}
+                    {aiConfig.apiKey
+                      ? `${aiConfig.apiKey.substring(0, 3)}...${aiConfig.apiKey.substring(aiConfig.apiKey.length - 4)}`
+                      : 'Not set'}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span
+                      className={`h-2 w-2 rounded-full ${aiConfig.enabled ? 'bg-green-500' : 'bg-red-500'}`}
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      {aiConfig.enabled ? 'Enabled' : 'Disabled'}
+                    </span>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAiConfigOpen(true)}
+                >
+                  Edit
+                </Button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center p-6 border border-dashed border-border rounded-lg">
+                <p className="text-muted-foreground mb-4">
+                  No AI configuration found
+                </p>
+                <Button onClick={() => setIsAiConfigOpen(true)}>
+                  Configure AI
+                </Button>
+              </div>
+            )}
+
+            <Dialog open={isAiConfigOpen} onOpenChange={setIsAiConfigOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>AI Configuration</DialogTitle>
+                  <DialogDescription>
+                    Set up your AI provider settings. API Key is required.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="provider">Provider</Label>
+                    <Select
+                      value={editingAiConfig.provider}
+                      onValueChange={(value) =>
+                        setEditingAiConfig({
+                          ...editingAiConfig,
+                          provider: value,
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select provider" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="anthropic">Anthropic</SelectItem>
+                        <SelectItem value="google">Google</SelectItem>
+                        <SelectItem value="groq">Groq</SelectItem>
+                        <SelectItem value="mistral">Mistral</SelectItem>
+                        <SelectItem value="xai">xAI</SelectItem>
+                        <SelectItem value="azure">Azure</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="model">Model</Label>
+                    <Input
+                      id="model"
+                      value={editingAiConfig.model}
+                      onChange={(e) =>
+                        setEditingAiConfig({
+                          ...editingAiConfig,
+                          model: e.target.value,
+                        })
+                      }
+                      placeholder="e.g. gpt-4o, claude-3-5-sonnet"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="apiKey">API Key</Label>
+                    <Input
+                      id="apiKey"
+                      type="password"
+                      value={editingAiConfig.apiKey || ''}
+                      onChange={(e) =>
+                        setEditingAiConfig({
+                          ...editingAiConfig,
+                          apiKey: e.target.value,
+                        })
+                      }
+                      placeholder="sk-..."
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Leave empty to keep existing key if editing.
+                    </p>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="ai-enabled">Enable AI Assistant</Label>
+                    <Switch
+                      id="ai-enabled"
+                      checked={editingAiConfig.enabled}
+                      onCheckedChange={(checked) =>
+                        setEditingAiConfig({
+                          ...editingAiConfig,
+                          enabled: checked,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsAiConfigOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleUpdateAiConfig} disabled={loading}>
+                    {loading ? 'Saving...' : 'Save Configuration'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </CardContent>
+        </Card>
+      )}
 
       {activeSessionsCount > 0 && (
         <Card className="border-destructive/50">

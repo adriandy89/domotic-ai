@@ -218,7 +218,6 @@ export class UserController {
       },
     },
   })
-
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
   async updateAiConfig(
