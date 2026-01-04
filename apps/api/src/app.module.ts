@@ -1,16 +1,17 @@
+import { CacheModule } from '@app/cache';
+import { DbModule } from '@app/db';
+import { NatsClientModule } from '@app/nats-client';
+import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AiModule } from './ai';
 import { AuthModule } from './auth';
-import { HomeModule } from './home';
-import { UserModule } from './user';
 import { DeviceModule } from './device';
-import { CacheModule } from '@app/cache';
-import { NatsClientModule } from '@app/nats-client';
-import { DbModule } from '@app/db';
-import { HttpModule } from '@nestjs/axios';
-import { SSEModule } from './sse';
-import { RuleModule } from './rule';
+import { HomeModule } from './home';
 import { NotificationModule } from './notification';
+import { RuleModule } from './rule';
+import { SSEModule } from './sse';
+import { UserModule } from './user';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { NotificationModule } from './notification';
     DeviceModule,
     RuleModule,
     NotificationModule,
+    AiModule,
   ],
   controllers: [],
   providers: [],

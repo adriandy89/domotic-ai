@@ -20,6 +20,20 @@
     "test:e2e": "jest --config ./apps/api/test/jest-e2e.json"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^1.0.6",
+    "@ai-sdk/azure": "^3.0.2",
+    "@ai-sdk/google": "^3.0.2",
+    "@ai-sdk/groq": "^3.0.2",
+    "@ai-sdk/mistral": "^3.0.2",
+    "@ai-sdk/openai": "^2.0.88",
+    "@ai-sdk/openai-compatible": "^2.0.2",
+    "@ai-sdk/xai": "^3.0.3",
+    "@mastra/ai-sdk": "1.0.0-beta.12",
+    "@mastra/core": "1.0.0-beta.19",
+    "@mastra/loggers": "1.0.0-beta.3",
+    "@mastra/memory": "1.0.0-beta.10",
+    "@mastra/pg": "1.0.0-beta.11",
+    "@mastra/rag": "2.0.0-beta.4",
     "@nestjs/axios": "^4.0.1",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.0.1",
@@ -33,6 +47,7 @@
     "@prisma/adapter-pg": "^7.1.0",
     "@prisma/client": "^7.1.0",
     "@types/nodemailer": "^7.0.4",
+    "ai": "^5.0.92",
     "axios": "^1.13.2",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.66.3",
@@ -40,6 +55,7 @@
     "class-validator": "^0.14.3",
     "connect-redis": "^9.0.0",
     "express-session": "^1.18.2",
+    "mastra": "1.0.0-beta.12",
     "mqtt": "^5.14.1",
     "nats": "^2.29.3",
     "node-telegram-bot-api": "^0.67.0",
@@ -51,7 +67,8 @@
     "pg": "^8.16.3",
     "redis": "^5.10.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "zod": "^3.24.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

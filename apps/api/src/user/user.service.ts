@@ -1,20 +1,21 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { BadRequestException, Injectable } from '@nestjs/common';
-import bcrypt from 'bcrypt';
+import { CacheService } from '@app/cache';
+import { DbService } from '@app/db';
 import {
   CreateUserDto,
-  SessionUser,
   LinksUUIDsDto,
+  OrgAiConfigDto,
+  SessionUser,
   UpdateUserAttributesDto,
   UpdateUserDto,
   UpdateUserFmcTokenDto,
   UserPageMetaDto,
   UserPageOptionsDto,
 } from '@app/models';
-import { DbService } from '@app/db';
-import { Prisma } from 'generated/prisma/client';
-import { CacheService } from '@app/cache';
 import { NatsClientService } from '@app/nats-client';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import bcrypt from 'bcrypt';
+import { Prisma } from 'generated/prisma/client';
 
 @Injectable()
 export class UserService {
@@ -472,6 +473,52 @@ export class UserService {
       select: this.prismaUserSelect,
     });
   }
+
+
+  async updateAiConfig(aiConfig: OrgAiConfigDto, organization_id: string) {
+    try {
+      const org = await this.dbService.organization.findUnique({
+        where: { id: organization_id },
+        select: { attributes: true },
+      });
+
+      if (!org) {
+        throw new Error('Organization not found');
+      }
+
+      const currentAttributes = (org.attributes as Record<string, any>) || {};
+      const newAttributes: Record<string, any> = {
+        ...currentAttributes,
+        ai: aiConfig,
+      };
+
+      await this.dbService.organization.update({
+        data: { attributes: newAttributes },
+        where: { id: organization_id },
+      });
+
+      return { ok: true };
+    } catch (error) {
+      if (error.code === 'P2025') throw new Error('Home not found');
+      throw error;
+    }
+  }
+
+  async findAiConfig(organization_id: string) {
+    const org = await this.dbService.organization.findUnique({
+      where: { id: organization_id },
+      select: {
+        attributes: true,
+      },
+    });
+
+    if (!org) {
+      throw new Error('Organization not found');
+    }
+    const attributes = (org?.attributes as Record<string, any>) || {};
+    return { ai: attributes.ai || null };
+  }
+
 
   // ! User - Home
   async findAllHomesLinks(user_id: string, organization_id: string) {

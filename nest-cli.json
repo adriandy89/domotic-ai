@@ -9,6 +9,15 @@
     "tsConfigPath": "apps/api/tsconfig.app.json"
   },
   "projects": {
+    "ai-service": {
+      "type": "application",
+      "root": "apps/ai-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/ai-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/ai-service/tsconfig.app.json"
+      }
+    },
     "api": {
       "type": "application",
       "root": "apps/api",
