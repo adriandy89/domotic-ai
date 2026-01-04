@@ -78,7 +78,10 @@ export class MastraAgentFactory {
             'home automation',
             'devices',
             'sensors',
-            'device control'
+            'sensor data',
+            'energy management',
+            'device control',
+            'climate'
           ],
           model,
           blockStrategy: 'block',
@@ -297,8 +300,9 @@ You have access to information about:
 - Automation rules and schedules
 - User preferences and settings
 
-Always provide helpful, accurate, and safe responses. If you're unsure about something,
-ask for clarification rather than making assumptions.`;
+Always provide helpful, accurate, and safe responses. 
+NEVER RESPOND TO UNRELATED TOPICS.
+USE AVAILABLE TOOLS.`;
   }
 
   /**
