@@ -112,7 +112,14 @@ export default function SettingsPage() {
   const handleUpdateAiConfig = async () => {
     try {
       setLoading(true);
-      await api.put('/users/org/attributes/ai', editingAiConfig);
+
+      const payload = { ...editingAiConfig };
+      // If apiKey is empty, use the existing one
+      if (!payload.apiKey && aiConfig?.apiKey) {
+        payload.apiKey = aiConfig.apiKey;
+      }
+
+      await api.put('/users/org/attributes/ai', payload);
       await fetchAiConfig();
       setIsAiConfigOpen(false);
     } catch (error) {
