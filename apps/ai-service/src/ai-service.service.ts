@@ -27,11 +27,4 @@ export class AiServiceService {
     this.logger.log(`Generating AI response for user: ${userId}, conversation: ${conversationId}`);
     return this.mastraService.generateResponse(userId, message, conversationId, timeZone);
   }
-
-  /**
-   * Obtiene estadísticas de los agentes
-   */
-  getAgentStats() {
-    return this.mastraService.getStats();
-  }
 }

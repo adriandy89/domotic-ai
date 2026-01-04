@@ -1,3 +1,4 @@
+import { ProcessInputArgs, ProcessInputResult, Processor } from '@mastra/core/processors';
 import { generateText } from 'ai';
 
 interface TopicValidatorConfig {
@@ -28,12 +29,13 @@ type MastraMessage = {
  * })
  * ```
  */
-export class TopicValidatorProcessor {
+export class TopicValidatorProcessor implements Processor {
   readonly id = 'topic-validator';
   name = 'topic-validator';
   private config: Required<TopicValidatorConfig>;
 
   constructor(config: TopicValidatorConfig) {
+    console.log('[TopicValidator] Constructor called');
     this.config = {
       blockStrategy: 'block',
       threshold: 0.7,
@@ -45,23 +47,28 @@ export class TopicValidatorProcessor {
   /**
    * Process input messages - validates topic relevance
    */
-  async processInputStep(args: {
-    messages: any[];
-    abort: (reason?: string) => never;
-    tracingContext?: any;
-  }): Promise<any[]> {
+  async processInput(args: ProcessInputArgs): Promise<ProcessInputResult> {
+    console.log('[TopicValidator] processInput called');
     const { messages, abort } = args;
+    console.log(`[TopicValidator] Messages count: ${messages.length}`);
+
     // Extract last user message
     const lastUserMessage = messages
-      .filter((m) => m.role === 'user')
+      .filter((m: any) => m.role === 'user')
       .pop();
 
-    if (!lastUserMessage) return messages;
+    if (!lastUserMessage) {
+      console.log('[TopicValidator] No user message found');
+      return messages;
+    }
+
+    console.log(`[TopicValidator] Last user message: ${JSON.stringify(lastUserMessage)}`);
 
     // Convert message content to text
-    const userContent = this.extractTextContent(lastUserMessage);
+    const userContent = this.extractTextContent(lastUserMessage as unknown as MastraMessage);
 
     if (!userContent || userContent.trim().length === 0) {
+      console.log('[TopicValidator] Empty user content');
       return messages;
     }
 
@@ -73,17 +80,22 @@ export class TopicValidatorProcessor {
 
     if (!isOnTopic) {
       if (this.config.blockStrategy === 'block') {
+        console.log('[TopicValidator] Blocking message');
         // Abort execution with custom message
         abort(this.buildRejectionMessage());
       } else if (this.config.blockStrategy === 'warn') {
+        console.log('[TopicValidator] Warning message');
         // Add warning system message
-        return [
-          ...messages,
-          {
-            role: 'system',
-            content: `⚠️ TOPIC WARNING: User question may be off-topic (confidence: ${confidence}). ${reasoning}. Politely remind them you only handle: ${this.config.allowedTopics.join(', ')}.`,
-          },
-        ];
+        return {
+          messages,
+          systemMessages: [
+            ...args.systemMessages,
+            {
+              role: 'system',
+              content: `⚠️ TOPIC WARNING: User question may be off-topic (confidence: ${confidence}). ${reasoning}. Politely remind them you only handle: ${this.config.allowedTopics.join(', ')}.`,
+            },
+          ],
+        };
       }
     }
 
@@ -155,8 +167,8 @@ Respond ONLY with valid JSON.`,
       const jsonMatch = result.text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         console.error('[TopicValidator] Failed to parse LLM response:', result.text);
-        // Default to allowing message if classification fails
-        return { isOnTopic: true, confidence: 0.5, reasoning: 'Classification failed, allowing message' };
+        // Default to BLOCKING message if classification fails (safer)
+        return { isOnTopic: false, confidence: 0.1, reasoning: 'Classification failed, blocking by default' };
       }
 
       const parsed = JSON.parse(jsonMatch[0]);
@@ -171,8 +183,8 @@ Respond ONLY with valid JSON.`,
       };
     } catch (error) {
       console.error('[TopicValidator] Error checking relevance:', error);
-      // Default to allowing message if error occurs
-      return { isOnTopic: true, confidence: 0.5, reasoning: 'Error in classification, allowing message' };
+      // Default to BLOCKING message if error occurs (safer)
+      return { isOnTopic: false, confidence: 0.1, reasoning: 'Error in classification, blocking by default' };
     }
   }
 

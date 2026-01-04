@@ -1,26 +1,26 @@
-import { useState } from 'react';
-import { Outlet, Link, useLocation } from 'react-router-dom';
-import { useAuthStore } from '../../store/useAuthStore';
 import {
-  LayoutDashboard,
-  LogOut,
-  Settings,
-  Home,
   Activity,
-  Menu,
-  X,
   ChevronLeft,
   ChevronRight,
   Cpu,
+  Home,
   KeyRound,
+  LayoutDashboard,
+  LogOut,
+  Menu,
+  Settings,
+  X,
   Zap,
 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, Outlet, useLocation } from 'react-router-dom';
+import { sseService } from '../../lib/sse';
 import { cn } from '../../lib/utils';
+import { useActivityStore } from '../../store/useActivityStore';
+import { useAuthStore } from '../../store/useAuthStore';
+import AIChatbox from '../ai/AIChatbox';
 import { Button } from '../ui/button';
 import { ThemeToggle } from '../ui/theme-toggle';
-import { useActivityStore } from '../../store/useActivityStore';
-import { sseService } from '../../lib/sse';
-import { useEffect } from 'react';
 
 export default function DashboardLayout() {
   const { logout, user } = useAuthStore();
@@ -270,6 +270,9 @@ export default function DashboardLayout() {
           <Outlet />
         </div>
       </main>
+
+      {/* AI Chatbox - Floating */}
+      <AIChatbox />
     </div>
   );
 }
