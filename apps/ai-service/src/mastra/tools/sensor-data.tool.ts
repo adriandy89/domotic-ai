@@ -29,6 +29,9 @@ export const sensorDataTool = createTool({
           home: {
             select: {
               name: true,
+              disabled: true,
+              connected: true,
+              last_update: true,
               devices: {
                 select: {
                   name: true,

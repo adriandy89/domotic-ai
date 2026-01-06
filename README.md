@@ -25,6 +25,32 @@ Domotic AI is a comprehensive home automation system designed to manage multiple
 - **Caching**: [Redis](https://redis.io/)
 - **Containerization**: [Docker](https://www.docker.com/) & Docker Compose
 
+## 🖥️ Frontend Web Dashboard (web/ folder)
+
+The project includes a modern, responsive web dashboard built with cutting-edge technologies.
+
+| Technology          | Description                  |
+| ------------------- | ---------------------------- |
+| **React 19**        | Latest React with TypeScript |
+| **Tailwind CSS v4** | CSS-first styling engine     |
+| **Zustand**         | Lightweight state management |
+
+### Key Features
+
+- 🔐 **OAuth Authentication** - Google, GitHub, Microsoft support
+- 🎨 **Dark/Light Theme** - Auto-detection with persistence
+- 📱 **Responsive Design** - Desktop sidebar & mobile drawer
+- 💎 **Glassmorphism UI** - Modern aesthetic with gradients
+- 🤖 **AI Assistant** - Built-in chatbox with voice input
+
+### Screenshots
+
+<p align="center">
+  <img src="assets/front/front-dark.png" alt="Dashboard Dark" />
+</p>
+
+📖 **[View full Frontend documentation and screenshots →](web/README.md)**
+
 ## 📋 Prerequisites
 
 Ensure you have the following installed on your system:
@@ -35,6 +61,7 @@ Ensure you have the following installed on your system:
 ## ⚙️ Configuration
 
 1. **Clone the repository**:
+
    ```bash
    git clone <repository-url>
    cd domotic-ai
@@ -77,6 +104,7 @@ The system is organized into separate stacks:
 The infrastructure stack provides the foundational services that all other components depend on.
 
 **Services included:**
+
 - **TimescaleDB** - PostgreSQL with TimescaleDB extension for time-series data
 - **Redis** - Caching and session management
 - **NATS** - Message broker for event-driven architecture
@@ -88,6 +116,7 @@ cd stack-docker
 ```
 
 > ⚠️ **Important**: Review and update `docker-compose.yml` before deploying:
+>
 > - Change Redis password (`requirepass`)
 > - Update PostgreSQL credentials
 > - Configure NATS authentication in `nats.conf`
@@ -112,6 +141,7 @@ Wait until all services are healthy before proceeding.
 ThingsBoard MQTT Broker handles all MQTT communication between IoT devices and the application.
 
 **Services included:**
+
 - **PostgreSQL** - TBMQ configuration database
 - **Apache Kafka** - Message queue
 - **Redis** - Caching
@@ -125,6 +155,7 @@ cd ../stack-tbmq
 ```
 
 > ⚠️ **Important**: Review and update `docker-compose.yml` before deploying:
+>
 > - Change PostgreSQL password
 > - Update MQTT authentication settings
 > - Configure integration options
@@ -145,6 +176,7 @@ docker compose logs -f tbmq
 Wait for the message: `ThingsBoard MQTT Broker started successfully.`
 
 **Access the web interface:**
+
 - URL: http://localhost:8083
 - Default credentials: `sysadmin@thingsboard.org` / `sysadmin`
 
@@ -157,6 +189,7 @@ Wait for the message: `ThingsBoard MQTT Broker started successfully.`
 Client-side services for managing IoT devices at each location. This is optional but recommended for Zigbee device management.
 
 **Services included:**
+
 - **Zigbee2MQTT** - Zigbee to MQTT bridge
 - **Portainer** (optional) - Docker management UI
 - **Cloudflare Tunnel** (optional) - Remote access
@@ -180,6 +213,7 @@ docker compose up -d
 ```
 
 **Access Zigbee2MQTT:**
+
 - URL: http://localhost:8080
 
 ---
@@ -191,6 +225,7 @@ The main NestJS application that orchestrates the entire system.
 **Option A: Batched Deployment (Recommended)**
 
 We provide a `deploy-batched.sh` script that handles:
+
 - Database migrations via Prisma
 - Service startup in the correct order
 - Docker image cleanup
@@ -272,7 +307,7 @@ flowchart TD
         RD["Redis<br/>:6379"]
         NT["NATS<br/>:4222"]
     end
-    
+
     subgraph TBMQ["STACK-TBMQ"]
         direction LR
         PG["PostgreSQL"] --> KF["Kafka"]
@@ -280,26 +315,24 @@ flowchart TD
         RD2 --> TBMQ_SVC["TBMQ<br/>:1883 MQTT<br/>:8083 Web UI<br/>:8084 WebSocket"]
         TBMQ_SVC --> IE["Integration<br/>Executor"]
     end
-    
+
     subgraph CLIENT["STACK-CLIENT"]
         direction TB
         Z2M["Zigbee2MQTT :8080"]
         PTR["Portainer (Optional) :9000"]
         CF["Cloudflared Tunnel (Optional)"]
     end
-    
+
     subgraph BACKEND["BACKEND SERVICES"]
         direction TB
         NEST["NestJS Microservices Application<br/>API, SSE, Services"]
     end
-    
+
     SD <--> |"Database, Redis, NATS"| BACKEND
     TBMQ <--> |"MQTT"| CLIENT
     TBMQ <--> |"MQTT"| BACKEND
-    
+
 ```
-
-
 
 ## 🔍 Monitoring
 
