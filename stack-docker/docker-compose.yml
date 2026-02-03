@@ -13,7 +13,7 @@ services:
 
   timescaledb:
     container_name: timescaledb
-    image: timescale/timescaledb:latest-pg17
+    image: timescale/timescaledb:latest-pg18
     restart: always
     environment:
       POSTGRES_DB: domoticdb
