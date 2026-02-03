@@ -29,12 +29,14 @@ export const sensorDataTool = createTool({
           home: {
             select: {
               name: true,
+              description: true,
               disabled: true,
               connected: true,
               last_update: true,
               devices: {
                 select: {
                   name: true,
+                  description: true,
                   disabled: true,
                   sensorDataLasts: {
                     select: {
