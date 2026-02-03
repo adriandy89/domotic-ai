@@ -1,11 +1,11 @@
-import { Body, Controller, Headers, HttpCode, HttpStatus, Logger, Param, Post, UseGuards } from '@nestjs/common';
-import { TelegramService } from './telegram.service';
-import { AuthenticatedGuard } from '../auth';
-import { ApiParam } from '@nestjs/swagger';
-import { GetUserInfo, Permissions } from '../auth/decorators';
-import { Role } from 'generated/prisma/enums';
-import { PermissionsGuard } from '../auth/guards';
 import type { SessionUser } from '@app/models';
+import { Body, Controller, Headers, HttpCode, HttpStatus, Logger, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiParam } from '@nestjs/swagger';
+import { Role } from 'generated/prisma/enums';
+import { AuthenticatedGuard } from '../auth';
+import { GetUserInfo, Permissions } from '../auth/decorators';
+import { PermissionsGuard } from '../auth/guards';
+import { TelegramService } from './telegram.service';
 
 @Controller('telegram')
 export class TelegramController {
@@ -24,7 +24,13 @@ export class TelegramController {
   ) {
     this.logger.log('Received Telegram webhook update');
     try {
-      await this.telegramService.processWebhookUpdate(update, secretToken);
+      setImmediate(async () => {
+        try {
+          await this.telegramService.processWebhookUpdate(update, secretToken);
+        } catch (error) {
+          this.logger.error(`Error processing webhook: ${error.message}`, error.stack);
+        }
+      });
 
       return { success: true };
     } catch (error) {

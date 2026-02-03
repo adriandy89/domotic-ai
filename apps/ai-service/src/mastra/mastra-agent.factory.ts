@@ -12,8 +12,7 @@ import { Memory } from '@mastra/memory';
 import { PgVector, PostgresStore } from '@mastra/pg';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { TopicValidatorProcessor } from './processors';
-import { sensorDataTool, weatherTool } from './tools';
+import { deviceFullInfoTool, devicesListTool, sendDeviceCommandTool, sensorDataTool, weatherTool } from './tools';
 import { AIProviderConfig, DEFAULT_AI_PROVIDER_CONFIGS } from './types';
 
 /**
@@ -71,27 +70,30 @@ export class MastraAgentFactory {
       id: `org-${organizationId}-agent`,
       name: `org-${organizationId}-agent`,
       instructions: this.getDefaultInstructions(organizationId),
-      inputProcessors: [
-        new TopicValidatorProcessor({
-          allowedTopics: [
-            'smart home',
-            'home automation',
-            'devices',
-            'sensors',
-            'sensor data',
-            'energy management',
-            'device control',
-            'climate'
-          ],
-          model,
-          blockStrategy: 'block',
-          threshold: 0.7,
-          customMessage:
-            'I specialize in smart home automation and device management. Please ask questions related to home automation, devices, sensors, or automation rules.',
-        }),
-      ],
+      // inputProcessors: [
+      //   new TopicValidatorProcessor({
+      //     allowedTopics: [
+      //       'smart home',
+      //       'home automation',
+      //       'devices',
+      //       'sensors',
+      //       'sensor data',
+      //       'energy management',
+      //       'device control',
+      //       'climate'
+      //     ],
+      //     model,
+      //     blockStrategy: 'block',
+      //     threshold: 0.7,
+      //     customMessage:
+      //       'I specialize in smart home automation and device management. Please ask questions related to home automation, devices, sensors, or automation rules.',
+      //   }),
+      // ],
       tools: {
         sensorDataTool,
+        devicesListTool,
+        deviceFullInfoTool,
+        sendDeviceCommandTool,
         weatherTool,
       },
       model,
@@ -295,15 +297,28 @@ export class MastraAgentFactory {
 Your role is to help users manage their smart home devices, create automation rules,
 and provide insights about their home's status.
 
-You have access to information about:
+You have access to:
 - Homes and their devices
 - Sensor data and device states
+- Device control (turn on/off, set brightness, etc.)
 - Automation rules and schedules
 - User preferences and settings
 
+DEVICE CONTROL WORKFLOW:
+1. Use devices-list tool to find the device ID
+2. Use get-device-full-info with deviceId to see availableActions
+3. Use send-device-command with BOTH parameters:
+   - deviceId: the device UUID
+   - command: an object like { "state": "ON" } or { "brightness": 50 }
+   
+EXAMPLE: To turn on a light:
+- Call send-device-command with deviceId="uuid-of-the-device" and command={ "state": "ON" }
+- Respond to the user the action was performed.
+
 Always provide helpful, accurate, and safe responses. 
 NEVER RESPOND TO UNRELATED TOPICS.
-USE AVAILABLE TOOLS.`;
+
+CRITICAL: USE AVAILABLE TOOLS ALWAYS, NEVER RESPOND WITHOUT USING TOOLS WITH CACHED DATA.`;
   }
 
   /**

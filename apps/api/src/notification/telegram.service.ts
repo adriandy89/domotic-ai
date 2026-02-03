@@ -2,6 +2,7 @@ import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AIChatRequest, AiService } from '../ai';
 const TelegramBot = require('node-telegram-bot-api');
 
 @Injectable()
@@ -17,6 +18,7 @@ export class TelegramService implements OnModuleInit {
     private readonly config: ConfigService,
     private readonly dbService: DbService,
     private readonly cacheService: CacheService,
+    private readonly aiService: AiService,
   ) {
     this.botToken = this.config.get<string>('TELEGRAM_BOT_TOKEN', '');
     this.webhookUrl = this.config.get<string>('TELEGRAM_WEBHOOK_URL', '');
@@ -270,14 +272,50 @@ export class TelegramService implements OnModuleInit {
       // Normal message (not a command)
       const user = await this.dbService.user.findFirst({
         where: { telegram_chat_id: chatId.toString() },
-        select: { id: true, name: true, email: true },
+        select: {
+          id: true, name: true, email: true, organization: {
+            select: { attributes: true }
+          }
+        },
       });
       if (user) {
-        await this.bot.sendMessage(
-          chatId,
-          `✅ <b>Account Linked</b>\n\nHello <b>${user.name || user.email}</b>! 👋\n\nYour account is successfully linked. You are all set to receive notifications. 🔔`,
-          { parse_mode: 'HTML' }
-        );
+        if (user.organization?.attributes?.['ai']?.enabled) {
+
+          const checkMsgInProgress = await this.cacheService.setnx(`ai:in_progress:${user.id}`, '1', 60);
+          if (!checkMsgInProgress) {
+            await this.bot.sendMessage(
+              chatId,
+              'Please wait for the previous request to complete.',
+            );
+            return;
+          }
+
+          const request: AIChatRequest = {
+            userId: user.id,
+            message: text,
+            conversationId: user.id,
+          };
+
+          this.logger.log(`User ${user.id} sent message: "${text.substring(0, 50)}..."`);
+
+          const response = await this.aiService.chat(request);
+
+          await this.cacheService.del(`ai:in_progress:${user.id}`);
+
+          await this.bot.sendMessage(
+            chatId,
+            response.response || 'No response',
+            { parse_mode: 'HTML' }
+          );
+
+
+        } else {
+          await this.bot.sendMessage(
+            chatId,
+            `✅ <b>Account Linked</b>\n\nHello <b>${user.name || user.email}</b>! 👋\n\nYou are all set to receive notifications. 🔔 \n\nFor use AI features, configure your provider in the web dashboard.`,
+            { parse_mode: 'HTML' }
+          );
+        }
       } else {
         await this.bot.sendMessage(
           chatId,
