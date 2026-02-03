@@ -40,7 +40,11 @@ export class AiService {
       };
     } catch (error) {
       this.logger.error('Error calling AI service:', error);
-      throw error;
+      return {
+        response: 'Error al procesar tu solicitud',
+        error: error.message,
+        conversationId: request.conversationId,
+      };
     }
   }
 }
