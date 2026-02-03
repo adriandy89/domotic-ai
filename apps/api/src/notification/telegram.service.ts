@@ -304,7 +304,7 @@ export class TelegramService implements OnModuleInit {
 
           await this.bot.sendMessage(
             chatId,
-            response.response,
+            response.response || 'No response',
             { parse_mode: 'HTML' }
           );
 

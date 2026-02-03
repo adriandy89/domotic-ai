@@ -1,4 +1,5 @@
 import { DbService } from '@app/db';
+import { NatsClientService } from '@app/nats-client';
 import { Mastra } from '@mastra/core';
 import { RequestContext } from '@mastra/core/request-context';
 import { PostgresStore } from '@mastra/pg';
@@ -19,6 +20,7 @@ export class MastraService implements OnModuleInit {
   constructor(
     private readonly agentFactory: MastraAgentFactory,
     private readonly dbService: DbService,
+    private readonly natsClient: NatsClientService,
   ) { }
 
   async onModuleInit() {
@@ -141,19 +143,20 @@ export class MastraService implements OnModuleInit {
       requestContext.set('userRole', user.role);
       requestContext.set('timeZone', timeZone);
       requestContext.set('dbService', this.dbService);
+      requestContext.set('natsClient', this.natsClient);
 
       const now = new Date();
 
       const result = await agent.generate(message, {
-        maxSteps: 3, // Limit tool execution steps to prevent duplicate calls
+        maxSteps: 5, // Limit tool execution steps to prevent duplicate calls
         memory: {
           thread: conversationId,
           resource: userId,
         },
         requestContext,
+        modelSettings: { temperature: 0.3 },
         system: [
           'ALWAYS WAIT FOR TOOLS AND WORKFLOWS FINISHED TO GENERATE A RESPONSE.',
-          'DO NOT EXECUTE TWO TIMES THE SAME TOOL OR WORKFLOW IN A ROW.',
           `⚠️ CRITICAL: Current full date is ${now.toISOString()}`,
         ].join('\n'),
       });
