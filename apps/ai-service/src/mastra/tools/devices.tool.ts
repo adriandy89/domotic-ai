@@ -43,7 +43,7 @@ export const devicesListTool = createTool({
         },
       });
 
-      console.log(`[devicesDataTool] Found ${homesDevices.length} homes with devices data`);
+      console.log(`[devicesListTool] Found ${homesDevices.length} homes with devices data`);
 
       return {
         totalDevices: homesDevices.reduce((acc, home) => acc + (home.home?.devices?.length || 0), 0),
