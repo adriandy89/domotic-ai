@@ -1,14 +1,14 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
+import { NATS_QUEUE } from '@app/models';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { NestFactory } from '@nestjs/core';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { RedisStore } from 'connect-redis';
 import session from 'express-session';
 import passport from 'passport';
-import { RedisStore } from 'connect-redis';
 import * as redis from 'redis';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { MicroserviceOptions, Transport } from '@nestjs/microservices';
-import { NATS_QUEUE } from '@app/models';
+import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -114,7 +114,7 @@ async function bootstrap() {
   const port = configService.get<number>('API_PORT') || 3017;
 
   await app.listen(port, () => {
-    logger.verbose(`Server on port: ${port}`);
+    logger.verbose(`Server on: ${environment === "development" ? "http://localhost:" + port : "port: " + port}`);
   });
 }
 bootstrap().catch((error) => {
