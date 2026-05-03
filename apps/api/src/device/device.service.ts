@@ -511,9 +511,11 @@ export class DeviceService {
   async sendCommand({
     commandDTO,
     organization_id,
+    user_id,
   }: {
     commandDTO: CommandDeviceDto;
     organization_id: string;
+    user_id?: string;
   }) {
     const device = await this.dbService.device.findUnique({
       where: {
@@ -547,12 +549,16 @@ export class DeviceService {
         deviceUniqueId: string;
         organizationId: string;
         command: Record<string, unknown>;
+        source: 'api';
+        userId?: string;
       }
     >('mqtt-core.publish-command', {
       homeUniqueId: device.home.unique_id,
       deviceUniqueId: device.unique_id,
       organizationId: organization_id,
       command: commandDTO.command as Record<string, unknown>,
+      source: 'api',
+      userId: user_id,
     });
   }
 

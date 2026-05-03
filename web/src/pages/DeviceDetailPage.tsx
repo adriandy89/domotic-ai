@@ -1,0 +1,397 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  ChevronLeft,
+  Activity,
+  Battery,
+  Cpu,
+  Download,
+  Home,
+  Loader2,
+  ShieldAlert,
+  Thermometer,
+  Wind,
+  Zap,
+} from 'lucide-react';
+import {
+  bucketForRange,
+  KPICard,
+  presetRange,
+  RangeSelector,
+  TimeSeriesChart,
+  type RangeValue,
+} from '../components/charts';
+import { Button } from '../components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '../components/ui/card';
+import { useDevicesStore } from '../store/useDevicesStore';
+import { useHomesStore } from '../store/useHomesStore';
+import {
+  useReportsStore,
+  type ReportMetric,
+  type SeriesResponse,
+} from '../store/useReportsStore';
+import { formatWithUnit } from '../lib/format';
+import { cn } from '../lib/utils';
+
+interface TabSpec {
+  id: string;
+  label: string;
+  icon: React.ElementType;
+  metrics: { metric: ReportMetric; label: string; unit?: string; color?: string }[];
+}
+
+const ALL_TABS: TabSpec[] = [
+  {
+    id: 'climate',
+    label: 'Climate',
+    icon: Thermometer,
+    metrics: [
+      { metric: 'temperature', label: 'Temperature', unit: '°C', color: '#f59e0b' },
+      { metric: 'humidity', label: 'Humidity', unit: '%', color: '#22d3ee' },
+      { metric: 'pressure', label: 'Pressure', unit: 'hPa', color: '#3b82f6' },
+      { metric: 'illuminance', label: 'Illuminance', unit: 'lx', color: '#fbbf24' },
+    ],
+  },
+  {
+    id: 'energy',
+    label: 'Energy',
+    icon: Zap,
+    metrics: [
+      { metric: 'power', label: 'Power', unit: 'W', color: '#22d3ee' },
+      { metric: 'energy', label: 'Energy', unit: 'kWh', color: '#8b5cf6' },
+      { metric: 'voltage', label: 'Voltage', unit: 'V', color: '#10b981' },
+      { metric: 'current', label: 'Current', unit: 'A', color: '#f59e0b' },
+    ],
+  },
+  {
+    id: 'activity',
+    label: 'Activity',
+    icon: ShieldAlert,
+    metrics: [
+      { metric: 'contact_open', label: 'Contact opens', color: '#f59e0b' },
+      { metric: 'occupancy', label: 'Occupancy', color: '#10b981' },
+      { metric: 'presence', label: 'Presence', color: '#22d3ee' },
+      { metric: 'motion', label: 'Motion', color: '#a855f7' },
+      { metric: 'vibration', label: 'Vibration', color: '#ef4444' },
+      { metric: 'action', label: 'Button presses', color: '#3b82f6' },
+    ],
+  },
+  {
+    id: 'air',
+    label: 'Air quality',
+    icon: Wind,
+    metrics: [
+      { metric: 'co2', label: 'CO₂', unit: 'ppm', color: '#22d3ee' },
+      { metric: 'voc', label: 'VOC', unit: 'ppb', color: '#10b981' },
+      { metric: 'pm25', label: 'PM2.5', unit: 'µg/m³', color: '#f59e0b' },
+      { metric: 'pm10', label: 'PM10', unit: 'µg/m³', color: '#ef4444' },
+    ],
+  },
+  {
+    id: 'health',
+    label: 'Health',
+    icon: Activity,
+    metrics: [
+      { metric: 'battery', label: 'Battery', unit: '%', color: '#10b981' },
+      { metric: 'lqi', label: 'Link Quality', color: '#3b82f6' },
+    ],
+  },
+];
+
+const PROPERTY_FOR_METRIC: Record<ReportMetric, string> = {
+  temperature: 'temperature',
+  humidity: 'humidity',
+  pressure: 'pressure',
+  illuminance: 'illuminance',
+  power: 'power',
+  energy: 'energy',
+  voltage: 'voltage',
+  current: 'current',
+  contact_open: 'contact',
+  occupancy: 'occupancy',
+  presence: 'presence',
+  motion: 'motion',
+  vibration: 'vibration',
+  smoke: 'smoke',
+  water_leak: 'water_leak',
+  tamper: 'tamper',
+  action: 'action',
+  co2: 'co2',
+  voc: 'voc',
+  pm25: 'pm25',
+  pm10: 'pm10',
+  battery: 'battery',
+  lqi: 'linkquality',
+};
+
+interface ExposeShape {
+  name?: string;
+  property?: string;
+  features?: ExposeShape[];
+}
+function flatten(exposes: ExposeShape[]): ExposeShape[] {
+  const out: ExposeShape[] = [];
+  for (const e of exposes) {
+    if (e.features && e.features.length > 0) {
+      out.push(...flatten(e.features));
+    } else if (e.property || e.name) {
+      out.push(e);
+    }
+  }
+  return out;
+}
+
+export default function DeviceDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { devices, devicesData } = useDevicesStore();
+  const { homes } = useHomesStore();
+  const { fetchSeries, exportCsv, fetchAggregate } = useReportsStore();
+
+  const device = id ? devices[id] : null;
+  const home = device ? homes[device.home_id] : null;
+  const last = device ? devicesData[device.id]?.data : undefined;
+
+  const [range, setRange] = useState<RangeValue>(presetRange('7d'));
+  const [activeTab, setActiveTab] = useState<string | null>(null);
+
+  // Detect available tabs from device exposes (or last data, as fallback).
+  const availableTabs = useMemo(() => {
+    if (!device) return [] as TabSpec[];
+    const exposes = device.attributes?.definition?.exposes ?? [];
+    const flat = flatten(exposes);
+    const presentProps = new Set(
+      flat.map((e) => e.property ?? e.name).filter(Boolean) as string[],
+    );
+    if (last) {
+      Object.keys(last).forEach((k) => presentProps.add(k));
+    }
+
+    return ALL_TABS.filter((tab) =>
+      tab.metrics.some((m) => presentProps.has(PROPERTY_FOR_METRIC[m.metric])),
+    ).map((tab) => ({
+      ...tab,
+      metrics: tab.metrics.filter((m) =>
+        presentProps.has(PROPERTY_FOR_METRIC[m.metric]),
+      ),
+    }));
+  }, [device, last]);
+
+  useEffect(() => {
+    if (!activeTab && availableTabs.length > 0) {
+      setActiveTab(availableTabs[0].id);
+    }
+  }, [activeTab, availableTabs]);
+
+  const tab = availableTabs.find((t) => t.id === activeTab);
+
+  // Series for each metric in the active tab.
+  const [seriesByMetric, setSeriesByMetric] = useState<
+    Record<string, SeriesResponse | null>
+  >({});
+
+  useEffect(() => {
+    if (!device || !tab) return;
+    setSeriesByMetric({});
+    const bucket = bucketForRange(range);
+    Promise.all(
+      tab.metrics.map(async (m) => {
+        const s = await fetchSeries({
+          device_id: device.id,
+          metric: m.metric,
+          from: range.from,
+          to: range.to,
+          bucket,
+        });
+        return [m.metric, s] as const;
+      }),
+    ).then((entries) => {
+      const next: Record<string, SeriesResponse | null> = {};
+      for (const [k, v] of entries) next[k] = v;
+      setSeriesByMetric(next);
+    });
+  }, [device, tab, range, fetchSeries]);
+
+  // Aggregate for header KPIs.
+  const [aggregate, setAggregate] = useState<Record<
+    string,
+    number | null
+  > | null>(null);
+  useEffect(() => {
+    if (!device) return;
+    fetchAggregate({
+      device_id: device.id,
+      from: range.from,
+      to: range.to,
+    }).then((agg) => setAggregate(agg?.metrics ?? null));
+  }, [device, range, fetchAggregate]);
+
+  if (!device) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  const battery = (last?.battery as number | undefined) ?? null;
+  const lqi = (last?.linkquality as number | undefined) ?? null;
+  const lastTimestamp = device ? devicesData[device.id]?.timestamp : undefined;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate('/devices')}
+        >
+          <ChevronLeft className="w-5 h-5" />
+        </Button>
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold truncate">{device.name}</h1>
+          <p className="text-sm text-muted-foreground flex items-center gap-3 flex-wrap">
+            <span className="flex items-center gap-1">
+              <Cpu className="w-3 h-3" />
+              {device.model || device.unique_id}
+            </span>
+            {home && (
+              <span className="flex items-center gap-1">
+                <Home className="w-3 h-3" />
+                {home.name}
+              </span>
+            )}
+            {lastTimestamp && (
+              <span className="flex items-center gap-1">
+                <Activity className="w-3 h-3" />
+                Last update: {new Date(lastTimestamp).toLocaleString()}
+              </span>
+            )}
+          </p>
+        </div>
+      </div>
+
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+        <KPICard
+          label="Battery"
+          value={battery == null ? '—' : `${battery}%`}
+          accentColor={battery != null && battery < 20 ? '#f59e0b' : '#10b981'}
+          icon={<Battery className="w-4 h-4" />}
+        />
+        <KPICard
+          label="Link quality"
+          value={lqi == null ? '—' : String(lqi)}
+          accentColor={lqi != null && lqi < 40 ? '#ef4444' : '#3b82f6'}
+        />
+        <KPICard
+          label="Samples in range"
+          value={String(aggregate?.sample_count ?? 0)}
+          accentColor="#8b5cf6"
+        />
+        <KPICard
+          label="Energy in range"
+          value={
+            aggregate?.energy_kwh
+              ? formatWithUnit(aggregate.energy_kwh, 'kWh', 2)
+              : '—'
+          }
+          accentColor="#f59e0b"
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-1 border-b border-border w-full sm:w-auto">
+          {availableTabs.length === 0 ? (
+            <span className="text-sm text-muted-foreground py-2">
+              No measurable exposes for this device
+            </span>
+          ) : (
+            availableTabs.map((t) => {
+              const Icon = t.icon;
+              const isActive = t.id === activeTab;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setActiveTab(t.id)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
+                    isActive
+                      ? 'border-primary text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                  {t.label}
+                </button>
+              );
+            })
+          )}
+        </div>
+        <RangeSelector value={range} onChange={setRange} />
+      </div>
+
+      {tab && (
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+          {tab.metrics.map((m) => {
+            const s = seriesByMetric[m.metric];
+            return (
+              <Card key={m.metric} className="bg-card/40 border-border">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-base">
+                    {m.label}
+                    {m.unit && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        ({m.unit})
+                      </span>
+                    )}
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    title="Export CSV"
+                    onClick={() =>
+                      exportCsv({
+                        device_id: device.id,
+                        metric: m.metric,
+                        from: range.from,
+                        to: range.to,
+                        bucket: bucketForRange(range),
+                      })
+                    }
+                  >
+                    <Download className="w-4 h-4" />
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <TimeSeriesChart
+                    data={(s?.points ?? []).map((p) => ({
+                      bucket: p.bucket,
+                      [m.metric]: p.value,
+                    }))}
+                    series={[
+                      {
+                        key: m.metric,
+                        label: m.label,
+                        unit: m.unit,
+                        color: m.color,
+                      },
+                    ]}
+                    yUnit={m.unit}
+                    height={220}
+                    type="area"
+                  />
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

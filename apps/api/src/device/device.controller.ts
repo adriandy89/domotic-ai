@@ -199,6 +199,7 @@ export class DeviceController {
     return this.deviceService.sendCommand({
       commandDTO,
       organization_id: user.organization_id,
+      user_id: user.id,
     });
   }
 

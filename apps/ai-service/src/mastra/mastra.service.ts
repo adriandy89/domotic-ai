@@ -161,40 +161,143 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
       requestContext.set('dbService', this.dbService);
       requestContext.set('natsClient', this.natsClient);
 
-      const result = await agent.generate(message, {
-        maxSteps: 5,
-        memory: { thread: conversationId, resource: userId },
-        requestContext,
-        modelSettings: {
-          temperature: aiConfig.temperature ?? 0.4,
-          ...(aiConfig.maxTokens ? { maxOutputTokens: aiConfig.maxTokens } : {}),
-          ...(aiConfig.topP !== undefined ? { topP: aiConfig.topP } : {}),
-          ...(aiConfig.topK !== undefined ? { topK: aiConfig.topK } : {}),
-          ...(aiConfig.presencePenalty !== undefined
-            ? { presencePenalty: aiConfig.presencePenalty }
-            : {}),
-          ...(aiConfig.frequencyPenalty !== undefined
-            ? { frequencyPenalty: aiConfig.frequencyPenalty }
-            : {}),
-          ...(aiConfig.seed !== undefined ? { seed: aiConfig.seed } : {}),
-          ...(aiConfig.stopSequences
-            ? { stopSequences: aiConfig.stopSequences }
-            : {}),
-          ...(aiConfig.maxRetries !== undefined
-            ? { maxRetries: aiConfig.maxRetries }
-            : {}),
-        },
-        providerOptions: this.buildRuntimeProviderOptions(aiConfig),
-        system: `Current date/time: ${new Date().toISOString()}${timeZone ? ` (user timezone: ${timeZone})` : ''}. Wait for all tool calls to complete before drafting your final reply.`,
-      });
+      const t0 = Date.now();
+      try {
+        const result = await agent.generate(message, {
+          maxSteps: 5,
+          memory: { thread: conversationId, resource: userId },
+          requestContext,
+          modelSettings: {
+            temperature: aiConfig.temperature ?? 0.4,
+            ...(aiConfig.maxTokens
+              ? { maxOutputTokens: aiConfig.maxTokens }
+              : {}),
+            ...(aiConfig.topP !== undefined ? { topP: aiConfig.topP } : {}),
+            ...(aiConfig.topK !== undefined ? { topK: aiConfig.topK } : {}),
+            ...(aiConfig.presencePenalty !== undefined
+              ? { presencePenalty: aiConfig.presencePenalty }
+              : {}),
+            ...(aiConfig.frequencyPenalty !== undefined
+              ? { frequencyPenalty: aiConfig.frequencyPenalty }
+              : {}),
+            ...(aiConfig.seed !== undefined ? { seed: aiConfig.seed } : {}),
+            ...(aiConfig.stopSequences
+              ? { stopSequences: aiConfig.stopSequences }
+              : {}),
+            ...(aiConfig.maxRetries !== undefined
+              ? { maxRetries: aiConfig.maxRetries }
+              : {}),
+          },
+          providerOptions: this.buildRuntimeProviderOptions(aiConfig),
+          system: `Current date/time: ${new Date().toISOString()}${timeZone ? ` (user timezone: ${timeZone})` : ''}. Wait for all tool calls to complete before drafting your final reply.`,
+        });
 
-      return result.text;
+        await this.recordAiUsage({
+          organizationId,
+          userId,
+          conversationId,
+          provider: aiConfig.provider,
+          model: aiConfig.model,
+          usage: this.extractUsage(result),
+          toolCalls: this.extractToolCalls(result),
+          latencyMs: Date.now() - t0,
+        });
+
+        return result.text;
+      } catch (error) {
+        await this.recordAiUsage({
+          organizationId,
+          userId,
+          conversationId,
+          provider: aiConfig.provider,
+          model: aiConfig.model,
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          toolCalls: 0,
+          latencyMs: Date.now() - t0,
+          error:
+            error instanceof Error
+              ? error.message.slice(0, 500)
+              : 'Unknown error',
+        });
+        throw error;
+      }
     } catch (error) {
       this.logger.error(
         `Failed to generate response for user ${userId}`,
         error,
       );
       return error?.message || 'Failed to generate response.';
+    }
+  }
+
+  private extractUsage(result: unknown): {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+  } {
+    const u = (result as { usage?: Record<string, number> })?.usage ?? {};
+    const promptTokens =
+      Number(u.promptTokens ?? u.inputTokens ?? u.prompt_tokens ?? 0) || 0;
+    const completionTokens =
+      Number(u.completionTokens ?? u.outputTokens ?? u.completion_tokens ?? 0) ||
+      0;
+    const totalTokens =
+      Number(u.totalTokens ?? u.total_tokens ?? 0) ||
+      promptTokens + completionTokens;
+    return { promptTokens, completionTokens, totalTokens };
+  }
+
+  private extractToolCalls(result: unknown): number {
+    const tc = (result as { toolCalls?: unknown[] })?.toolCalls;
+    if (Array.isArray(tc)) return tc.length;
+    const steps = (result as { steps?: { toolCalls?: unknown[] }[] })?.steps;
+    if (Array.isArray(steps)) {
+      return steps.reduce(
+        (acc, s) => acc + (Array.isArray(s.toolCalls) ? s.toolCalls.length : 0),
+        0,
+      );
+    }
+    return 0;
+  }
+
+  /**
+   * Best-effort: record AI usage row. Never throws.
+   */
+  private async recordAiUsage(input: {
+    organizationId: string;
+    userId: string;
+    conversationId: string;
+    provider: string;
+    model: string;
+    usage: {
+      promptTokens: number;
+      completionTokens: number;
+      totalTokens: number;
+    };
+    toolCalls: number;
+    latencyMs: number;
+    error?: string;
+  }): Promise<void> {
+    try {
+      await this.dbService.aiUsage.create({
+        data: {
+          organization_id: input.organizationId,
+          user_id: input.userId,
+          conversation_id: input.conversationId,
+          provider: input.provider,
+          model: input.model,
+          prompt_tokens: input.usage.promptTokens,
+          completion_tokens: input.usage.completionTokens,
+          total_tokens: input.usage.totalTokens,
+          tool_calls: input.toolCalls,
+          latency_ms: input.latencyMs,
+          error: input.error ?? null,
+        },
+      });
+    } catch (err) {
+      this.logger.warn(
+        `ai_usage insert failed: ${(err as Error).message}`,
+      );
     }
   }
 

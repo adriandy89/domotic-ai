@@ -101,12 +101,16 @@ export const sendDeviceCommandTool = createTool({
           deviceUniqueId: string;
           organizationId: string;
           command: Record<string, unknown>;
+          source: 'ai';
+          userId?: string;
         }
       >('mqtt-core.publish-command', {
         homeUniqueId: device.home.unique_id,
         deviceUniqueId: device.unique_id,
         organizationId,
         command: normalized,
+        source: 'ai',
+        userId,
       });
 
       if (result?.ok) {

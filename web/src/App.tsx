@@ -1,10 +1,12 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import AuthLayout from './components/layout/AuthLayout';
 import DashboardLayout from './components/layout/DashboardLayout';
+import ReportsLayout from './components/reports/ReportsLayout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import DevicesPage from './pages/DevicesPage';
+import DeviceDetailPage from './pages/DeviceDetailPage';
 import RulesPage from './pages/RulesPage';
 import RuleFormPage from './pages/RuleFormPage';
 import SchedulesPage from './pages/SchedulesPage';
@@ -14,6 +16,13 @@ import HomesPage from './pages/HomesPage';
 import HomeMapPage from './pages/HomeMapPage';
 import SettingsPage from './pages/SettingsPage';
 import ActivityPage from './pages/ActivityPage';
+import EnergyReportPage from './pages/reports/EnergyReportPage';
+import ClimateReportPage from './pages/reports/ClimateReportPage';
+import SecurityReportPage from './pages/reports/SecurityReportPage';
+import DevicesHealthReportPage from './pages/reports/DevicesHealthReportPage';
+import AutomationsReportPage from './pages/reports/AutomationsReportPage';
+import AiUsageReportPage from './pages/reports/AiUsageReportPage';
+import AirQualityReportPage from './pages/reports/AirQualityReportPage';
 import ProtectedRoute from './ProtectedRoute';
 
 // Public Route wrapper to redirect authenticated users to dashboard
@@ -58,6 +67,35 @@ function App() {
             <Route path="/homes" element={<HomesPage />} />
             <Route path="/homes/:id" element={<HomeMapPage />} />
             <Route path="/devices" element={<DevicesPage />} />
+            <Route path="/devices/:id" element={<DeviceDetailPage />} />
+            <Route element={<ReportsLayout />}>
+              <Route
+                path="/reports"
+                element={<Navigate to="/reports/energy" replace />}
+              />
+              <Route path="/reports/energy" element={<EnergyReportPage />} />
+              <Route path="/reports/climate" element={<ClimateReportPage />} />
+              <Route
+                path="/reports/security"
+                element={<SecurityReportPage />}
+              />
+              <Route
+                path="/reports/devices-health"
+                element={<DevicesHealthReportPage />}
+              />
+              <Route
+                path="/reports/automations"
+                element={<AutomationsReportPage />}
+              />
+              <Route
+                path="/reports/ai-usage"
+                element={<AiUsageReportPage />}
+              />
+              <Route
+                path="/reports/air-quality"
+                element={<AirQualityReportPage />}
+              />
+            </Route>
             <Route path="/rules" element={<RulesPage />} />
             <Route path="/rules/new" element={<RuleFormPage />} />
             <Route path="/rules/edit/:id" element={<RuleFormPage />} />

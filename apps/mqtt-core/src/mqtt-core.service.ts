@@ -22,7 +22,11 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { JsonValue } from '@prisma/client/runtime/client';
-import { NotificationChannel, SensorData } from 'generated/prisma/client';
+import {
+  NotificationChannel,
+  Prisma,
+  SensorData,
+} from 'generated/prisma/client';
 import { MqttClient } from 'mqtt';
 
 const SAFE_DEVICE_ID_REGEX = /^[a-zA-Z0-9_\-:.]+$/;
@@ -521,8 +525,19 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
     deviceUniqueId: string;
     organizationId: string;
     command: Record<string, unknown>;
+    /** Origin of the command — used for the audit trail. */
+    source?: 'api' | 'ai' | 'rule' | 'schedule';
+    /** Optional originating user id for the audit trail. */
+    userId?: string;
   }): Promise<PublishCommandResult> {
-    const { homeUniqueId, deviceUniqueId, organizationId, command } = payload;
+    const {
+      homeUniqueId,
+      deviceUniqueId,
+      organizationId,
+      command,
+      source = 'api',
+      userId,
+    } = payload;
 
     if (
       !SAFE_DEVICE_ID_REGEX.test(deviceUniqueId) ||
@@ -583,12 +598,20 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
     if (actions.length > 0) {
       const validation = validateCommand(command, actions);
       if (!validation.valid) {
-        return {
+        const result: PublishCommandResult = {
           ok: false,
           code: 'INVALID_COMMAND',
           error: 'command does not match device exposes',
           validationErrors: validation.errors,
         };
+        await this.recordCommandExecution({
+          deviceId: device.id,
+          userId,
+          source,
+          command,
+          result,
+        });
+        return result;
       }
     }
 
@@ -600,18 +623,26 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
     );
     if (fresh.length >= RATE_LIMIT_MAX_PER_WINDOW) {
       const oldest = fresh[0];
-      return {
+      const result: PublishCommandResult = {
         ok: false,
         code: 'RATE_LIMITED',
         error: `Max ${RATE_LIMIT_MAX_PER_WINDOW} commands per second per device`,
         retryAfterMs: Math.max(0, oldest + RATE_LIMIT_WINDOW_MS - now),
       };
+      await this.recordCommandExecution({
+        deviceId: device.id,
+        userId,
+        source,
+        command,
+        result,
+      });
+      return result;
     }
     fresh.push(now);
     this.commandTimestamps.set(limitKey, fresh);
 
     const topic = `home/id/${homeUniqueId}/${deviceUniqueId}/set`;
-    return await new Promise<PublishCommandResult>((resolve) => {
+    const publishResult = await new Promise<PublishCommandResult>((resolve) => {
       this.mqttClient.publish(
         topic,
         JSON.stringify(command),
@@ -628,5 +659,44 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         },
       );
     });
+
+    await this.recordCommandExecution({
+      deviceId: device.id,
+      userId,
+      source,
+      command,
+      result: publishResult,
+    });
+    return publishResult;
+  }
+
+  /**
+   * Best-effort: record a command execution for the audit log. Never throws —
+   * the audit is observability, not a hard dependency of the user's request.
+   */
+  private async recordCommandExecution(input: {
+    deviceId: string;
+    userId?: string;
+    source: 'api' | 'ai' | 'rule' | 'schedule';
+    command: Record<string, unknown>;
+    result: PublishCommandResult;
+  }): Promise<void> {
+    try {
+      await this.dbService.commandExecution.create({
+        data: {
+          device_id: input.deviceId,
+          user_id: input.userId ?? null,
+          source: input.source,
+          command: input.command as Prisma.InputJsonValue,
+          ok: input.result.ok,
+          code: input.result.code ?? null,
+          error: input.result.error ?? null,
+        },
+      });
+    } catch (err) {
+      this.logger.warn(
+        `command_executions insert failed: ${(err as Error).message}`,
+      );
+    }
   }
 }

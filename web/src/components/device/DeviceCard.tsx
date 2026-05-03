@@ -16,9 +16,11 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  BarChart3,
   Edit,
   MoreVertical,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { cn } from '../../lib/utils';
@@ -103,6 +105,7 @@ export default function DeviceCard({
   onRename,
   onRemove,
 }: DeviceCardProps) {
+  const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(true);
   const [showActions, setShowActions] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -224,6 +227,16 @@ export default function DeviceCard({
           {/* Action dropdown */}
           {showActions && (
             <div className="absolute right-4 top-14 z-10 bg-card border border-border rounded-lg shadow-lg p-1 min-w-[140px]">
+              <button
+                onClick={() => {
+                  navigate(`/devices/${device.id}`);
+                  setShowActions(false);
+                }}
+                className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
+              >
+                <BarChart3 className="h-4 w-4" />
+                History & charts
+              </button>
               <button
                 onClick={() => {
                   setIsEditing(true);

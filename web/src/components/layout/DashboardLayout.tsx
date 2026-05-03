@@ -1,5 +1,6 @@
 import {
   Activity,
+  BarChart3,
   CalendarClock,
   ChevronLeft,
   ChevronRight,
@@ -33,6 +34,7 @@ export default function DashboardLayout() {
     { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
     { icon: Home, label: 'Homes', href: '/homes' },
     { icon: Cpu, label: 'Devices', href: '/devices' },
+    { icon: BarChart3, label: 'Reports', href: '/reports' },
     { icon: Zap, label: 'Rules', href: '/rules' },
     { icon: CalendarClock, label: 'Schedules', href: '/schedules' },
     { icon: KeyRound, label: 'Access', href: '/access' },
@@ -99,7 +101,11 @@ export default function DashboardLayout() {
         <nav className="flex-1 px-2 py-4 space-y-2">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.href;
+            const isActive =
+              item.href === '/'
+                ? location.pathname === '/'
+                : location.pathname === item.href ||
+                  location.pathname.startsWith(item.href + '/');
             return (
               <Link
                 key={item.href}
@@ -190,7 +196,11 @@ export default function DashboardLayout() {
             <nav className="flex-1 px-4 py-6 space-y-2">
               {navItems.map((item) => {
                 const Icon = item.icon;
-                const isActive = location.pathname === item.href;
+                const isActive =
+              item.href === '/'
+                ? location.pathname === '/'
+                : location.pathname === item.href ||
+                  location.pathname.startsWith(item.href + '/');
                 return (
                   <Link
                     key={item.href}

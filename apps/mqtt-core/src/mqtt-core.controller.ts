@@ -7,6 +7,10 @@ interface PublishCommandPayload {
   deviceUniqueId: string;
   organizationId: string;
   command: Record<string, unknown>;
+  /** Origin of the command — used for audit. Defaults to 'api'. */
+  source?: 'api' | 'ai' | 'rule' | 'schedule';
+  /** User id originating the command (for audit). */
+  userId?: string;
 }
 
 @Controller()

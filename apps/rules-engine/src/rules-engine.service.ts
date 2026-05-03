@@ -225,6 +225,13 @@ export class RulesEngineService {
         await this.cancelDelayedJob(rule.id, pendingJobId);
       }
       this.logger.verbose(`Rule ${rule.id} conditions not met`);
+      await this.recordRuleExecution({
+        ruleId: rule.id,
+        deviceId: currentDeviceId,
+        conditionsMet: false,
+        executed: false,
+        resultsCount: 0,
+      });
       return;
     }
 
@@ -243,12 +250,55 @@ export class RulesEngineService {
 
       // Schedule delayed execution
       await this.scheduleDelayedExecution(rule);
+      await this.recordRuleExecution({
+        ruleId: rule.id,
+        deviceId: currentDeviceId,
+        conditionsMet: true,
+        executed: false,
+        resultsCount: 0,
+      });
       return;
     }
 
     // No interval - execute immediately
     await this.executeResults(rule);
     await this.markRuleExecuted(rule);
+    await this.recordRuleExecution({
+      ruleId: rule.id,
+      deviceId: currentDeviceId,
+      conditionsMet: true,
+      executed: true,
+      resultsCount: rule.results?.length ?? 0,
+    });
+  }
+
+  /**
+   * Best-effort: record a rule execution for the audit log. Never throws.
+   */
+  private async recordRuleExecution(input: {
+    ruleId: string;
+    deviceId: string | null;
+    conditionsMet: boolean;
+    executed: boolean;
+    resultsCount: number;
+    error?: string;
+  }): Promise<void> {
+    try {
+      await this.dbService.ruleExecution.create({
+        data: {
+          rule_id: input.ruleId,
+          device_id: input.deviceId,
+          conditions_met: input.conditionsMet,
+          executed: input.executed,
+          results_count: input.resultsCount,
+          error: input.error ?? null,
+        },
+      });
+    } catch (err) {
+      this.logger.warn(
+        `rule_executions insert failed: ${(err as Error).message}`,
+      );
+    }
   }
 
   /**
@@ -356,6 +406,14 @@ export class RulesEngineService {
 
     // Mark rule as executed (for ONCE rules, deactivate)
     await this.markRuleExecutedById(jobData.ruleId);
+
+    await this.recordRuleExecution({
+      ruleId: jobData.ruleId,
+      deviceId: null,
+      conditionsMet: true,
+      executed: true,
+      resultsCount: jobData.results?.length ?? 0,
+    });
   }
 
   /**
@@ -377,7 +435,7 @@ export class RulesEngineService {
 
     const device = await this.dbService.device.findUnique({
       where: { id: result.device_id },
-      select: { unique_id: true },
+      select: { unique_id: true, organization_id: true },
     });
 
     if (!device) {
@@ -394,11 +452,15 @@ export class RulesEngineService {
     await this.natsClient.emit<{
       homeUniqueId: string;
       deviceUniqueId: string;
+      organizationId: string;
       command: any;
+      source: 'rule';
     }>('mqtt-core.publish-command', {
       homeUniqueId,
       deviceUniqueId: device.unique_id,
+      organizationId: device.organization_id,
       command,
+      source: 'rule',
     });
   }
 

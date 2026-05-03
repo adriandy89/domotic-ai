@@ -9,6 +9,7 @@ import { AuthModule } from './auth';
 import { DeviceModule } from './device';
 import { HomeModule } from './home';
 import { NotificationModule } from './notification';
+import { ReportsModule } from './reports';
 import { RuleModule } from './rule';
 import { ScheduleModule } from './schedule';
 import { SSEModule } from './sse';
@@ -35,6 +36,7 @@ import { UserModule } from './user';
     DeviceModule,
     RuleModule,
     ScheduleModule,
+    ReportsModule,
     NotificationModule,
     AiModule,
   ],

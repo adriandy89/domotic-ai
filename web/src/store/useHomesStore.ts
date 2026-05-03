@@ -17,6 +17,13 @@ export interface Home {
     icon: string;
     image: string | null;
     connected: boolean;
+    // Reports / energy-cost configuration (populated by the API).
+    currency?: string;
+    kwh_price?: number | string | null;
+    comfort_min_temp?: number | string | null;
+    comfort_max_temp?: number | string | null;
+    comfort_min_humidity?: number | string | null;
+    comfort_max_humidity?: number | string | null;
 }
 
 // API response includes devices
