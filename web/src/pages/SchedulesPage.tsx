@@ -1,34 +1,57 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Plus, Loader2, Filter, Home } from 'lucide-react';
-import { useRulesStore } from '../store/useRulesStore';
+import {
+  CalendarClock,
+  Plus,
+  Loader2,
+  Filter,
+  Home,
+  Repeat,
+  Clock,
+} from 'lucide-react';
+import { useSchedulesStore } from '../store/useSchedulesStore';
 import { useHomesStore } from '../store/useHomesStore';
-import RuleCard from '../components/rule/RuleCard';
+import ScheduleCard from '../components/schedule/ScheduleCard';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 
-export default function RulesPage() {
+export default function SchedulesPage() {
   const navigate = useNavigate();
-  const { rules, isLoading, error, fetchRules, toggleRule, deleteRule } =
-    useRulesStore();
+  const {
+    schedules,
+    isLoading,
+    error,
+    fetchSchedules,
+    toggleSchedule,
+    deleteSchedule,
+  } = useSchedulesStore();
   const { homes, homeIds } = useHomesStore();
   const [selectedHomeId, setSelectedHomeId] = useState<string | null>(null);
 
-  // Fetch rules on mount
   useEffect(() => {
-    fetchRules();
-  }, [fetchRules]);
+    fetchSchedules();
+  }, [fetchSchedules]);
 
-  // Filter rules by selected home
-  const filteredRules = useMemo(() => {
-    if (!selectedHomeId) return rules;
-    return rules.filter((rule) => rule.home_id === selectedHomeId);
-  }, [rules, selectedHomeId]);
+  const filteredSchedules = useMemo(() => {
+    if (!selectedHomeId) return schedules;
+    return schedules.filter((s) => s.home_id === selectedHomeId);
+  }, [schedules, selectedHomeId]);
 
-  // Get home list for filter
   const homeList = useMemo(() => {
     return homeIds.map((id) => homes[id]).filter(Boolean);
   }, [homeIds, homes]);
+
+  const recurrentCount = useMemo(
+    () =>
+      schedules.filter(
+        (s) => s.frequency === 'DAILY' || s.frequency === 'CUSTOM',
+      ).length,
+    [schedules],
+  );
+  const onceCount = useMemo(
+    () => schedules.filter((s) => s.frequency === 'ONCE').length,
+    [schedules],
+  );
 
   return (
     <div className="space-y-6">
@@ -36,56 +59,57 @@ export default function RulesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            Rules
+            Schedules
           </h2>
           <p className="text-muted-foreground mt-1">
-            Automate your smart home with conditional rules
+            Run actions on your devices at specific times — once, daily, or on
+            custom days
           </p>
         </div>
         <Button
           className="flex items-center gap-2"
-          onClick={() => navigate('/rules/new')}
+          onClick={() => navigate('/schedules/new')}
         >
           <Plus className="w-4 h-4" />
-          New Rule
+          New Schedule
         </Button>
       </div>
 
       {/* Stats Summary */}
-      {rules.length > 0 && (
+      {schedules.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <Card className="bg-card/40 border-border">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-primary">
-                {rules.length}
+                {schedules.length}
               </div>
-              <div className="text-xs text-muted-foreground">Total Rules</div>
+              <div className="text-xs text-muted-foreground">Total</div>
             </CardContent>
           </Card>
           <Card className="bg-card/40 border-border">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-emerald-500">
-                {rules.filter((r) => r.active).length}
+                {schedules.filter((s) => s.active).length}
               </div>
               <div className="text-xs text-muted-foreground">Active</div>
             </CardContent>
           </Card>
           <Card className="bg-card/40 border-border">
             <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-muted-foreground">
-                {rules.filter((r) => !r.active).length}
+              <div className="flex items-center justify-center gap-1 text-2xl font-bold text-violet-500">
+                <Repeat className="w-5 h-5" />
+                {recurrentCount}
               </div>
-              <div className="text-xs text-muted-foreground">Inactive</div>
+              <div className="text-xs text-muted-foreground">Recurrent</div>
             </CardContent>
           </Card>
           <Card className="bg-card/40 border-border">
             <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-amber-500">
-                {rules.reduce((acc, r) => acc + r._count.conditions, 0)}
+              <div className="flex items-center justify-center gap-1 text-2xl font-bold text-blue-500">
+                <Clock className="w-5 h-5" />
+                {onceCount}
               </div>
-              <div className="text-xs text-muted-foreground">
-                Total Conditions
-              </div>
+              <div className="text-xs text-muted-foreground">One time</div>
             </CardContent>
           </Card>
         </div>
@@ -127,7 +151,7 @@ export default function RulesPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchRules}
+              onClick={fetchSchedules}
               className="mt-2"
             >
               Try Again
@@ -137,44 +161,44 @@ export default function RulesPage() {
       )}
 
       {/* Loading State */}
-      {isLoading && rules.length === 0 && (
+      {isLoading && schedules.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16">
           <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
-          <span className="text-muted-foreground">Loading rules...</span>
+          <span className="text-muted-foreground">Loading schedules...</span>
         </div>
       )}
 
-      {/* Rules Grid */}
-      {!isLoading && filteredRules.length > 0 && (
+      {/* Schedules Grid */}
+      {!isLoading && filteredSchedules.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredRules.map((rule) => (
-            <RuleCard
-              key={rule.id}
-              rule={rule}
-              onToggle={toggleRule}
-              onDelete={deleteRule}
-              onEdit={(id) => navigate(`/rules/edit/${id}`)}
+          {filteredSchedules.map((schedule) => (
+            <ScheduleCard
+              key={schedule.id}
+              schedule={schedule}
+              onToggle={toggleSchedule}
+              onDelete={deleteSchedule}
+              onEdit={(id) => navigate(`/schedules/edit/${id}`)}
             />
           ))}
         </div>
       )}
 
       {/* Empty State */}
-      {!isLoading && !error && filteredRules.length === 0 && (
+      {!isLoading && !error && filteredSchedules.length === 0 && (
         <Card className="bg-card/40 border-border">
           <CardContent className="py-16 text-center">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
-              <Zap className="w-8 h-8 text-primary" />
+              <CalendarClock className="w-8 h-8 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">No rules found</h3>
+            <h3 className="text-lg font-semibold mb-2">No schedules yet</h3>
             <p className="text-muted-foreground text-sm mb-4">
               {selectedHomeId
-                ? `No rules configured for "${homeList.find((h) => h.id === selectedHomeId)?.name}"`
-                : 'Create your first rule to automate your smart home'}
+                ? `No schedules configured for "${homeList.find((h) => h.id === selectedHomeId)?.name}"`
+                : 'Schedule actions to run automatically — turn off lights at midnight, water plants Mon/Wed/Fri, ...'}
             </p>
-            <Button onClick={() => navigate('/rules/new')}>
+            <Button onClick={() => navigate('/schedules/new')}>
               <Plus className="w-4 h-4 mr-2" />
-              Create Rule
+              Create Schedule
             </Button>
           </CardContent>
         </Card>

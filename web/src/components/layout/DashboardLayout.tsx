@@ -1,5 +1,6 @@
 import {
   Activity,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
   Cpu,
@@ -33,6 +34,7 @@ export default function DashboardLayout() {
     { icon: Home, label: 'Homes', href: '/homes' },
     { icon: Cpu, label: 'Devices', href: '/devices' },
     { icon: Zap, label: 'Rules', href: '/rules' },
+    { icon: CalendarClock, label: 'Schedules', href: '/schedules' },
     { icon: KeyRound, label: 'Access', href: '/access' },
     { icon: Activity, label: 'Activity', href: '/activity' },
     { icon: Settings, label: 'Settings', href: '/settings' },

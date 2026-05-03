@@ -7,6 +7,8 @@ import DashboardPage from './pages/DashboardPage';
 import DevicesPage from './pages/DevicesPage';
 import RulesPage from './pages/RulesPage';
 import RuleFormPage from './pages/RuleFormPage';
+import SchedulesPage from './pages/SchedulesPage';
+import ScheduleFormPage from './pages/ScheduleFormPage';
 import AccessPage from './pages/AccessPage';
 import HomesPage from './pages/HomesPage';
 import HomeMapPage from './pages/HomeMapPage';
@@ -59,6 +61,9 @@ function App() {
             <Route path="/rules" element={<RulesPage />} />
             <Route path="/rules/new" element={<RuleFormPage />} />
             <Route path="/rules/edit/:id" element={<RuleFormPage />} />
+            <Route path="/schedules" element={<SchedulesPage />} />
+            <Route path="/schedules/new" element={<ScheduleFormPage />} />
+            <Route path="/schedules/edit/:id" element={<ScheduleFormPage />} />
             <Route path="/access" element={<AccessPage />} />
             <Route path="/activity" element={<ActivityPage />} />
             <Route path="/settings" element={<SettingsPage />} />

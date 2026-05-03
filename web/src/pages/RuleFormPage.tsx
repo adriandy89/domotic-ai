@@ -109,7 +109,7 @@ export default function RuleFormPage() {
     clearCurrentRule,
   } = useRulesStore();
   const { homes, homeIds } = useHomesStore();
-  const { devices, devicesByHome } = useDevicesStore();
+  const { devices, devicesByHome, fetchDevices } = useDevicesStore();
 
   // Form state
   const [name, setName] = useState('');
@@ -131,6 +131,14 @@ export default function RuleFormPage() {
       clearCurrentRule();
     };
   }, [id, isEditMode, getRuleById, clearCurrentRule]);
+
+  // Ensure devices store is hydrated for the device pickers.
+  useEffect(() => {
+    if (Object.keys(devices).length === 0) {
+      fetchDevices();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Populate form when rule is loaded
   useEffect(() => {

@@ -10,6 +10,7 @@ import { DeviceModule } from './device';
 import { HomeModule } from './home';
 import { NotificationModule } from './notification';
 import { RuleModule } from './rule';
+import { ScheduleModule } from './schedule';
 import { SSEModule } from './sse';
 import { UserModule } from './user';
 
@@ -33,6 +34,7 @@ import { UserModule } from './user';
     UserModule,
     DeviceModule,
     RuleModule,
+    ScheduleModule,
     NotificationModule,
     AiModule,
   ],
