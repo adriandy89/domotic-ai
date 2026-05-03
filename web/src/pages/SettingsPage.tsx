@@ -1,5 +1,5 @@
-import { Bot, Monitor, User } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Bot, Eye, EyeOff, ExternalLink, Monitor, User } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../components/ui/button';
 import {
   Card,
@@ -50,11 +50,88 @@ const ATTRIBUTE_LABELS: Record<UserAttr, string> = {
   waterLeakTrue: 'Water Leak Detected',
 };
 
+type AiProvider = 'openai' | 'google' | 'openrouter';
+
 interface AiConfig {
-  provider: string;
+  provider: AiProvider;
   model: string;
   apiKey?: string;
   enabled: boolean;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+interface ProviderMeta {
+  label: string;
+  apiKeyHint: string;
+  apiKeyPlaceholder: string;
+  apiKeyUrl: string;
+  modelHint: string;
+  models: string[];
+  defaultModel: string;
+}
+
+const PROVIDER_META: Record<AiProvider, ProviderMeta> = {
+  openai: {
+    label: 'OpenAI',
+    apiKeyHint: 'Get one at platform.openai.com → API keys',
+    apiKeyPlaceholder: 'sk-...',
+    apiKeyUrl: 'https://platform.openai.com/api-keys',
+    modelHint: 'e.g. gpt-4.1-mini, gpt-5-mini',
+    defaultModel: 'gpt-4.1-mini',
+    models: [
+      'gpt-4.1',
+      'gpt-4.1-mini',
+      'gpt-4.1-nano',
+      'gpt-4o',
+      'gpt-4o-mini',
+      'gpt-5',
+      'gpt-5-mini',
+      'gpt-5-nano',
+      'o4-mini',
+    ],
+  },
+  google: {
+    label: 'Google Gemini',
+    apiKeyHint: 'Get one at Google AI Studio',
+    apiKeyPlaceholder: 'AI...',
+    apiKeyUrl: 'https://aistudio.google.com/apikey',
+    modelHint: 'e.g. gemini-2.5-flash, gemini-2.5-pro',
+    defaultModel: 'gemini-2.5-flash',
+    models: [
+      'gemini-2.5-pro',
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-2.0-flash',
+    ],
+  },
+  openrouter: {
+    label: 'OpenRouter',
+    apiKeyHint:
+      'Get one at openrouter.ai → Keys. Model id must include vendor (e.g. "anthropic/claude-haiku-4.5").',
+    apiKeyPlaceholder: 'sk-or-v1-...',
+    apiKeyUrl: 'https://openrouter.ai/keys',
+    modelHint: 'e.g. anthropic/claude-haiku-4.5, openai/gpt-4o-mini',
+    defaultModel: 'openai/gpt-4o-mini',
+    models: [
+      'openai/gpt-4o-mini',
+      'openai/gpt-5-mini',
+      'anthropic/claude-haiku-4.5',
+      'anthropic/claude-sonnet-4.5',
+      'google/gemini-2.5-flash',
+      'meta-llama/llama-3.3-70b-instruct:free',
+      'deepseek/deepseek-chat-v3.1',
+      'z-ai/glm-4.6',
+    ],
+  },
+};
+
+const SUPPORTED_PROVIDERS: AiProvider[] = ['openai', 'google', 'openrouter'];
+
+function maskApiKey(key?: string): string {
+  if (!key) return 'Not set';
+  if (key.length < 10) return '••••';
+  return `${key.substring(0, 4)}…${key.substring(key.length - 4)}`;
 }
 
 export default function SettingsPage() {
@@ -66,11 +143,15 @@ export default function SettingsPage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [aiConfig, setAiConfig] = useState<AiConfig | null>(null);
   const [isAiConfigOpen, setIsAiConfigOpen] = useState(false);
+  const [aiSaveError, setAiSaveError] = useState<string | null>(null);
+  const [showApiKey, setShowApiKey] = useState(false);
   const [editingAiConfig, setEditingAiConfig] = useState<AiConfig>({
     provider: 'openai',
-    model: 'gpt-4o',
+    model: PROVIDER_META.openai.defaultModel,
     apiKey: '',
     enabled: true,
+    temperature: 0.4,
+    maxTokens: 4000,
   });
 
   const [userAttributes, setUserAttributes] = useState<
@@ -96,11 +177,24 @@ export default function SettingsPage() {
     try {
       const response = await api.get('/users/org/attributes/ai');
       if (response.data?.ai) {
-        const configData = response.data.ai;
+        const configData = response.data.ai as AiConfig;
 
-        setAiConfig(configData);
+        // Sanitize: if the persisted provider is no longer supported (e.g. legacy
+        // 'anthropic'), fall back to OpenAI defaults so the UI never shows an
+        // option the backend can't honor.
+        const provider: AiProvider = SUPPORTED_PROVIDERS.includes(
+          configData.provider as AiProvider,
+        )
+          ? (configData.provider as AiProvider)
+          : 'openai';
+
+        setAiConfig({ ...configData, provider });
         setEditingAiConfig({
           ...configData,
+          provider,
+          model: configData.model || PROVIDER_META[provider].defaultModel,
+          temperature: configData.temperature ?? 0.4,
+          maxTokens: configData.maxTokens ?? 4000,
           apiKey: '', // Clear API key for security when editing
         });
       }
@@ -109,12 +203,56 @@ export default function SettingsPage() {
     }
   };
 
+  const validationError = useMemo(() => {
+    if (!editingAiConfig.model.trim()) return 'Model is required.';
+    if (
+      editingAiConfig.provider === 'openrouter' &&
+      !editingAiConfig.model.includes('/')
+    ) {
+      return 'OpenRouter model must include vendor prefix, e.g. "anthropic/claude-haiku-4.5".';
+    }
+    if (!editingAiConfig.apiKey && !aiConfig?.apiKey) {
+      return 'API key is required.';
+    }
+    if (
+      editingAiConfig.temperature !== undefined &&
+      (editingAiConfig.temperature < 0 || editingAiConfig.temperature > 2)
+    ) {
+      return 'Temperature must be between 0 and 2.';
+    }
+    return null;
+  }, [editingAiConfig, aiConfig]);
+
+  const handleProviderChange = (next: AiProvider) => {
+    const meta = PROVIDER_META[next];
+    setEditingAiConfig((prev) => ({
+      ...prev,
+      provider: next,
+      // If the current model isn't valid for the new provider, switch to the default.
+      // Heuristic: openrouter requires "/", openai/google require no slash.
+      model:
+        next === 'openrouter'
+          ? prev.model.includes('/')
+            ? prev.model
+            : meta.defaultModel
+          : prev.model.includes('/')
+            ? meta.defaultModel
+            : prev.model || meta.defaultModel,
+      apiKey: '', // Force re-entry when switching provider
+    }));
+    setAiSaveError(null);
+  };
+
   const handleUpdateAiConfig = async () => {
+    if (validationError) {
+      setAiSaveError(validationError);
+      return;
+    }
     try {
       setLoading(true);
+      setAiSaveError(null);
 
-      const payload = { ...editingAiConfig };
-      // If apiKey is empty, use the existing one
+      const payload: AiConfig = { ...editingAiConfig };
       if (!payload.apiKey && aiConfig?.apiKey) {
         payload.apiKey = aiConfig.apiKey;
       }
@@ -124,7 +262,10 @@ export default function SettingsPage() {
       setIsAiConfigOpen(false);
     } catch (error) {
       console.error('Failed to update AI config', error);
-      setError('Failed to update AI configuration');
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response
+          ?.data?.message || 'Failed to update AI configuration.';
+      setAiSaveError(message);
     } finally {
       setLoading(false);
     }
@@ -293,17 +434,20 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             {aiConfig ? (
               <div className="flex items-center justify-between p-4 rounded-lg border border-border/50 bg-background/50">
-                <div className="space-y-1">
-                  <p className="font-medium capitalize">
-                    {aiConfig.provider} - {aiConfig.model}
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">
+                      {PROVIDER_META[aiConfig.provider]?.label ??
+                        aiConfig.provider}
+                    </span>
+                    <span className="text-muted-foreground text-sm">
+                      · {aiConfig.model}
+                    </span>
+                  </div>
+                  <p className="text-sm text-muted-foreground font-mono">
+                    {maskApiKey(aiConfig.apiKey)}
                   </p>
-                  <p className="text-sm text-muted-foreground">
-                    API Key:{' '}
-                    {aiConfig.apiKey
-                      ? `${aiConfig.apiKey.substring(0, 3)}...${aiConfig.apiKey.substring(aiConfig.apiKey.length - 4)}`
-                      : 'Not set'}
-                  </p>
-                  <div className="flex items-center gap-2 mt-1">
+                  <div className="flex items-center gap-2">
                     <span
                       className={`h-2 w-2 rounded-full ${aiConfig.enabled ? 'bg-green-500' : 'bg-red-500'}`}
                     />
@@ -314,7 +458,11 @@ export default function SettingsPage() {
                 </div>
                 <Button
                   variant="outline"
-                  onClick={() => setIsAiConfigOpen(true)}
+                  onClick={() => {
+                    setShowApiKey(false);
+                    setAiSaveError(null);
+                    setIsAiConfigOpen(true);
+                  }}
                 >
                   Edit
                 </Button>
@@ -324,50 +472,66 @@ export default function SettingsPage() {
                 <p className="text-muted-foreground mb-4">
                   No AI configuration found
                 </p>
-                <Button onClick={() => setIsAiConfigOpen(true)}>
+                <Button
+                  onClick={() => {
+                    setShowApiKey(false);
+                    setAiSaveError(null);
+                    setIsAiConfigOpen(true);
+                  }}
+                >
                   Configure AI
                 </Button>
               </div>
             )}
 
-            <Dialog open={isAiConfigOpen} onOpenChange={setIsAiConfigOpen}>
-              <DialogContent>
+            <Dialog
+              open={isAiConfigOpen}
+              onOpenChange={(open) => {
+                setIsAiConfigOpen(open);
+                if (!open) {
+                  setAiSaveError(null);
+                  setShowApiKey(false);
+                }
+              }}
+            >
+              <DialogContent className="max-w-lg">
                 <DialogHeader>
                   <DialogTitle>AI Configuration</DialogTitle>
                   <DialogDescription>
-                    Set up your AI provider settings. API Key is required.
+                    Pick a provider and model. Each organization brings its own
+                    API key.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+
+                <div className="grid gap-4 py-2">
+                  {/* Provider */}
                   <div className="grid gap-2">
                     <Label htmlFor="provider">Provider</Label>
                     <Select
                       value={editingAiConfig.provider}
                       onValueChange={(value) =>
-                        setEditingAiConfig({
-                          ...editingAiConfig,
-                          provider: value,
-                        })
+                        handleProviderChange(value as AiProvider)
                       }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select provider" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="openai">OpenAI</SelectItem>
-                        <SelectItem value="anthropic">Anthropic</SelectItem>
-                        <SelectItem value="google">Google</SelectItem>
-                        <SelectItem value="groq">Groq</SelectItem>
-                        <SelectItem value="mistral">Mistral</SelectItem>
-                        <SelectItem value="xai">xAI</SelectItem>
-                        <SelectItem value="azure">Azure</SelectItem>
+                        {SUPPORTED_PROVIDERS.map((p) => (
+                          <SelectItem key={p} value={p}>
+                            {PROVIDER_META[p].label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Model — combobox-ish: dropdown with suggestions + free text */}
                   <div className="grid gap-2">
                     <Label htmlFor="model">Model</Label>
                     <Input
                       id="model"
+                      list="ai-model-suggestions"
                       value={editingAiConfig.model}
                       onChange={(e) =>
                         setEditingAiConfig({
@@ -375,29 +539,128 @@ export default function SettingsPage() {
                           model: e.target.value,
                         })
                       }
-                      placeholder="e.g. gpt-4o, claude-3-5-sonnet"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="apiKey">API Key</Label>
-                    <Input
-                      id="apiKey"
-                      type="password"
-                      value={editingAiConfig.apiKey || ''}
-                      onChange={(e) =>
-                        setEditingAiConfig({
-                          ...editingAiConfig,
-                          apiKey: e.target.value,
-                        })
+                      placeholder={
+                        PROVIDER_META[editingAiConfig.provider].modelHint
                       }
-                      placeholder="sk-..."
                     />
+                    <datalist id="ai-model-suggestions">
+                      {PROVIDER_META[editingAiConfig.provider].models.map(
+                        (m) => (
+                          <option key={m} value={m} />
+                        ),
+                      )}
+                    </datalist>
                     <p className="text-xs text-muted-foreground">
-                      Leave empty to keep existing key if editing.
+                      {PROVIDER_META[editingAiConfig.provider].modelHint}
                     </p>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="ai-enabled">Enable AI Assistant</Label>
+
+                  {/* API key */}
+                  <div className="grid gap-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="apiKey">API Key</Label>
+                      <a
+                        href={
+                          PROVIDER_META[editingAiConfig.provider].apiKeyUrl
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-primary hover:underline flex items-center gap-1"
+                      >
+                        Get a key <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        id="apiKey"
+                        type={showApiKey ? 'text' : 'password'}
+                        value={editingAiConfig.apiKey || ''}
+                        onChange={(e) =>
+                          setEditingAiConfig({
+                            ...editingAiConfig,
+                            apiKey: e.target.value,
+                          })
+                        }
+                        placeholder={
+                          aiConfig?.apiKey
+                            ? `Current: ${maskApiKey(aiConfig.apiKey)} (leave empty to keep)`
+                            : PROVIDER_META[editingAiConfig.provider]
+                                .apiKeyPlaceholder
+                        }
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        aria-label={showApiKey ? 'Hide key' : 'Show key'}
+                        onClick={() => setShowApiKey((v) => !v)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground"
+                      >
+                        {showApiKey ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {PROVIDER_META[editingAiConfig.provider].apiKeyHint}
+                    </p>
+                  </div>
+
+                  {/* Advanced */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label htmlFor="temperature">
+                        Temperature ({editingAiConfig.temperature ?? 0.4})
+                      </Label>
+                      <Input
+                        id="temperature"
+                        type="number"
+                        min={0}
+                        max={2}
+                        step={0.1}
+                        value={editingAiConfig.temperature ?? 0.4}
+                        onChange={(e) =>
+                          setEditingAiConfig({
+                            ...editingAiConfig,
+                            temperature: e.target.value
+                              ? Number(e.target.value)
+                              : undefined,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="maxTokens">Max output tokens</Label>
+                      <Input
+                        id="maxTokens"
+                        type="number"
+                        min={1}
+                        max={200000}
+                        step={100}
+                        value={editingAiConfig.maxTokens ?? ''}
+                        onChange={(e) =>
+                          setEditingAiConfig({
+                            ...editingAiConfig,
+                            maxTokens: e.target.value
+                              ? Number(e.target.value)
+                              : undefined,
+                          })
+                        }
+                        placeholder="optional"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Enabled */}
+                  <div className="flex items-center justify-between rounded-lg border border-border/50 bg-background/50 p-3">
+                    <div>
+                      <Label htmlFor="ai-enabled">Enable AI Assistant</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Disabling stops the chat assistant for the whole
+                        organization.
+                      </p>
+                    </div>
                     <Switch
                       id="ai-enabled"
                       checked={editingAiConfig.enabled}
@@ -409,7 +672,15 @@ export default function SettingsPage() {
                       }
                     />
                   </div>
+
+                  {/* Validation / save errors */}
+                  {(aiSaveError || validationError) && (
+                    <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded">
+                      {aiSaveError ?? validationError}
+                    </p>
+                  )}
                 </div>
+
                 <DialogFooter>
                   <Button
                     variant="outline"
@@ -417,7 +688,10 @@ export default function SettingsPage() {
                   >
                     Cancel
                   </Button>
-                  <Button onClick={handleUpdateAiConfig} disabled={loading}>
+                  <Button
+                    onClick={handleUpdateAiConfig}
+                    disabled={loading || !!validationError}
+                  >
                     {loading ? 'Saving...' : 'Save Configuration'}
                   </Button>
                 </DialogFooter>

@@ -1,13 +1,6 @@
-import { createAnthropic } from '@ai-sdk/anthropic';
-import { createAzure } from '@ai-sdk/azure';
-import { createGoogleGenerativeAI } from '@ai-sdk/google';
-import { createGroq } from '@ai-sdk/groq';
-import { createMistral } from '@ai-sdk/mistral';
-import { createOpenAI } from '@ai-sdk/openai';
-import { createOpenAICompatible } from '@ai-sdk/openai-compatible';
-import { createXai } from '@ai-sdk/xai';
 import { Mastra } from '@mastra/core';
 import { Agent } from '@mastra/core/agent';
+import { ModelRouterEmbeddingModel } from '@mastra/core/llm';
 import { Memory } from '@mastra/memory';
 import { PgVector, PostgresStore } from '@mastra/pg';
 import { Injectable, Logger } from '@nestjs/common';
@@ -19,12 +12,27 @@ import {
   sensorDataTool,
   weatherTool,
 } from './tools';
-import { AIProviderConfig, DEFAULT_AI_PROVIDER_CONFIGS } from './types';
+import {
+  AIProviderConfig,
+  AIProviderConfigSchema,
+  SUPPORTED_PROVIDERS,
+  SupportedProvider,
+} from './types';
 
 /**
- * Factory to create Mastra AI agents
- * Each organization will have its own independent agent
+ * Mastra accepts a model in three forms:
+ *  1. A `provider/model` string — auth comes from env vars.
+ *  2. An object `{ id, apiKey?, headers?, url? }` — per-call config (what we use, since each org brings its own key).
+ *  3. A direct AI SDK provider instance — we don't use this.
+ *
+ * See: https://mastra.ai/models
  */
+type MastraModelConfig = {
+  id: string;
+  apiKey: string;
+  headers?: Record<string, string>;
+};
+
 @Injectable()
 export class MastraAgentFactory {
   private readonly logger = new Logger(MastraAgentFactory.name);
@@ -32,81 +40,58 @@ export class MastraAgentFactory {
   constructor(private readonly configService: ConfigService) {}
 
   /**
-   * Creates a Mastra instance with an agent for a specific organization
-   * @param organizationId - Organization ID
-   * @param config - AI Provider Configuration
-   * @returns Configured Mastra instance
+   * Validates a raw config object (typically from `organization.attributes.ai`)
+   * and returns it strongly typed. Throws `ZodError` on failure.
+   */
+  validateConfig(config: unknown): AIProviderConfig {
+    return AIProviderConfigSchema.parse(config);
+  }
+
+  /**
+   * Creates a Mastra instance with one Agent for the given organization.
+   * Memory is isolated per-organization via a unique vector store id.
    */
   async createMastra(
     organizationId: string,
     config: AIProviderConfig,
   ): Promise<Mastra> {
     this.logger.log(
-      `Creating Mastra instance for organization: ${organizationId}`,
+      `Creating Mastra instance for org=${organizationId} provider=${config.provider} model=${config.model}`,
     );
 
     if (!config.enabled) {
-      this.logger.warn(
-        `AI provider is disabled for organization: ${organizationId}`,
-      );
+      this.logger.warn(`AI provider is disabled for org=${organizationId}`);
     }
 
-    // Configure the model according to the provider
-    const model = this.getModel(config);
-
-    // Get Mastra database URL
     const databaseUrl = this.configService.get<string>('MASTRA_DATABASE_URL');
-
     if (!databaseUrl) {
-      throw new Error(
-        'MASTRA_DATABASE_URL is not configured. Please add it to your .env file.',
-      );
+      throw new Error('MASTRA_DATABASE_URL is not configured.');
     }
 
-    // Create PostgresStore with unique id per organization for isolated memory
     const storage = new PostgresStore({
-      id: `org-${organizationId}-vector-store`,
+      id: `org-${organizationId}-store`,
       connectionString: databaseUrl,
     });
 
-    // Initialize storage before using it
     try {
       await storage.init();
-      this.logger.log(
-        `PostgresStore initialized for organization: ${organizationId}`,
-      );
     } catch (error) {
       this.logger.error(
-        `Failed to initialize PostgresStore for organization ${organizationId}:`,
+        `Failed to initialize PostgresStore for org=${organizationId}`,
         error,
       );
-      throw new Error(`Memory storage initialization failed: ${error.message}`);
+      throw new Error(
+        `Memory storage initialization failed: ${(error as Error).message}`,
+      );
     }
 
-    // Create the agent
+    const model = this.buildModel(config);
+    const embedder = this.buildEmbedder();
+
     const agent = new Agent({
       id: `org-${organizationId}-agent`,
       name: `org-${organizationId}-agent`,
       instructions: this.getDefaultInstructions(organizationId),
-      // inputProcessors: [
-      //   new TopicValidatorProcessor({
-      //     allowedTopics: [
-      //       'smart home',
-      //       'home automation',
-      //       'devices',
-      //       'sensors',
-      //       'sensor data',
-      //       'energy management',
-      //       'device control',
-      //       'climate'
-      //     ],
-      //     model,
-      //     blockStrategy: 'block',
-      //     threshold: 0.7,
-      //     customMessage:
-      //       'I specialize in smart home automation and device management. Please ask questions related to home automation, devices, sensors, or automation rules.',
-      //   }),
-      // ],
       tools: {
         sensorDataTool,
         devicesListTool,
@@ -120,13 +105,12 @@ export class MastraAgentFactory {
           id: `org-${organizationId}-vector`,
           connectionString: databaseUrl,
         }),
-        embedder: 'openai/text-embedding-3-small',
+        embedder,
         options: {
           lastMessages: 8,
-          semanticRecall: {
-            topK: 3,
-            messageRange: { before: 2, after: 1 },
-          },
+          semanticRecall: embedder
+            ? { topK: 3, messageRange: { before: 2, after: 1 } }
+            : false,
           workingMemory: {
             enabled: true,
             scope: 'thread',
@@ -143,161 +127,73 @@ export class MastraAgentFactory {
       }),
     });
 
-    // Create Mastra instance with agent and storage
-    const mastra = new Mastra({
+    return new Mastra({
       agents: { [`org-${organizationId}-agent`]: agent },
       storage,
     });
-
-    this.logger.log(
-      `Mastra instance created for organization ${organizationId} using ${config.provider}/${config.model}`,
-    );
-
-    return mastra;
   }
 
   /**
-   * Gets the AI model according to configuration
-   * Supports OpenAI and Anthropic (installed)
-   * For other providers, install the corresponding package
+   * Builds the Mastra model config object. Mastra's model router routes the call
+   * based on the `id` prefix (`openai/`, `google/`, `openrouter/`) and uses the
+   * provided `apiKey` for authentication.
    */
-  private getModel(config: AIProviderConfig) {
-    const { provider, model: modelName, apiKey } = config;
-
-    switch (provider) {
-      case 'openai': {
-        const modelId = modelName || DEFAULT_AI_PROVIDER_CONFIGS.openai.model!;
-
-        if (!apiKey) {
-          throw new Error(
-            'OpenAI API key is required. Set it in organization attributes.ai.apiKey',
-          );
-        }
-
-        const openaiProvider = createOpenAI({ apiKey });
-        return openaiProvider(modelId);
-      }
-
-      case 'anthropic': {
-        const modelId =
-          modelName || DEFAULT_AI_PROVIDER_CONFIGS.anthropic.model!;
-
-        if (!apiKey) {
-          throw new Error(
-            'Anthropic API key is required. Set it in organization attributes.ai.apiKey',
-          );
-        }
-
-        const anthropicProvider = createAnthropic({ apiKey });
-        return anthropicProvider(modelId);
-      }
-
-      case 'google': {
-        // Requires: pnpm add @ai-sdk/google
-        const modelId = modelName || DEFAULT_AI_PROVIDER_CONFIGS.google.model!;
-
-        if (!apiKey) {
-          throw new Error(
-            'Google Generative AI API key is required. Set it in organization attributes.ai.apiKey',
-          );
-        }
-
-        const googleProvider = createGoogleGenerativeAI({ apiKey });
-        return googleProvider(modelId);
-      }
-
-      case 'groq': {
-        // Requires: pnpm add @ai-sdk/groq
-        const modelId = modelName || DEFAULT_AI_PROVIDER_CONFIGS.groq.model!;
-
-        if (!apiKey) {
-          throw new Error(
-            'Groq API key is required. Set it in organization attributes.ai.apiKey',
-          );
-        }
-
-        const groqProvider = createGroq({ apiKey });
-        return groqProvider(modelId);
-      }
-
-      case 'mistral': {
-        // Requires: pnpm add @ai-sdk/mistral
-        const modelId = modelName || DEFAULT_AI_PROVIDER_CONFIGS.mistral.model!;
-
-        if (!apiKey) {
-          throw new Error(
-            'Mistral API key is required. Set it in organization attributes.ai.apiKey',
-          );
-        }
-
-        const mistralProvider = createMistral({ apiKey });
-        return mistralProvider(modelId);
-      }
-
-      case 'xai': {
-        // Requires: pnpm add @ai-sdk/xai
-        const modelId = modelName || DEFAULT_AI_PROVIDER_CONFIGS.xai.model!;
-
-        if (!apiKey) {
-          throw new Error(
-            'xAI API key is required. Set it in organization attributes.ai.apiKey',
-          );
-        }
-
-        const xaiProvider = createXai({ apiKey });
-        return xaiProvider(modelId);
-      }
-
-      case 'azure': {
-        // Requires: pnpm add @ai-sdk/azure
-        const resourceName = config.providerOptions?.resourceName;
-
-        if (!apiKey) {
-          throw new Error(
-            'Azure API key is required. Set it in organization attributes.ai.apiKey',
-          );
-        }
-
-        if (!resourceName) {
-          throw new Error(
-            'Azure resource name is required. Set it in organization attributes.ai.providerOptions.resourceName',
-          );
-        }
-
-        const azureProvider = createAzure({
-          apiKey,
-          resourceName,
-        });
-        return azureProvider(
-          config.providerOptions?.deploymentName || modelName!,
-        );
-      }
-
-      case 'custom': {
-        // Requires: pnpm add @ai-sdk/openai-compatible
-        const baseURL = config.providerOptions?.baseURL;
-
-        if (!baseURL) {
-          throw new Error(
-            'Custom provider requires baseURL in attributes.ai.providerOptions.baseURL',
-          );
-        }
-
-        const customProvider = createOpenAICompatible({
-          name: 'custom-provider',
-          apiKey,
-          baseURL,
-        });
-        return customProvider.chatModel(modelName!);
-      }
-
-      default:
-        throw new Error(`Unsupported AI provider: ${provider}`);
+  private buildModel(config: AIProviderConfig): MastraModelConfig {
+    if (!SUPPORTED_PROVIDERS.includes(config.provider as SupportedProvider)) {
+      throw new Error(
+        `Unsupported provider "${config.provider}". Supported: ${SUPPORTED_PROVIDERS.join(', ')}`,
+      );
     }
+
+    const id = `${config.provider}/${config.model}`;
+    const headers: Record<string, string> = {};
+
+    if (config.provider === 'openrouter') {
+      // OpenRouter uses these for attribution & ranking on their leaderboard.
+      // Both are optional but recommended; we forward whatever the org configured.
+      const referer = config.providerOptions?.httpReferer;
+      const title = config.providerOptions?.appTitle;
+      if (referer) headers['HTTP-Referer'] = referer;
+      if (title) headers['X-Title'] = title;
+    }
+
+    return {
+      id,
+      apiKey: config.apiKey,
+      ...(Object.keys(headers).length > 0 ? { headers } : {}),
+    };
   }
 
   /**
-   * Default instructions for the agent
+   * Embedder used by Memory.semanticRecall. This is intentionally a server-wide
+   * concern, NOT a per-organization config:
+   *  - The chat model is configurable per org (each org brings its own key).
+   *  - The embedding model is fixed to `openai/text-embedding-3-small` (1536 dims)
+   *    because vector dimensions must stay consistent across the lifetime of a
+   *    Postgres pgvector index. Switching providers later would require
+   *    re-embedding every stored message.
+   *
+   * If `EMBEDDING_OPENAI_API_KEY` is missing, semantic recall is disabled and
+   * the agent continues to work without long-term semantic context.
+   */
+  private buildEmbedder(): ModelRouterEmbeddingModel | undefined {
+    const apiKey = this.configService.get<string>('EMBEDDING_OPENAI_API_KEY');
+    if (!apiKey) {
+      this.logger.warn(
+        'EMBEDDING_OPENAI_API_KEY is not set. Semantic recall disabled.',
+      );
+      return undefined;
+    }
+    return new ModelRouterEmbeddingModel({
+      providerId: 'openai',
+      modelId: 'text-embedding-3-small',
+      apiKey,
+    });
+  }
+
+  /**
+   * System prompt — deliberately concise, with strict policies for device control
+   * and validation errors.
    */
   private getDefaultInstructions(organizationId: string): string {
     return `You are the smart-home assistant for organization ${organizationId}. You control Zigbee devices through a Zigbee2MQTT bridge.
@@ -339,18 +235,5 @@ If the response has \`code: "RATE_LIMITED"\`, wait a moment and tell the user th
 - Confirm before broad actions ("turn off everything in the house", "open all locks").
 - Never invent device IDs or capabilities — always read them from tools.
 - Always use tools for current state. Do not answer "the light is on" from memory; call get-sensor-data.`;
-  }
-
-  /**
-   * Validates AI provider configuration
-   */
-  validateConfig(config: any): AIProviderConfig {
-    try {
-      const { AIProviderConfigSchema } = require('./types');
-      return AIProviderConfigSchema.parse(config);
-    } catch (error) {
-      this.logger.error('Invalid AI provider configuration', error);
-      throw new Error('Invalid AI provider configuration');
-    }
   }
 }

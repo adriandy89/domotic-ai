@@ -134,10 +134,13 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
     }
 
     const organizationId = user.organization_id;
-    const mastra = await this.getOrCreateMastra(
-      organizationId,
-      user.organization.attributes['ai'],
-    );
+    const rawAiConfig = user.organization.attributes['ai'];
+    const aiConfig = this.getAIProviderConfig(rawAiConfig);
+    if (!aiConfig) {
+      return 'AI configuration is invalid. Please contact your administrator.';
+    }
+
+    const mastra = await this.getOrCreateMastra(organizationId, rawAiConfig);
     const agentName = `org-${organizationId}-agent`;
 
     try {
@@ -162,7 +165,26 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
         maxSteps: 5,
         memory: { thread: conversationId, resource: userId },
         requestContext,
-        modelSettings: { temperature: 0.3 },
+        modelSettings: {
+          temperature: aiConfig.temperature ?? 0.4,
+          ...(aiConfig.maxTokens ? { maxOutputTokens: aiConfig.maxTokens } : {}),
+          ...(aiConfig.topP !== undefined ? { topP: aiConfig.topP } : {}),
+          ...(aiConfig.topK !== undefined ? { topK: aiConfig.topK } : {}),
+          ...(aiConfig.presencePenalty !== undefined
+            ? { presencePenalty: aiConfig.presencePenalty }
+            : {}),
+          ...(aiConfig.frequencyPenalty !== undefined
+            ? { frequencyPenalty: aiConfig.frequencyPenalty }
+            : {}),
+          ...(aiConfig.seed !== undefined ? { seed: aiConfig.seed } : {}),
+          ...(aiConfig.stopSequences
+            ? { stopSequences: aiConfig.stopSequences }
+            : {}),
+          ...(aiConfig.maxRetries !== undefined
+            ? { maxRetries: aiConfig.maxRetries }
+            : {}),
+        },
+        providerOptions: this.buildRuntimeProviderOptions(aiConfig),
         system: `Current date/time: ${new Date().toISOString()}${timeZone ? ` (user timezone: ${timeZone})` : ''}. Wait for all tool calls to complete before drafting your final reply.`,
       });
 
@@ -174,6 +196,37 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
       );
       return error?.message || 'Failed to generate response.';
     }
+  }
+
+  /**
+   * Convert our flat `providerOptions` config into Mastra's per-provider nested form.
+   * See https://mastra.ai/models — `providerOptions: { openai: {...} }` etc.
+   */
+  private buildRuntimeProviderOptions(
+    config: AIProviderConfig,
+  ): Record<string, Record<string, unknown>> | undefined {
+    const opts = config.providerOptions;
+    if (!opts) return undefined;
+
+    if (config.provider === 'openai') {
+      const openai: Record<string, unknown> = {};
+      if (opts.reasoningEffort) openai.reasoningEffort = opts.reasoningEffort;
+      if (opts.parallelToolCalls !== undefined) {
+        openai.parallelToolCalls = opts.parallelToolCalls;
+      }
+      return Object.keys(openai).length > 0 ? { openai } : undefined;
+    }
+
+    if (config.provider === 'google') {
+      const google: Record<string, unknown> = {};
+      if (opts.thinkingConfig) google.thinkingConfig = opts.thinkingConfig;
+      if (opts.safetySettings) google.safetySettings = opts.safetySettings;
+      return Object.keys(google).length > 0 ? { google } : undefined;
+    }
+
+    // OpenRouter forwards options to the underlying vendor; runtime options aren't
+    // typically needed because the routing key in the model id picks the backend.
+    return undefined;
   }
 
   private async closeMastraConnections(mastra: Mastra) {
