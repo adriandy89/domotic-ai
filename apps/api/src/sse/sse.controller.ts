@@ -11,16 +11,14 @@ import type { Request } from 'express';
 
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { ApiTags } from '@nestjs/swagger';
-import {
-  filter,
-  interval,
-  map,
-  merge,
-  Observable,
-  Subject,
-} from 'rxjs';
+import { filter, interval, map, merge, Observable, Subject } from 'rxjs';
 import { AuthenticatedGuard, GetUserInfo } from '../auth';
-import type { IHomeConnectedEvent, ISensorData, IUserSensorNotification, SessionUser } from '@app/models';
+import type {
+  IHomeConnectedEvent,
+  ISensorData,
+  IUserSensorNotification,
+  SessionUser,
+} from '@app/models';
 
 // Message interface with topic-based routing
 interface IMessage<T> {
@@ -45,7 +43,10 @@ export class SSEController implements OnModuleDestroy {
   constructor() {
     this.ping$ = interval(15000).pipe(
       map(() => ({
-        data: JSON.stringify({ topic: 'ping', payload: { timestamp: Date.now() } }),
+        data: JSON.stringify({
+          topic: 'ping',
+          payload: { timestamp: Date.now() },
+        }),
         type: 'message',
         id: new Date().getTime().toString(),
       })),
@@ -64,7 +65,10 @@ export class SSEController implements OnModuleDestroy {
 
   @UseGuards(AuthenticatedGuard)
   @Sse('stream')
-  stream(@GetUserInfo() user: SessionUser, @Req() req: Request): Observable<MessageEvent> {
+  stream(
+    @GetUserInfo() user: SessionUser,
+    @Req() req: Request,
+  ): Observable<MessageEvent> {
     this.logger.log(`User ${user.id} connected to unified SSE stream`);
     const currentSessionId = (req as any).sessionID;
 
@@ -89,21 +93,29 @@ export class SSEController implements OnModuleDestroy {
               break;
 
             case 'user.sensor-notification':
-              const userSensorNotification = message.payload as IUserSensorNotification;
+              const userSensorNotification =
+                message.payload as IUserSensorNotification;
               // Check if notification is for this user
               hasPermission = userSensorNotification.user.id === user.id;
               break;
 
             case 'user.attributes.updated':
-              const userAttributesUpdated = message.payload as { userId: string };
+              const userAttributesUpdated = message.payload as {
+                userId: string;
+              };
               hasPermission = userAttributesUpdated.userId === user.id;
               break;
 
             case 'user.session.revoked':
-              const sessionRevoked = message.payload as { userId: string; excludedSessionId: string };
+              const sessionRevoked = message.payload as {
+                userId: string;
+                excludedSessionId: string;
+              };
               // Only send if userId matches AND session ID is NOT the excluded one
               // We want to notify all *other* sessions
-              hasPermission = sessionRevoked.userId === user.id && sessionRevoked.excludedSessionId !== currentSessionId;
+              hasPermission =
+                sessionRevoked.userId === user.id &&
+                sessionRevoked.excludedSessionId !== currentSessionId;
               break;
 
             default:
@@ -128,7 +140,10 @@ export class SSEController implements OnModuleDestroy {
         // Remove sensitive fields before sending to frontend
         const { userIds, ...sanitizedPayload } = message.payload;
         return {
-          data: JSON.stringify({ topic: message.topic, payload: sanitizedPayload }),
+          data: JSON.stringify({
+            topic: message.topic,
+            payload: sanitizedPayload,
+          }),
           id: new Date().getTime().toString(),
           retry: 5000,
           type: 'message',
@@ -142,10 +157,10 @@ export class SSEController implements OnModuleDestroy {
   // ? Event Handlers --------------------------------------------------------------
 
   @EventPattern('mqtt-core.sensor.data')
-  async handleNewSensorData(
-    @Payload() payload: ISensorData,
-  ) {
-    this.logger.log(`Received mqtt-core.sensor.data: ${JSON.stringify(payload)}`);
+  async handleNewSensorData(@Payload() payload: ISensorData) {
+    this.logger.log(
+      `Received mqtt-core.sensor.data: ${JSON.stringify(payload)}`,
+    );
     this.messageSubject.next({
       topic: 'sensor.data',
       payload,
@@ -157,7 +172,9 @@ export class SSEController implements OnModuleDestroy {
     @Payload()
     payload: IHomeConnectedEvent,
   ) {
-    this.logger.log(`Received mqtt-core.home.connected: ${JSON.stringify(payload)}`);
+    this.logger.log(
+      `Received mqtt-core.home.connected: ${JSON.stringify(payload)}`,
+    );
     this.messageSubject.next({
       topic: 'home.status',
       payload,
@@ -166,7 +183,9 @@ export class SSEController implements OnModuleDestroy {
 
   @EventPattern('user.attributes.updated')
   async handleUserAttributesUpdated(@Payload() payload: { userId: string }) {
-    this.logger.log(`Received user.attributes.updated: ${JSON.stringify(payload)}`);
+    this.logger.log(
+      `Received user.attributes.updated: ${JSON.stringify(payload)}`,
+    );
     this.messageSubject.next({
       topic: 'user.attributes.updated',
       payload,
@@ -174,8 +193,12 @@ export class SSEController implements OnModuleDestroy {
   }
 
   @EventPattern('user.session.revoked')
-  async handleUserSessionRevoked(@Payload() payload: { userId: string; excludedSessionId: string }) {
-    this.logger.log(`Received user.session.revoked: ${JSON.stringify(payload)}`);
+  async handleUserSessionRevoked(
+    @Payload() payload: { userId: string; excludedSessionId: string },
+  ) {
+    this.logger.log(
+      `Received user.session.revoked: ${JSON.stringify(payload)}`,
+    );
     this.messageSubject.next({
       topic: 'user.session.revoked',
       payload,

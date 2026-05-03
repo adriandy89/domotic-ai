@@ -5,7 +5,7 @@ import {
   HomePageOptionsDto,
   LinksUUIDsDto,
   UpdateHomeDto,
-  UUIDArrayDto
+  UUIDArrayDto,
 } from '@app/models';
 import {
   BadRequestException,
@@ -19,7 +19,7 @@ import {
   Post,
   Put,
   Query,
-  UseGuards
+  UseGuards,
 } from '@nestjs/common';
 import { Role } from 'generated/prisma/enums';
 import { GetUserInfo, Permissions } from '../auth/decorators';
@@ -29,7 +29,7 @@ import { HomeService } from './home.service';
 @Controller('homes')
 @UseGuards(AuthenticatedGuard)
 export class HomeController {
-  constructor(private readonly homeService: HomeService) { }
+  constructor(private readonly homeService: HomeService) {}
 
   @Get('statistics/organization')
   @Permissions([Role.MANAGER])
@@ -45,9 +45,16 @@ export class HomeController {
   @Post()
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async create(@Body() homeDTO: CreateHomeDto, @GetUserInfo() user: SessionUser) {
+  async create(
+    @Body() homeDTO: CreateHomeDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     try {
-      return await this.homeService.create(homeDTO, user.organization_id, user.id);
+      return await this.homeService.create(
+        homeDTO,
+        user.organization_id,
+        user.id,
+      );
     } catch (error) {
       if (error.code === 'P2002') {
         throw new ConflictException('Duplicate, already exist');
@@ -62,7 +69,7 @@ export class HomeController {
   async update(
     @Param('id') id: string,
     @Body() homeDTO: UpdateHomeDto,
-    @GetUserInfo() user: SessionUser
+    @GetUserInfo() user: SessionUser,
   ) {
     try {
       return await this.homeService.update(id, homeDTO, user.organization_id);
@@ -77,10 +84,14 @@ export class HomeController {
   async updateAttributes(
     @Param('id') id: string,
     @Body() attributes: HomeAttributesDto,
-    @GetUserInfo() user: SessionUser
+    @GetUserInfo() user: SessionUser,
   ) {
     try {
-      return await this.homeService.updateAttributes(id, attributes, user.organization_id);
+      return await this.homeService.updateAttributes(
+        id,
+        attributes,
+        user.organization_id,
+      );
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -104,11 +115,13 @@ export class HomeController {
     return this.homeService.getMqttConfig();
   }
 
-
   @Get()
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async findAll(@Query() optionsDto: HomePageOptionsDto, @GetUserInfo() user: SessionUser) {
+  async findAll(
+    @Query() optionsDto: HomePageOptionsDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     return this.homeService.findAll(optionsDto, user.organization_id);
   }
 
@@ -124,8 +137,14 @@ export class HomeController {
   @Get('unique/:uniqueId')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async findByUniqueId(@Param('uniqueId') uniqueId: string, @GetUserInfo() user: SessionUser) {
-    const found = await this.homeService.findByUniqueId(uniqueId, user.organization_id);
+  async findByUniqueId(
+    @Param('uniqueId') uniqueId: string,
+    @GetUserInfo() user: SessionUser,
+  ) {
+    const found = await this.homeService.findByUniqueId(
+      uniqueId,
+      user.organization_id,
+    );
     if (!found) {
       throw new NotFoundException('Not Found');
     }
@@ -146,9 +165,15 @@ export class HomeController {
   @Put('disable/many')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async disableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
+  async disableMany(
+    @Body() uuidArrayDto: UUIDArrayDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     try {
-      return await this.homeService.disableMany(uuidArrayDto.uuids, user.organization_id);
+      return await this.homeService.disableMany(
+        uuidArrayDto.uuids,
+        user.organization_id,
+      );
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -157,9 +182,15 @@ export class HomeController {
   @Put('enable/many')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async enableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
+  async enableMany(
+    @Body() uuidArrayDto: UUIDArrayDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     try {
-      return await this.homeService.enableMany(uuidArrayDto.uuids, user.organization_id);
+      return await this.homeService.enableMany(
+        uuidArrayDto.uuids,
+        user.organization_id,
+      );
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -170,14 +201,20 @@ export class HomeController {
   @Get(':id/users')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async findAllUserLinks(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
+  async findAllUserLinks(
+    @Param('id') id: string,
+    @GetUserInfo() user: SessionUser,
+  ) {
     return this.homeService.findUsersAllLinks(id, user.organization_id);
   }
 
   @Post('users/link')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async linkUsers(@Body() data: LinksUUIDsDto, @GetUserInfo() user: SessionUser) {
+  async linkUsers(
+    @Body() data: LinksUUIDsDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     try {
       return await this.homeService.linksUsersHomes(data, user.organization_id);
     } catch (error) {

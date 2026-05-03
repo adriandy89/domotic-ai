@@ -10,4 +10,4 @@ import { TelegramService } from './telegram.service';
   controllers: [TelegramController, NotificationController],
   providers: [TelegramService, EmailService],
 })
-export class NotificationModule { }
+export class NotificationModule {}

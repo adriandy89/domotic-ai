@@ -14,7 +14,7 @@ interface AIGenerateRequest {
 export class AiServiceController {
   private readonly logger = new Logger(AiServiceController.name);
 
-  constructor(private readonly aiServiceService: AiServiceService) { }
+  constructor(private readonly aiServiceService: AiServiceService) {}
 
   @EventPattern('ai.test')
   getHello(): string {
@@ -23,14 +23,18 @@ export class AiServiceController {
 
   @EventPattern('ai.generate')
   async generateResponse(@Payload() data: AIGenerateRequest) {
-    this.logger.log(`AI generate request for user: ${data.userId}, conversation: ${data.conversationId}`);
-    return await this.aiServiceService.generateResponse(
-      data.userId,
-      data.message,
-      data.conversationId,
-      data.timeZone,
-    ).catch((_error) => {
-      handleError();
-    });;
+    this.logger.log(
+      `AI generate request for user: ${data.userId}, conversation: ${data.conversationId}`,
+    );
+    return await this.aiServiceService
+      .generateResponse(
+        data.userId,
+        data.message,
+        data.conversationId,
+        data.timeZone,
+      )
+      .catch((_error) => {
+        handleError();
+      });
   }
 }

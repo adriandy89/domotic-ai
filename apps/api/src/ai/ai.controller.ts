@@ -12,7 +12,7 @@ import { AIChatRequest, AiService } from './ai.service';
 export class AiController {
   private readonly logger = new Logger(AiController.name);
 
-  constructor(private readonly aiService: AiService) { }
+  constructor(private readonly aiService: AiService) {}
 
   @Post('chat')
   @ApiOperation({
@@ -33,7 +33,9 @@ export class AiController {
       timeZone: body.timeZone,
     };
 
-    this.logger.log(`User ${userId} sent message: "${body.message.substring(0, 50)}..."`);
+    this.logger.log(
+      `User ${userId} sent message: "${body.message.substring(0, 50)}..."`,
+    );
 
     const response = await this.aiService.chat(request);
 

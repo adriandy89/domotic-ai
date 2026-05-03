@@ -29,7 +29,7 @@ export class MqttCoreModule implements OnModuleInit {
   constructor(
     @Inject('MQTT_CLIENT') private readonly mqttClient: MqttClient,
     private readonly sensorDataService: MqttCoreService,
-  ) { }
+  ) {}
 
   async onModuleInit() {
     // ? Subscribe to all devices MQTT topics
@@ -71,7 +71,10 @@ export class MqttCoreModule implements OnModuleInit {
       callback();
 
       // Process next message from queue if available
-      if (this.messageQueue.length > 0 && this.processingCount < this.maxConcurrent) {
+      if (
+        this.messageQueue.length > 0 &&
+        this.processingCount < this.maxConcurrent
+      ) {
         const next = this.messageQueue.shift();
         if (next) {
           this.processMessage(next.packet, next.callback);

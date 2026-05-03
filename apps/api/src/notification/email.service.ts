@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-const nodemailer = require("nodemailer");
+const nodemailer = require('nodemailer');
 
 @Injectable()
 export class EmailService {
@@ -12,10 +12,11 @@ export class EmailService {
   private readonly emailUser: string;
   private readonly emailPass: string;
 
-  constructor(
-    private readonly config: ConfigService,
-  ) {
-    this.baseUrl = this.config.get<string>('PUBLIC_APP_URL', 'http://localhost:3003');
+  constructor(private readonly config: ConfigService) {
+    this.baseUrl = this.config.get<string>(
+      'PUBLIC_APP_URL',
+      'http://localhost:3003',
+    );
     this.emailUser = this.config.get<string>('EMAIL_USER', '');
     this.emailPass = this.config.get<string>('EMAIL_PASS', '');
     if (this.emailUser && this.emailPass) {

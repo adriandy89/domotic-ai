@@ -6,4 +6,4 @@ import { DbService } from './db.service';
   providers: [DbService],
   exports: [DbService],
 })
-export class DbModule { }
+export class DbModule {}

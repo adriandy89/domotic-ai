@@ -34,18 +34,23 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
 
   const configService = app.get(ConfigService);
-  const redisUrl = configService.get<string>('REDIS_URL') || 'redis://localhost:6379';
-  const redisPassword = configService.get<string>('REDIS_PASSWORD') || undefined;
+  const redisUrl =
+    configService.get<string>('REDIS_URL') || 'redis://localhost:6379';
+  const redisPassword =
+    configService.get<string>('REDIS_PASSWORD') || undefined;
   // Set up Redis client
   const redisClient = redis.createClient({
     url: redisUrl,
     password: redisPassword,
   });
-  redisClient.connect().then(() => {
-    logger.verbose('✅ Connected to Redis for session storage');
-  }).catch((error) => {
-    logger.error('❌ Redis connection error:', error);
-  });
+  redisClient
+    .connect()
+    .then(() => {
+      logger.verbose('✅ Connected to Redis for session storage');
+    })
+    .catch((error) => {
+      logger.error('❌ Redis connection error:', error);
+    });
 
   const environment = configService.get<string>('NODE_ENV') || 'development';
   // Configure session middleware with Redis
@@ -56,7 +61,9 @@ async function bootstrap() {
         client: redisClient,
         prefix: 'sess:',
       }),
-      secret: configService.get<string>('SESSION_SECRET') || 'default-secret-change-in-production',
+      secret:
+        configService.get<string>('SESSION_SECRET') ||
+        'default-secret-change-in-production',
       resave: true, // Renew session on each request
       saveUninitialized: false, // Don't create sessions for unauthenticated users
       rolling: true, // Reset expiration on each request
@@ -65,7 +72,10 @@ async function bootstrap() {
         httpOnly: true, // Prevents JavaScript access to cookies
         secure: environment === 'production', // Use secure cookies in production
         sameSite: environment === 'production' ? 'none' : 'lax', // 'none' for cross-site cookies in production, 'lax' otherwise
-        domain: environment === 'production' ? configService.get('COOKIE_DOMAIN') : undefined, // Set domain for production
+        domain:
+          environment === 'production'
+            ? configService.get('COOKIE_DOMAIN')
+            : undefined, // Set domain for production
       },
       proxy: environment === 'production', // Trust proxy in production
     }),
@@ -74,7 +84,6 @@ async function bootstrap() {
   // Initialize Passport
   app.use(passport.initialize());
   app.use(passport.session());
-
 
   const swaggerEnable = configService.get('SWAGGER_ENABLE') === 'true';
   if (swaggerEnable) {
@@ -114,7 +123,9 @@ async function bootstrap() {
   const port = configService.get<number>('API_PORT') || 3017;
 
   await app.listen(port, () => {
-    logger.verbose(`Server on: ${environment === "development" ? "http://localhost:" + port : "port: " + port}`);
+    logger.verbose(
+      `Server on: ${environment === 'development' ? 'http://localhost:' + port : 'port: ' + port}`,
+    );
   });
 }
 bootstrap().catch((error) => {

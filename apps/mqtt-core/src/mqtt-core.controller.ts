@@ -1,23 +1,33 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Logger } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
-import { MqttCoreService } from './mqtt-core.service';
+import { MqttCoreService, PublishCommandResult } from './mqtt-core.service';
+
+interface PublishCommandPayload {
+  homeUniqueId: string;
+  deviceUniqueId: string;
+  organizationId: string;
+  command: Record<string, unknown>;
+}
 
 @Controller()
 export class MqttCoreController {
-    constructor(
-        private readonly mqttCoreService: MqttCoreService,
-    ) { }
+  private readonly logger = new Logger(MqttCoreController.name);
 
-    @MessagePattern('mqtt-core.publish-command')
-    publishCommand(@Payload() payload: { homeUniqueId: string; deviceUniqueId: string; command: any }) {
-        try {
-            this.mqttCoreService.publishCommand(payload);
-            return { ok: true };
-        } catch (error) {
-            console.log(error);
-            return { ok: false };
-        }
+  constructor(private readonly mqttCoreService: MqttCoreService) {}
 
+  @MessagePattern('mqtt-core.publish-command')
+  async publishCommand(
+    @Payload() payload: PublishCommandPayload,
+  ): Promise<PublishCommandResult> {
+    try {
+      return await this.mqttCoreService.publishCommand(payload);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      this.logger.error(
+        `publishCommand failed: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return { ok: false, code: 'PUBLISH_FAILED', error: message };
     }
-
+  }
 }

@@ -6,7 +6,7 @@ import {
   CreateCommandDeviceDto,
   UpdateCommandNameDto,
   UUIDArrayDto,
-  UpdatePositionDto
+  UpdatePositionDto,
 } from '@app/models';
 import { DeviceService } from './device.service';
 import {
@@ -21,7 +21,7 @@ import {
   UseGuards,
   NotFoundException,
   BadRequestException,
-  ConflictException
+  ConflictException,
 } from '@nestjs/common';
 import { AuthenticatedGuard, PermissionsGuard } from '../auth/guards';
 import { GetUserInfo, Permissions } from '../auth/decorators';
@@ -31,12 +31,15 @@ import type { SessionUser } from '@app/models';
 @Controller('devices')
 @UseGuards(AuthenticatedGuard)
 export class DeviceController {
-  constructor(private readonly deviceService: DeviceService) { }
+  constructor(private readonly deviceService: DeviceService) {}
 
   @Post()
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async create(@Body() deviceDTO: CreateDeviceDto, @GetUserInfo() user: SessionUser) {
+  async create(
+    @Body() deviceDTO: CreateDeviceDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     try {
       return await this.deviceService.create(deviceDTO, user.organization_id);
     } catch (error) {
@@ -54,10 +57,14 @@ export class DeviceController {
   async updatePosition(
     @Param('id') id: string,
     @Body() positionDTO: UpdatePositionDto,
-    @GetUserInfo() user: SessionUser
+    @GetUserInfo() user: SessionUser,
   ) {
     try {
-      return await this.deviceService.updatePosition(id, positionDTO, user.organization_id);
+      return await this.deviceService.updatePosition(
+        id,
+        positionDTO,
+        user.organization_id,
+      );
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -69,10 +76,14 @@ export class DeviceController {
   async update(
     @Param('id') id: string,
     @Body() deviceDTO: UpdateDeviceDto,
-    @GetUserInfo() user: SessionUser
+    @GetUserInfo() user: SessionUser,
   ) {
     try {
-      return await this.deviceService.update(id, deviceDTO, user.organization_id);
+      return await this.deviceService.update(
+        id,
+        deviceDTO,
+        user.organization_id,
+      );
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -92,15 +103,24 @@ export class DeviceController {
   @Get()
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async findAll(@Query() optionsDto: DevicePageOptionsDto, @GetUserInfo() user: SessionUser) {
+  async findAll(
+    @Query() optionsDto: DevicePageOptionsDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     return this.deviceService.findAll(optionsDto, user.organization_id);
   }
 
   @Get('unique/:uniqueId')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async findByUniqueId(@Param('uniqueId') uniqueId: string, @GetUserInfo() user: SessionUser) {
-    const found = await this.deviceService.findByUniqueId(uniqueId, user.organization_id);
+  async findByUniqueId(
+    @Param('uniqueId') uniqueId: string,
+    @GetUserInfo() user: SessionUser,
+  ) {
+    const found = await this.deviceService.findByUniqueId(
+      uniqueId,
+      user.organization_id,
+    );
     if (!found) {
       throw new NotFoundException('Not Found');
     }
@@ -110,8 +130,14 @@ export class DeviceController {
   @Get('home/:homeId')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async findAllByHomeId(@Param('homeId') homeId: string, @GetUserInfo() user: SessionUser) {
-    const found = await this.deviceService.findAllByHomeId(homeId, user.organization_id);
+  async findAllByHomeId(
+    @Param('homeId') homeId: string,
+    @GetUserInfo() user: SessionUser,
+  ) {
+    const found = await this.deviceService.findAllByHomeId(
+      homeId,
+      user.organization_id,
+    );
     if (!found) {
       throw new NotFoundException('Not Found');
     }
@@ -132,9 +158,15 @@ export class DeviceController {
   @Put('disable/many')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async disableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
+  async disableMany(
+    @Body() uuidArrayDto: UUIDArrayDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     try {
-      return await this.deviceService.disableMany(uuidArrayDto.uuids, user.organization_id);
+      return await this.deviceService.disableMany(
+        uuidArrayDto.uuids,
+        user.organization_id,
+      );
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -143,9 +175,15 @@ export class DeviceController {
   @Put('enable/many')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async enableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
+  async enableMany(
+    @Body() uuidArrayDto: UUIDArrayDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     try {
-      return await this.deviceService.enableMany(uuidArrayDto.uuids, user.organization_id);
+      return await this.deviceService.enableMany(
+        uuidArrayDto.uuids,
+        user.organization_id,
+      );
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -154,15 +192,27 @@ export class DeviceController {
   @Post('command/send')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async sendCommand(@Body() commandDTO: CommandDeviceDto, @GetUserInfo() user: SessionUser) {
-    return this.deviceService.sendCommand({ commandDTO, organization_id: user.organization_id });
+  async sendCommand(
+    @Body() commandDTO: CommandDeviceDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
+    return this.deviceService.sendCommand({
+      commandDTO,
+      organization_id: user.organization_id,
+    });
   }
 
   @Post('command')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async createCommand(@Body() commandDTO: CreateCommandDeviceDto, @GetUserInfo() user: SessionUser) {
-    return this.deviceService.createCommand({ commandDTO, organization_id: user.organization_id });
+  async createCommand(
+    @Body() commandDTO: CreateCommandDeviceDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
+    return this.deviceService.createCommand({
+      commandDTO,
+      organization_id: user.organization_id,
+    });
   }
 
   @Put('command/:id')
@@ -171,16 +221,26 @@ export class DeviceController {
   async updateCommandName(
     @Param('id') id: string,
     @Body() commandDTO: UpdateCommandNameDto,
-    @GetUserInfo() user: SessionUser
+    @GetUserInfo() user: SessionUser,
   ) {
-    return this.deviceService.updateCommandName({ id, commandDTO, organization_id: user.organization_id });
+    return this.deviceService.updateCommandName({
+      id,
+      commandDTO,
+      organization_id: user.organization_id,
+    });
   }
 
   @Delete('command/:id')
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async deleteCommand(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
-    return this.deviceService.deleteCommand({ id, organization_id: user.organization_id });
+  async deleteCommand(
+    @Param('id') id: string,
+    @GetUserInfo() user: SessionUser,
+  ) {
+    return this.deviceService.deleteCommand({
+      id,
+      organization_id: user.organization_id,
+    });
   }
 
   // ! ==============================
@@ -190,7 +250,9 @@ export class DeviceController {
   @UseGuards(PermissionsGuard)
   async statisticsOrgDevices(@GetUserInfo() user: SessionUser) {
     try {
-      return await this.deviceService.statisticsOrgDevices(user.organization_id);
+      return await this.deviceService.statisticsOrgDevices(
+        user.organization_id,
+      );
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -202,7 +264,10 @@ export class DeviceController {
   @UseGuards(PermissionsGuard)
   async findLastDeviceDataCurrentUser(@GetUserInfo() user: SessionUser) {
     try {
-      return await this.deviceService.findLastDeviceDataCurrentUser(user.id, user.organization_id);
+      return await this.deviceService.findLastDeviceDataCurrentUser(
+        user.id,
+        user.organization_id,
+      );
     } catch (error) {
       throw new BadRequestException('Bad request');
     }

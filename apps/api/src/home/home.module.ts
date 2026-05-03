@@ -9,4 +9,4 @@ import { MqttConnectionService } from './mqtt-connection.service';
   providers: [MqttConnectionService, HomeService],
   exports: [HomeService],
 })
-export class HomeModule { }
+export class HomeModule {}

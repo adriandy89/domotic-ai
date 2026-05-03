@@ -39,4 +39,4 @@ import { UserModule } from './user';
   controllers: [],
   providers: [],
 })
-export class AppModule { }
+export class AppModule {}

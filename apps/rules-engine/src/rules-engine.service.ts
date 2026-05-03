@@ -5,8 +5,16 @@ import { NatsClientService } from '@app/nats-client';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { NotificationChannel, Operation, ResultType, RuleType } from 'generated/prisma/client';
-import { RULES_DELAYED_QUEUE_NAME, IDelayedRuleJob } from './rules-queue.constants';
+import {
+  NotificationChannel,
+  Operation,
+  ResultType,
+  RuleType,
+} from 'generated/prisma/client';
+import {
+  RULES_DELAYED_QUEUE_NAME,
+  IDelayedRuleJob,
+} from './rules-queue.constants';
 
 // Type matching the select query structure
 type RuleSelected = {
@@ -60,17 +68,22 @@ export class RulesEngineService {
     private readonly cacheService: CacheService,
     private readonly dbService: DbService,
     private readonly natsClient: NatsClientService,
-    @InjectQueue(RULES_DELAYED_QUEUE_NAME) private readonly delayedQueue: Queue<IDelayedRuleJob>,
-  ) { }
+    @InjectQueue(RULES_DELAYED_QUEUE_NAME)
+    private readonly delayedQueue: Queue<IDelayedRuleJob>,
+  ) {}
 
   /**
    * Process new sensor data and evaluate rules
    */
   async processNewData(sensorData: IRulesSensorData) {
-    this.logger.log(`Processing sensor data for device: ${sensorData.deviceId}`);
+    this.logger.log(
+      `Processing sensor data for device: ${sensorData.deviceId}`,
+    );
 
     if (!sensorData.ruleIds || sensorData.ruleIds.length === 0) {
-      this.logger.verbose(`No rules associated with device: ${sensorData.deviceId}`);
+      this.logger.verbose(
+        `No rules associated with device: ${sensorData.deviceId}`,
+      );
       return;
     }
 
@@ -78,9 +91,16 @@ export class RulesEngineService {
     const rules = await this.loadRules(sensorData.ruleIds);
 
     try {
-      await Promise.all(rules.map(rule =>
-        this.evaluateAndExecuteRule(rule, sensorData.deviceId, sensorData.data, sensorData.prevData)
-      ));
+      await Promise.all(
+        rules.map((rule) =>
+          this.evaluateAndExecuteRule(
+            rule,
+            sensorData.deviceId,
+            sensorData.data,
+            sensorData.prevData,
+          ),
+        ),
+      );
     } catch (error) {
       console.log(error);
     }
@@ -163,14 +183,18 @@ export class RulesEngineService {
       return;
     }
 
-    const currentDeviceConditions = rule.conditions.filter(c => c.device_id === currentDeviceId);
+    const currentDeviceConditions = rule.conditions.filter(
+      (c) => c.device_id === currentDeviceId,
+    );
     if (currentDeviceConditions.length === 0) {
-      this.logger.verbose(`Rule ${rule.id} has no conditions for device ${currentDeviceId}`);
+      this.logger.verbose(
+        `Rule ${rule.id} has no conditions for device ${currentDeviceId}`,
+      );
       return;
     }
 
     // Anti-spam: check if relevant attribute changed
-    const hasRelevantChange = currentDeviceConditions.some(condition => {
+    const hasRelevantChange = currentDeviceConditions.some((condition) => {
       const newValue = newData[condition.attribute];
       const oldValue = prevData?.[condition.attribute];
       return newValue !== oldValue;
@@ -182,10 +206,17 @@ export class RulesEngineService {
     }
 
     // Validate conditions
-    const conditionsMet = await this.evaluateRule(rule, currentDeviceId, newData, prevData);
+    const conditionsMet = await this.evaluateRule(
+      rule,
+      currentDeviceId,
+      newData,
+      prevData,
+    );
 
     // Check if there's a pending delayed job for this rule
-    const pendingJobId = await this.cacheService.get<string>(getKeyRulePendingJob(rule.id));
+    const pendingJobId = await this.cacheService.get<string>(
+      getKeyRulePendingJob(rule.id),
+    );
 
     if (!conditionsMet) {
       // Conditions NOT met
@@ -204,7 +235,9 @@ export class RulesEngineService {
     if (rule.interval > 0) {
       if (pendingJobId) {
         // Already scheduled, don't schedule again
-        this.logger.verbose(`Rule ${rule.id} already scheduled (job ${pendingJobId})`);
+        this.logger.verbose(
+          `Rule ${rule.id} already scheduled (job ${pendingJobId})`,
+        );
         return;
       }
 
@@ -228,7 +261,7 @@ export class RulesEngineService {
       ruleId: rule.id,
       ruleName: rule.name,
       homeUniqueId: rule.home.unique_id,
-      results: rule.results.map(r => ({
+      results: rule.results.map((r) => ({
         id: r.id,
         device_id: r.device_id,
         event: r.event,
@@ -242,22 +275,24 @@ export class RulesEngineService {
       homeId: rule.home.id,
     };
 
-    const job = await this.delayedQueue.add(
-      'execute-rule',
-      jobData,
-      {
-        delay: delayMs,
-        jobId: `delayed-rule-${rule.id}-${Date.now()}`,
-        removeOnComplete: true,
-        removeOnFail: { age: 3600 },
-      }
-    );
+    const job = await this.delayedQueue.add('execute-rule', jobData, {
+      delay: delayMs,
+      jobId: `delayed-rule-${rule.id}-${Date.now()}`,
+      removeOnComplete: true,
+      removeOnFail: { age: 3600 },
+    });
 
     // Store the job ID in cache so we can cancel it later
     // TTL = interval + 60 seconds buffer
-    await this.cacheService.set(getKeyRulePendingJob(rule.id), job.id, rule.interval + 60);
+    await this.cacheService.set(
+      getKeyRulePendingJob(rule.id),
+      job.id,
+      rule.interval + 60,
+    );
 
-    this.logger.log(`Rule ${rule.id} scheduled for execution in ${rule.interval}s (job ${job.id})`);
+    this.logger.log(
+      `Rule ${rule.id} scheduled for execution in ${rule.interval}s (job ${job.id})`,
+    );
   }
 
   /**
@@ -285,7 +320,9 @@ export class RulesEngineService {
    * Execute a delayed rule (called by RulesDelayedProcessor)
    */
   async executeDelayedRule(jobData: IDelayedRuleJob): Promise<void> {
-    this.logger.log(`Executing delayed rule ${jobData.ruleId}: ${jobData.ruleName}`);
+    this.logger.log(
+      `Executing delayed rule ${jobData.ruleId}: ${jobData.ruleName}`,
+    );
 
     // Clear the pending job cache
     await this.cacheService.del(getKeyRulePendingJob(jobData.ruleId));
@@ -296,19 +333,24 @@ export class RulesEngineService {
         if (result.type === ResultType.COMMAND) {
           await this.executeCommand(jobData.homeUniqueId, result);
         } else if (result.type === ResultType.NOTIFICATION) {
-          await this.executeNotification({
-            ruleId: jobData.ruleId,
-            ruleName: jobData.ruleName,
-            userId: jobData.userId,
-            homeId: jobData.homeId,
-          }, result);
+          await this.executeNotification(
+            {
+              ruleId: jobData.ruleId,
+              ruleName: jobData.ruleName,
+              userId: jobData.userId,
+              homeId: jobData.homeId,
+            },
+            result,
+          );
         }
         await this.dbService.rule.update({
           where: { id: jobData.ruleId },
           data: { timestamp: new Date() },
         });
       } catch (error) {
-        this.logger.error(`Error executing delayed result ${result.id}: ${error}`);
+        this.logger.error(
+          `Error executing delayed result ${result.id}: ${error}`,
+        );
       }
     }
 
@@ -321,7 +363,12 @@ export class RulesEngineService {
    */
   private async executeCommand(
     homeUniqueId: string,
-    result: { id: string; device_id: string | null; attribute: string | null; data: any },
+    result: {
+      id: string;
+      device_id: string | null;
+      attribute: string | null;
+      data: any;
+    },
   ): Promise<void> {
     if (!result.device_id) {
       this.logger.warn(`Result ${result.id} has no device_id`);
@@ -340,12 +387,14 @@ export class RulesEngineService {
 
     const command = this.buildCommandUnified(result);
 
-    this.logger.log(`Sending command to device ${device.unique_id}: ${JSON.stringify(command)}`);
+    this.logger.log(
+      `Sending command to device ${device.unique_id}: ${JSON.stringify(command)}`,
+    );
 
     await this.natsClient.emit<{
       homeUniqueId: string;
       deviceUniqueId: string;
-      command: any
+      command: any;
     }>('mqtt-core.publish-command', {
       homeUniqueId,
       deviceUniqueId: device.unique_id,
@@ -356,7 +405,10 @@ export class RulesEngineService {
   /**
    * Build command payload (unified for both result types)
    */
-  private buildCommandUnified(result: { attribute: string | null; data: any }): Record<string, any> {
+  private buildCommandUnified(result: {
+    attribute: string | null;
+    data: any;
+  }): Record<string, any> {
     const command: Record<string, any> = {};
 
     if (result.attribute && result.data) {
@@ -424,29 +476,35 @@ export class RulesEngineService {
     console.log(prevData);
     console.log(newData);
 
-    const currentDeviceConditions = rule.conditions.filter(c => c.device_id === currentDeviceId);
+    const currentDeviceConditions = rule.conditions.filter(
+      (c) => c.device_id === currentDeviceId,
+    );
     // Evaluate current device conditions
-    const currentDeviceResults = currentDeviceConditions.map(condition => {
+    const currentDeviceResults = currentDeviceConditions.map((condition) => {
       const attributeValue = newData[condition.attribute];
       return this.evaluateCondition(condition, attributeValue);
     });
 
     if (!rule.all) {
-      return currentDeviceResults.some(result => result);
+      return currentDeviceResults.some((result) => result);
     }
 
-    const allCurrentPass = currentDeviceResults.every(result => result);
+    const allCurrentPass = currentDeviceResults.every((result) => result);
     if (!allCurrentPass) {
       return false;
     }
 
     // Check other devices if ALL mode
-    const otherDeviceConditions = rule.conditions.filter(c => c.device_id !== currentDeviceId);
+    const otherDeviceConditions = rule.conditions.filter(
+      (c) => c.device_id !== currentDeviceId,
+    );
     if (otherDeviceConditions.length === 0) {
       return true;
     }
 
-    const otherDeviceIds = [...new Set(otherDeviceConditions.map(c => c.device_id))];
+    const otherDeviceIds = [
+      ...new Set(otherDeviceConditions.map((c) => c.device_id)),
+    ];
 
     const otherDevicesData = await this.dbService.sensorDataLast.findMany({
       where: { device_id: { in: otherDeviceIds } },
@@ -461,7 +519,9 @@ export class RulesEngineService {
     for (const condition of otherDeviceConditions) {
       const deviceData = deviceDataMap.get(condition.device_id);
       if (!deviceData) {
-        this.logger.verbose(`Rule ${rule.id}: No data for device ${condition.device_id}`);
+        this.logger.verbose(
+          `Rule ${rule.id}: No data for device ${condition.device_id}`,
+        );
         return false;
       }
 
@@ -518,12 +578,15 @@ export class RulesEngineService {
             await this.executeCommand(rule.home.unique_id, result);
             break;
           case ResultType.NOTIFICATION:
-            await this.executeNotification({
-              ruleId: rule.id,
-              ruleName: rule.name,
-              userId: rule.user.id,
-              homeId: rule.home.id,
-            }, result);
+            await this.executeNotification(
+              {
+                ruleId: rule.id,
+                ruleName: rule.name,
+                userId: rule.user.id,
+                homeId: rule.home.id,
+              },
+              result,
+            );
             break;
           default:
             this.logger.warn(`Unknown result type: ${result.type}`);
@@ -542,10 +605,21 @@ export class RulesEngineService {
    * Execute notification (unified for both immediate and delayed execution)
    */
   private async executeNotification(
-    ruleInfo: { ruleId: string; ruleName: string; userId: string; homeId: string },
-    result: { id: string; event: string; channel: string[] | NotificationChannel[] },
+    ruleInfo: {
+      ruleId: string;
+      ruleName: string;
+      userId: string;
+      homeId: string;
+    },
+    result: {
+      id: string;
+      event: string;
+      channel: string[] | NotificationChannel[];
+    },
   ): Promise<void> {
-    this.logger.log(`Executing notification for rule ${ruleInfo.ruleId}, result ${result.id}`);
+    this.logger.log(
+      `Executing notification for rule ${ruleInfo.ruleId}, result ${result.id}`,
+    );
 
     // Fetch user with their configured notification channels
     const user = await this.dbService.user.findUnique({
@@ -573,14 +647,20 @@ export class RulesEngineService {
     // Find matching channels between result.channel and user.channels
     const resultChannels = result.channel as NotificationChannel[];
     const userChannels = user.channels || [];
-    const matchingChannels = resultChannels.filter((ch) => userChannels.includes(ch));
+    const matchingChannels = resultChannels.filter((ch) =>
+      userChannels.includes(ch),
+    );
 
     if (matchingChannels.length === 0) {
-      this.logger.verbose(`No matching channels for user ${ruleInfo.userId}. Result channels: ${resultChannels}, User channels: ${userChannels}`);
+      this.logger.verbose(
+        `No matching channels for user ${ruleInfo.userId}. Result channels: ${resultChannels}, User channels: ${userChannels}`,
+      );
       return;
     }
 
-    this.logger.log(`Sending notification via channels: ${matchingChannels.join(', ')}`);
+    this.logger.log(
+      `Sending notification via channels: ${matchingChannels.join(', ')}`,
+    );
 
     // Emit notification for each matching channel
     for (const channel of matchingChannels) {
@@ -597,38 +677,52 @@ export class RulesEngineService {
       switch (channel) {
         case NotificationChannel.TELEGRAM:
           if (user.telegram_chat_id) {
-            this.logger.log(`Emitting telegram notification for user ${ruleInfo.userId}`);
+            this.logger.log(
+              `Emitting telegram notification for user ${ruleInfo.userId}`,
+            );
             await this.natsClient.emit('notification.telegram', {
               ...notificationPayload,
               chatId: user.telegram_chat_id,
             });
           } else {
-            this.logger.warn(`User ${ruleInfo.userId} has TELEGRAM channel enabled but no chat_id linked`);
+            this.logger.warn(
+              `User ${ruleInfo.userId} has TELEGRAM channel enabled but no chat_id linked`,
+            );
           }
           break;
 
         case NotificationChannel.EMAIL:
           if (user.email) {
-            this.logger.log(`Emitting email notification for user ${ruleInfo.userId}`);
+            this.logger.log(
+              `Emitting email notification for user ${ruleInfo.userId}`,
+            );
             await this.natsClient.emit('notification.email', {
               ...notificationPayload,
               email: user.email,
             });
           } else {
-            this.logger.warn(`User ${ruleInfo.userId} has EMAIL channel enabled but no email address`);
+            this.logger.warn(
+              `User ${ruleInfo.userId} has EMAIL channel enabled but no email address`,
+            );
           }
           break;
 
         case NotificationChannel.SMS:
-          this.logger.log(`SMS notification not implemented yet. Payload: ${JSON.stringify(notificationPayload)}`);
+          this.logger.log(
+            `SMS notification not implemented yet. Payload: ${JSON.stringify(notificationPayload)}`,
+          );
           break;
 
         case NotificationChannel.PUSH:
-          this.logger.log(`PUSH notification not implemented yet. Payload: ${JSON.stringify(notificationPayload)}`);
+          this.logger.log(
+            `PUSH notification not implemented yet. Payload: ${JSON.stringify(notificationPayload)}`,
+          );
           break;
 
         case NotificationChannel.WEBHOOK:
-          this.logger.log(`WEBHOOK notification not implemented yet. Payload: ${JSON.stringify(notificationPayload)}`);
+          this.logger.log(
+            `WEBHOOK notification not implemented yet. Payload: ${JSON.stringify(notificationPayload)}`,
+          );
           break;
 
         default:

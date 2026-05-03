@@ -10,7 +10,9 @@ export const weatherTool = createTool({
   description:
     'Get current weather information for a specific location. Use this when the user asks about weather, temperature, or climate conditions for a city.',
   inputSchema: z.object({
-    location: z.string().describe('City name or location (e.g., "Madrid", "New York", "Tokyo")'),
+    location: z
+      .string()
+      .describe('City name or location (e.g., "Madrid", "New York", "Tokyo")'),
   }),
   outputSchema: z.object({
     temperature: z.number().describe('Current temperature in Celsius'),
@@ -41,13 +43,17 @@ export const weatherTool = createTool({
       const geocodingData = await geocodingResponse.json();
 
       if (!geocodingData.results?.[0]) {
-        throw new Error(`Location '${location}' not found. Please provide a valid city name.`);
+        throw new Error(
+          `Location '${location}' not found. Please provide a valid city name.`,
+        );
       }
 
       const { latitude, longitude, name, country } = geocodingData.results[0];
       const resolvedLocation = country ? `${name}, ${country}` : name;
 
-      console.log(`[WeatherTool] Resolved location: ${resolvedLocation} (${latitude}, ${longitude})`);
+      console.log(
+        `[WeatherTool] Resolved location: ${resolvedLocation} (${latitude}, ${longitude})`,
+      );
 
       // 2. Obtener datos del clima usando Open-Meteo API
       const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,weather_code&timezone=auto`;

@@ -1,4 +1,4 @@
-import { Operation, ResultType, Rule, RuleType } from "generated/prisma/client";
+import { Operation, ResultType, Rule, RuleType } from 'generated/prisma/client';
 
 export interface IRuleObj {
   [key: string]: Rule;

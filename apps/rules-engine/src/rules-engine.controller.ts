@@ -10,14 +10,15 @@ export class RulesEngineController {
   private readonly logger = new Logger(RulesEngineController.name);
 
   constructor(
-    @InjectQueue(RULES_QUEUE_NAME) private readonly rulesQueue: Queue<IRulesSensorData>,
-  ) { }
+    @InjectQueue(RULES_QUEUE_NAME)
+    private readonly rulesQueue: Queue<IRulesSensorData>,
+  ) {}
 
   @EventPattern('mqtt-core.rules.data')
-  async handleNewRulesData(
-    @Payload() payload: IRulesSensorData,
-  ) {
-    this.logger.log(`Received mqtt-core.rules.data, queuing for device: ${payload.deviceId}`);
+  async handleNewRulesData(@Payload() payload: IRulesSensorData) {
+    this.logger.log(
+      `Received mqtt-core.rules.data, queuing for device: ${payload.deviceId}`,
+    );
     try {
       // Add to queue - jobs are processed in FIFO order
       await this.rulesQueue.add('process-rules', payload, {
@@ -35,7 +36,9 @@ export class RulesEngineController {
       this.logger.verbose(`Queued job for device: ${payload.deviceId}`);
     } catch (error) {
       console.log(error);
-      this.logger.error(`Error queuing mqtt-core.rules.data for device: ${payload.deviceId}`);
+      this.logger.error(
+        `Error queuing mqtt-core.rules.data for device: ${payload.deviceId}`,
+      );
     }
   }
 }

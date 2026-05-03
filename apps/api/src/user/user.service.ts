@@ -40,7 +40,7 @@ export class UserService {
     private dbService: DbService,
     private readonly cacheService: CacheService,
     private readonly natsClient: NatsClientService,
-  ) { }
+  ) {}
 
   async statisticsOrgUsers(organizationId: string) {
     const [countEnabledUsers, countDisabledUsers] = await Promise.all([
@@ -59,7 +59,10 @@ export class UserService {
     };
   }
 
-  async verifyOrganizationUsersAccess(userIds: string[], organization_id: string) {
+  async verifyOrganizationUsersAccess(
+    userIds: string[],
+    organization_id: string,
+  ) {
     const users = await this.dbService.user.count({
       where: {
         id: {
@@ -74,7 +77,10 @@ export class UserService {
     return { ok: true };
   }
 
-  async verifyOrganizationHomesAccess(homeIds: string[], organization_id: string) {
+  async verifyOrganizationHomesAccess(
+    homeIds: string[],
+    organization_id: string,
+  ) {
     const homes = await this.dbService.home.count({
       where: {
         id: {
@@ -104,7 +110,8 @@ export class UserService {
     const totalUsers = await this.dbService.user.count({
       where: { organization_id },
     });
-    if (totalUsers >= organization.max_users) return { ok: false, message: 'Max users limit reached' };
+    if (totalUsers >= organization.max_users)
+      return { ok: false, message: 'Max users limit reached' };
     return { ok: true };
   }
 
@@ -115,7 +122,9 @@ export class UserService {
     });
     if (!user) return null;
 
-    const isValidPassword = user.password ? await this.checkPassword(password, user.password) : false;
+    const isValidPassword = user.password
+      ? await this.checkPassword(password, user.password)
+      : false;
 
     if (user && isValidPassword) {
       const { password, ...result } = user;
@@ -135,7 +144,8 @@ export class UserService {
   }
 
   async create(userDTO: CreateUserDto, organization_id: string) {
-    const verifyLimits = await this.verifyLimitsOrganizationUsers(organization_id);
+    const verifyLimits =
+      await this.verifyLimitsOrganizationUsers(organization_id);
     if (!verifyLimits.ok) {
       throw new BadRequestException(verifyLimits.message);
     }
@@ -172,7 +182,7 @@ export class UserService {
       // ! FIX
       // const redisKey = `h-user-id:${meta.id}:fmc-tokens`;
       // const fmcTokens = (await this.cacheService.sMembers(redisKey)) ?? [];
-      const fmcTokens = []
+      const fmcTokens = [];
 
       const updated = await this.dbService.user.update({
         data: { fmc_tokens: [...fmcTokens, fmcDTO.fmc_token] },
@@ -239,7 +249,10 @@ export class UserService {
         if (userDTO.role && userDTO.role !== 'ADMIN') {
           throw new Error('You cannot update an organization admin');
         }
-        if (userDTO.is_active !== undefined && userDTO.is_active !== previous.is_active) {
+        if (
+          userDTO.is_active !== undefined &&
+          userDTO.is_active !== previous.is_active
+        ) {
           throw new Error('You cannot update an organization admin');
         }
       }
@@ -329,12 +342,14 @@ export class UserService {
     const { search, take, page, orderBy, sortOrder } = optionsDto;
     const skip = (page - 1) * take;
 
-    let where: Prisma.UserWhereInput = search ? {
-      OR: [
-        { email: { contains: search, mode: 'insensitive' } },
-        { name: { contains: search, mode: 'insensitive' } },
-      ],
-    } : {};
+    const where: Prisma.UserWhereInput = search
+      ? {
+          OR: [
+            { email: { contains: search, mode: 'insensitive' } },
+            { name: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
 
     where.organization_id = organization_id;
 
@@ -345,9 +360,7 @@ export class UserService {
         take,
         select: this.prismaUserSelect,
         where,
-        orderBy: orderBy
-          ? { [orderBy]: sortOrder }
-          : undefined,
+        orderBy: orderBy ? { [orderBy]: sortOrder } : undefined,
       }),
     ]);
 
@@ -474,7 +487,6 @@ export class UserService {
     });
   }
 
-
   async updateAiConfig(aiConfig: OrgAiConfigDto, organization_id: string) {
     try {
       const org = await this.dbService.organization.findUnique({
@@ -518,7 +530,6 @@ export class UserService {
     const attributes = (org?.attributes as Record<string, any>) || {};
     return { ai: attributes.ai || null };
   }
-
 
   // ! User - Home
   async findAllHomesLinks(user_id: string, organization_id: string) {
@@ -590,7 +601,11 @@ export class UserService {
   async saveUserSession(userId: string, sessionId: string) {
     // 3 days expiration matching session cookie
     const TTL = 60 * 60 * 24 * 3;
-    await this.cacheService.set(`user-session:${userId}:${sessionId}`, '1', TTL);
+    await this.cacheService.set(
+      `user-session:${userId}:${sessionId}`,
+      '1',
+      TTL,
+    );
   }
 
   async removeUserSession(userId: string, sessionId: string) {
@@ -609,7 +624,11 @@ export class UserService {
           const sessionKey = `sess:${sessionId}`;
           const sessionData = await this.cacheService.get<any>(sessionKey);
 
-          if (sessionData && sessionData.passport && sessionData.passport.user) {
+          if (
+            sessionData &&
+            sessionData.passport &&
+            sessionData.passport.user
+          ) {
             sessionData.passport.user.attributes = attributes;
             // Get original TTL to preserve it (optional, or just reset to max)
             const ttl = await this.cacheService.ttl(sessionKey);
@@ -622,7 +641,6 @@ export class UserService {
 
       // Notify via NATS for SSE
       await this.natsClient.emit('user.attributes.updated', { userId });
-
     } catch (error) {
       console.error('Failed to update user sessions:', error);
     }
@@ -632,11 +650,14 @@ export class UserService {
   //   await this.natsClient.emit('rules.refresh_users_rules', { userIds });
   //   await this.natsClient.emit('schedules.refresh_users_schedules', { userIds });
   // }
-  async countOtherSessions(userId: string, currentSessionId: string): Promise<number> {
+  async countOtherSessions(
+    userId: string,
+    currentSessionId: string,
+  ): Promise<number> {
     const pattern = `user-session:${userId}:*`;
     const keys = await this.cacheService.keys(pattern);
     // Filter out current session
-    const otherSessions = keys.filter(key => !key.includes(currentSessionId));
+    const otherSessions = keys.filter((key) => !key.includes(currentSessionId));
     return otherSessions.length;
   }
 
@@ -657,6 +678,9 @@ export class UserService {
     }
 
     // Notify via NATS for SSE to force reload on other devices
-    await this.natsClient.emit('user.session.revoked', { userId, excludedSessionId: currentSessionId });
+    await this.natsClient.emit('user.session.revoked', {
+      userId,
+      excludedSessionId: currentSessionId,
+    });
   }
 }

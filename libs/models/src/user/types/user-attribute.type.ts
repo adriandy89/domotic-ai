@@ -1,8 +1,8 @@
 export type userAttr =
-    | 'contactTrue'
-    | 'contactFalse'
-    | 'vibrationTrue'
-    | 'occupancyTrue'
-    | 'presenceTrue'
-    | 'smokeTrue'
-    | 'waterLeakTrue';
+  | 'contactTrue'
+  | 'contactFalse'
+  | 'vibrationTrue'
+  | 'occupancyTrue'
+  | 'presenceTrue'
+  | 'smokeTrue'
+  | 'waterLeakTrue';

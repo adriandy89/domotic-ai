@@ -7,4 +7,4 @@ import { RuleController } from './rule.controller';
   controllers: [RuleController],
   providers: [RuleService],
 })
-export class RuleModule { }
+export class RuleModule {}

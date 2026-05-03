@@ -12,7 +12,13 @@ import { Memory } from '@mastra/memory';
 import { PgVector, PostgresStore } from '@mastra/pg';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { deviceFullInfoTool, devicesListTool, sendDeviceCommandTool, sensorDataTool, weatherTool } from './tools';
+import {
+  deviceFullInfoTool,
+  devicesListTool,
+  sendDeviceCommandTool,
+  sensorDataTool,
+  weatherTool,
+} from './tools';
 import { AIProviderConfig, DEFAULT_AI_PROVIDER_CONFIGS } from './types';
 
 /**
@@ -23,7 +29,7 @@ import { AIProviderConfig, DEFAULT_AI_PROVIDER_CONFIGS } from './types';
 export class MastraAgentFactory {
   private readonly logger = new Logger(MastraAgentFactory.name);
 
-  constructor(private readonly configService: ConfigService) { }
+  constructor(private readonly configService: ConfigService) {}
 
   /**
    * Creates a Mastra instance with an agent for a specific organization
@@ -31,11 +37,18 @@ export class MastraAgentFactory {
    * @param config - AI Provider Configuration
    * @returns Configured Mastra instance
    */
-  async createMastra(organizationId: string, config: AIProviderConfig): Promise<Mastra> {
-    this.logger.log(`Creating Mastra instance for organization: ${organizationId}`);
+  async createMastra(
+    organizationId: string,
+    config: AIProviderConfig,
+  ): Promise<Mastra> {
+    this.logger.log(
+      `Creating Mastra instance for organization: ${organizationId}`,
+    );
 
     if (!config.enabled) {
-      this.logger.warn(`AI provider is disabled for organization: ${organizationId}`);
+      this.logger.warn(
+        `AI provider is disabled for organization: ${organizationId}`,
+      );
     }
 
     // Configure the model according to the provider
@@ -59,9 +72,14 @@ export class MastraAgentFactory {
     // Initialize storage before using it
     try {
       await storage.init();
-      this.logger.log(`PostgresStore initialized for organization: ${organizationId}`);
+      this.logger.log(
+        `PostgresStore initialized for organization: ${organizationId}`,
+      );
     } catch (error) {
-      this.logger.error(`Failed to initialize PostgresStore for organization ${organizationId}:`, error);
+      this.logger.error(
+        `Failed to initialize PostgresStore for organization ${organizationId}:`,
+        error,
+      );
       throw new Error(`Memory storage initialization failed: ${error.message}`);
     }
 
@@ -98,45 +116,32 @@ export class MastraAgentFactory {
       },
       model,
       memory: new Memory({
-        // Storage from main Mastra instance (PostgreSQL)
-
-        // Vector store for semantic recall (optional, currently disabled)
-        /* FIXME(mastra): Add a unique `id` parameter. See: https://mastra.ai/guides/v1/migrations/upgrade-to-v1/mastra#required-id-parameter-for-all-mastra-primitives */
         vector: new PgVector({
-          id: 'tracking-agent-vector-store',
+          id: `org-${organizationId}-vector`,
           connectionString: databaseUrl,
         }),
-
-        // OpenAI embeddings
         embedder: 'openai/text-embedding-3-small',
-
         options: {
-          // Keep last 2 messages for management context
-          lastMessages: 2,
-
-          // Semantic recall disabled for real-time performance
-          // Enable if you need cross-session analytics context
-          semanticRecall: false,
-
-          // Working memory for user preferences
+          lastMessages: 8,
+          semanticRecall: {
+            topK: 3,
+            messageRange: { before: 2, after: 1 },
+          },
           workingMemory: {
             enabled: true,
             scope: 'thread',
-            template: `# Profile
-- **User**: 
-- **Language**: (es/en)
-
-# CRITICAL RULES
-- NEVER USE CACHED/OLD DATES FOR QUERIES
-- ALWAYS GENERATE A RESPONSE.
+            template: `# User profile
+- Preferred language:
+- Timezone:
+- Default home:
+- Frequently used devices:
+- Last action taken:
 `,
           },
           generateTitle: true,
         },
       }),
     });
-
-
 
     // Create Mastra instance with agent and storage
     const mastra = new Mastra({
@@ -174,7 +179,8 @@ export class MastraAgentFactory {
       }
 
       case 'anthropic': {
-        const modelId = modelName || DEFAULT_AI_PROVIDER_CONFIGS.anthropic.model!;
+        const modelId =
+          modelName || DEFAULT_AI_PROVIDER_CONFIGS.anthropic.model!;
 
         if (!apiKey) {
           throw new Error(
@@ -262,7 +268,9 @@ export class MastraAgentFactory {
           apiKey,
           resourceName,
         });
-        return azureProvider(config.providerOptions?.deploymentName || modelName!);
+        return azureProvider(
+          config.providerOptions?.deploymentName || modelName!,
+        );
       }
 
       case 'custom': {
@@ -292,33 +300,45 @@ export class MastraAgentFactory {
    * Default instructions for the agent
    */
   private getDefaultInstructions(organizationId: string): string {
-    return `You are an AI assistant for organization ${organizationId}.
-    
-Your role is to help users manage their smart home devices, create automation rules,
-and provide insights about their home's status.
+    return `You are the smart-home assistant for organization ${organizationId}. You control Zigbee devices through a Zigbee2MQTT bridge.
 
-You have access to:
-- Homes and their devices
-- Sensor data and device states
-- Device control (turn on/off, set brightness, etc.)
-- Automation rules and schedules
-- User preferences and settings
+## Scope
+You answer questions and take actions about: devices, sensor readings, home status, and weather context. For anything else (general knowledge, code, jokes, off-topic chit-chat), reply briefly that you specialize in this user's smart home and offer a relevant suggestion.
 
-DEVICE CONTROL WORKFLOW:
-1. Use devices-list tool to find the device ID
-2. Use get-device-full-info with deviceId to see availableActions
-3. Use send-device-command with BOTH parameters:
-   - deviceId: the device UUID
-   - command: an object like { "state": "ON" } or { "brightness": 50 }
-   
-EXAMPLE: To turn on a light:
-- Call send-device-command with deviceId="uuid-of-the-device" and command={ "state": "ON" }
-- Respond to the user the action was performed.
+## Tools
+- get-devices-list — find devices by name. Always pass \`nameLike\` if the user mentioned a name.
+- get-device-full-info — REQUIRED before sending a command. Returns \`availableActions\` with type and value constraints.
+- send-device-command — sends the command. Inputs are validated against the device's exposes; invalid commands are rejected.
+- get-sensor-data — latest readings. Pass \`deviceId\` or \`homeId\` to scope.
+- get-weather — outdoor conditions for context-aware suggestions.
 
-Always provide helpful, accurate, and safe responses. 
-NEVER RESPOND TO UNRELATED TOPICS.
+## Device control workflow (follow it every time)
+1. Identify the device — call get-devices-list (with nameLike if known) to get the UUID.
+2. Inspect capabilities — call get-device-full-info with the UUID; read \`availableActions\`. Each action has a \`type\` (binary/numeric/enum/color) and constraints (\`valueOn/valueOff\`, \`valueMin/valueMax\`, \`values\`, \`colorFormats\`).
+3. Build the command object using ONLY properties listed in availableActions. Match the type:
+   - binary: use the exact \`valueOn\` / \`valueOff\` from the action (often "ON"/"OFF", sometimes true/false).
+   - numeric: stay within \`valueMin..valueMax\`. Brightness for Zigbee lights is 0-254, not 0-100. Color temperature is in mireds (typical 150-500), not Kelvin.
+   - enum: pick a value from \`values\`.
+   - color: send \`{ "color": { "hex": "#RRGGBB" } }\` — the system converts to the device's native format.
+4. Call send-device-command with deviceId and command. Inspect the response.
 
-CRITICAL: USE AVAILABLE TOOLS ALWAYS, NEVER RESPOND WITHOUT USING TOOLS WITH CACHED DATA.`;
+## When validation fails
+If \`send-device-command\` returns \`success: false\` with \`validationErrors\`:
+- Do NOT retry the same value — it will fail again.
+- Read the error message; it states the valid range or enum.
+- Either ask the user to clarify (e.g., "the brightness range is 0-254, what level do you want?") or call get-device-full-info to re-check.
+
+If the response has \`code: "RATE_LIMITED"\`, wait a moment and tell the user the device is being controlled too quickly.
+
+## Examples
+✅ "Turn the living-room light on" → get-devices-list(nameLike: "living") → get-device-full-info → send-device-command({ state: "ON" }).
+✅ "Dim it to 50%" → translate to a value in 0-254 (so 127), not 50, unless valueMax is 100. The validator will reject out-of-range values.
+❌ Never send { "state": "BLINK" }, { "brightness": 999 }, or properties not present in availableActions.
+
+## Safety
+- Confirm before broad actions ("turn off everything in the house", "open all locks").
+- Never invent device IDs or capabilities — always read them from tools.
+- Always use tools for current state. Do not answer "the light is on" from memory; call get-sensor-data.`;
   }
 
   /**

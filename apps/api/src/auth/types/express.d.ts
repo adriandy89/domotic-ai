@@ -1,15 +1,15 @@
-import { SessionUser } from "@app/models";
+import { SessionUser } from '@app/models';
 
 declare global {
-    namespace Express {
-        interface User extends SessionUser { }
+  namespace Express {
+    interface User extends SessionUser {}
 
-        interface Request {
-            user?: SessionUser;
-            logout(done: (err: any) => void): void;
-            isAuthenticated(): boolean;
-        }
+    interface Request {
+      user?: SessionUser;
+      logout(done: (err: any) => void): void;
+      isAuthenticated(): boolean;
     }
+  }
 }
 
-export { };
+export {};

@@ -77,7 +77,10 @@ export type AIProviderConfig = z.infer<typeof AIProviderConfigSchema>;
  * Default configuration for each provider
  * Based on the official Mastra documentation
  */
-export const DEFAULT_AI_PROVIDER_CONFIGS: Record<string, Partial<AIProviderConfig>> = {
+export const DEFAULT_AI_PROVIDER_CONFIGS: Record<
+  string,
+  Partial<AIProviderConfig>
+> = {
   openai: {
     provider: 'openai',
     model: 'gpt-4.1-nano',
@@ -126,7 +129,13 @@ export const DEFAULT_AI_PROVIDER_CONFIGS: Record<string, Partial<AIProviderConfi
  * Available models by provider
  */
 export const AVAILABLE_MODELS: Record<string, string[]> = {
-  openai: ['gpt-4.1-nano', 'gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+  openai: [
+    'gpt-4.1-nano',
+    'gpt-4o',
+    'gpt-4o-mini',
+    'gpt-4-turbo',
+    'gpt-3.5-turbo',
+  ],
   anthropic: [
     'claude-3-5-sonnet-20241022',
     'claude-sonnet-4-20250514',

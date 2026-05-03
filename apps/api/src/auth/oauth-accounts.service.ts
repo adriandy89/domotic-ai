@@ -7,53 +7,53 @@ import { SessionUser } from '@app/models';
 
 @Injectable()
 export class OAuthAccountsService {
-    constructor(private prisma: DbService) { }
+  constructor(private prisma: DbService) {}
 
-    async findByProvider(
-        provider: string,
-        providerId: string,
-    ): Promise<(OAuthAccount & { user: SessionUser }) | null> {
-        return this.prisma.oAuthAccount.findUnique({
-            where: {
-                provider_provider_id: {
-                    provider,
-                    provider_id: providerId,
-                },
-            },
-            include: {
-                user: {
-                    select: SELECT_USER_SESSION,
-                },
-            },
-        });
-    }
+  async findByProvider(
+    provider: string,
+    providerId: string,
+  ): Promise<(OAuthAccount & { user: SessionUser }) | null> {
+    return this.prisma.oAuthAccount.findUnique({
+      where: {
+        provider_provider_id: {
+          provider,
+          provider_id: providerId,
+        },
+      },
+      include: {
+        user: {
+          select: SELECT_USER_SESSION,
+        },
+      },
+    });
+  }
 
-    async findByUserId(userId: string): Promise<OAuthAccount[]> {
-        return this.prisma.oAuthAccount.findMany({
-            where: { user_id: userId },
-        });
-    }
+  async findByUserId(userId: string): Promise<OAuthAccount[]> {
+    return this.prisma.oAuthAccount.findMany({
+      where: { user_id: userId },
+    });
+  }
 
-    async create(
-        provider: string,
-        oauthUser: OAuthUserDto,
-        user_id: string,
-    ): Promise<OAuthAccount> {
-        return this.prisma.oAuthAccount.create({
-            data: {
-                provider,
-                provider_id: oauthUser.providerId,
-                user_id,
-            },
-        });
-    }
+  async create(
+    provider: string,
+    oauthUser: OAuthUserDto,
+    user_id: string,
+  ): Promise<OAuthAccount> {
+    return this.prisma.oAuthAccount.create({
+      data: {
+        provider,
+        provider_id: oauthUser.providerId,
+        user_id,
+      },
+    });
+  }
 
-    async unlinkAccount(userId: string, provider: string): Promise<void> {
-        await this.prisma.oAuthAccount.deleteMany({
-            where: {
-                user_id: userId,
-                provider,
-            },
-        });
-    }
+  async unlinkAccount(userId: string, provider: string): Promise<void> {
+    await this.prisma.oAuthAccount.deleteMany({
+      where: {
+        user_id: userId,
+        provider,
+      },
+    });
+  }
 }

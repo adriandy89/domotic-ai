@@ -8,4 +8,4 @@ import { DeviceController } from './device.controller';
   providers: [DeviceService],
   exports: [DeviceService],
 })
-export class DeviceModule { }
+export class DeviceModule {}

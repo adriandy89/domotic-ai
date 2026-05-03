@@ -17,22 +17,23 @@ export interface AIChatResponse {
 export class AiService {
   private readonly logger = new Logger(AiService.name);
 
-  constructor(private readonly natsClient: NatsClientService) { }
+  constructor(private readonly natsClient: NatsClientService) {}
 
   /**
    * Envía un mensaje al agente de IA y recibe una respuesta
    */
   async chat(request: AIChatRequest) {
-    this.logger.log(`Sending message to AI service for user: ${request.userId}`);
+    this.logger.log(
+      `Sending message to AI service for user: ${request.userId}`,
+    );
 
     try {
-      const response = await
-        this.natsClient.sendMessage('ai.generate', {
-          userId: request.userId,
-          message: request.message,
-          conversationId: request.conversationId,
-          timeZone: request.timeZone,
-        });
+      const response = await this.natsClient.sendMessage('ai.generate', {
+        userId: request.userId,
+        message: request.message,
+        conversationId: request.conversationId,
+        timeZone: request.timeZone,
+      });
 
       return {
         response,

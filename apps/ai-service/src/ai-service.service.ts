@@ -5,7 +5,7 @@ import { MastraService } from './mastra';
 export class AiServiceService {
   private readonly logger = new Logger(AiServiceService.name);
 
-  constructor(private readonly mastraService: MastraService) { }
+  constructor(private readonly mastraService: MastraService) {}
 
   getHello(): string {
     return 'AI Service is running with Mastra AI';
@@ -24,7 +24,14 @@ export class AiServiceService {
     conversationId: string,
     timeZone?: string,
   ): Promise<string> {
-    this.logger.log(`Generating AI response for user: ${userId}, conversation: ${conversationId}`);
-    return this.mastraService.generateResponse(userId, message, conversationId, timeZone);
+    this.logger.log(
+      `Generating AI response for user: ${userId}, conversation: ${conversationId}`,
+    );
+    return this.mastraService.generateResponse(
+      userId,
+      message,
+      conversationId,
+      timeZone,
+    );
   }
 }

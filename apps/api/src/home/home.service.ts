@@ -6,10 +6,14 @@ import {
   HomePageMetaDto,
   HomePageOptionsDto,
   LinksUUIDsDto,
-  UpdateHomeDto
+  UpdateHomeDto,
 } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from 'generated/prisma/client';
 import { decrypt } from '../utils';
@@ -38,7 +42,7 @@ export class HomeService {
     private mqttCredentialsService: MqttConnectionService,
     private readonly cacheService: CacheService,
     private readonly natsClient: NatsClientService,
-  ) { }
+  ) {}
 
   async statisticsOrgHomes(organizationId: string) {
     const [countEnabledHomes, countDisabledHomes] = await Promise.all([
@@ -57,7 +61,10 @@ export class HomeService {
     };
   }
 
-  async verifyOrganizationDevicesAccess(devicesIds: string[], organization_id: string) {
+  async verifyOrganizationDevicesAccess(
+    devicesIds: string[],
+    organization_id: string,
+  ) {
     const totalDevices = await this.dbService.device.count({
       where: {
         id: {
@@ -72,7 +79,10 @@ export class HomeService {
     return { ok: true };
   }
 
-  async verifyOrganizationHomesAccess(homesIds: string[], organization_id: string) {
+  async verifyOrganizationHomesAccess(
+    homesIds: string[],
+    organization_id: string,
+  ) {
     const totalHomes = await this.dbService.home.count({
       where: {
         id: {
@@ -87,7 +97,10 @@ export class HomeService {
     return { ok: true };
   }
 
-  async verifyOrganizationUsersAccess(userHomeIds: string[], organization_id: string) {
+  async verifyOrganizationUsersAccess(
+    userHomeIds: string[],
+    organization_id: string,
+  ) {
     const totalUsers = await this.dbService.user.count({
       where: {
         id: {
@@ -117,12 +130,18 @@ export class HomeService {
     const totalHomes = await this.dbService.home.count({
       where: { organization_id },
     });
-    if (totalHomes >= organization.max_homes) return { ok: false, message: 'Max homes limit reached' };
+    if (totalHomes >= organization.max_homes)
+      return { ok: false, message: 'Max homes limit reached' };
     return { ok: true };
   }
 
-  async create(homeDTO: CreateHomeDto, organization_id: string, user_id: string) {
-    const verifyLimits = await this.verifyLimitsOrganizationHomes(organization_id);
+  async create(
+    homeDTO: CreateHomeDto,
+    organization_id: string,
+    user_id: string,
+  ) {
+    const verifyLimits =
+      await this.verifyLimitsOrganizationHomes(organization_id);
     if (!verifyLimits.ok) {
       throw new BadRequestException(verifyLimits.message);
     }
@@ -140,7 +159,10 @@ export class HomeService {
         home_id: created.id,
       },
     });
-    await this.cacheService.set(getKeyHomeUniqueIdOrgId(created.unique_id), organization_id);
+    await this.cacheService.set(
+      getKeyHomeUniqueIdOrgId(created.unique_id),
+      organization_id,
+    );
     try {
       // ? Create mqtt credentials
       const { ok, encryptedPassword, mqttId } =
@@ -155,7 +177,9 @@ export class HomeService {
           },
           where: { id: created.id },
         });
-        const decryptedPassword = encryptedPassword ? decrypt(encryptedPassword) : '';
+        const decryptedPassword = encryptedPassword
+          ? decrypt(encryptedPassword)
+          : '';
         return {
           ok: true,
           data: { ...updated, mqtt_password: decryptedPassword },
@@ -168,8 +192,11 @@ export class HomeService {
     return { ok: true, data: created };
   }
 
-
-  async update(id: string, homeDTO: UpdateHomeDto | any, organization_id: string) {
+  async update(
+    id: string,
+    homeDTO: UpdateHomeDto | any,
+    organization_id: string,
+  ) {
     try {
       const verifyPermissions = await this.verifyOrganizationHomesAccess(
         [id],
@@ -258,7 +285,11 @@ export class HomeService {
     }
   }
 
-  async updateAttributes(id: string, attributesDto: { attributes: object }, organization_id: string) {
+  async updateAttributes(
+    id: string,
+    attributesDto: { attributes: object },
+    organization_id: string,
+  ) {
     try {
       const verifyPermissions = await this.verifyOrganizationHomesAccess(
         [id],
@@ -367,10 +398,10 @@ export class HomeService {
                 name: true,
                 command: true,
                 updated_at: true,
-              }
+              },
             },
-          }
-        }
+          },
+        },
       },
     });
   }
@@ -379,12 +410,14 @@ export class HomeService {
     const { search, take, page, orderBy, sortOrder } = optionsDto;
     const skip = (page - 1) * take;
 
-    let where: Prisma.HomeWhereInput = search ? {
-      OR: [
-        { unique_id: { contains: search, mode: 'insensitive' } },
-        { name: { contains: search, mode: 'insensitive' } },
-      ],
-    } : {};
+    const where: Prisma.HomeWhereInput = search
+      ? {
+          OR: [
+            { unique_id: { contains: search, mode: 'insensitive' } },
+            { name: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
     where.organization_id = organization_id;
 
     const [itemCount, homes] = await this.dbService.$transaction([
@@ -398,9 +431,7 @@ export class HomeService {
           mqtt_username: true,
         },
         where,
-        orderBy: orderBy
-          ? { [orderBy]: sortOrder }
-          : undefined,
+        orderBy: orderBy ? { [orderBy]: sortOrder } : undefined,
       }),
     ]);
     const userPaginatedMeta = new HomePageMetaDto({

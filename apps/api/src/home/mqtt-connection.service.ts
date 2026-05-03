@@ -33,9 +33,18 @@ export class MqttConnectionService {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
-    this.mqttWebApi = this.configService.get<string>('MQTT_SERVER_API', 'http://localhost:8080');
-    this.mqttWebUser = this.configService.get<string>('MQTT_SERVER_WEB_USER', 'admin');
-    this.mqttWebPassword = this.configService.get<string>('MQTT_SERVER_WEB_PASS', 'admin');
+    this.mqttWebApi = this.configService.get<string>(
+      'MQTT_SERVER_API',
+      'http://localhost:8080',
+    );
+    this.mqttWebUser = this.configService.get<string>(
+      'MQTT_SERVER_WEB_USER',
+      'admin',
+    );
+    this.mqttWebPassword = this.configService.get<string>(
+      'MQTT_SERVER_WEB_PASS',
+      'admin',
+    );
   }
 
   async mqttWebApiLogin() {

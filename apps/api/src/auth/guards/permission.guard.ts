@@ -4,7 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { Role } from 'generated/prisma/enums';
 @Injectable()
 export class PermissionsGuard implements CanActivate {
-  constructor(private reflector: Reflector) { }
+  constructor(private reflector: Reflector) {}
   canActivate(context: ExecutionContext): boolean {
     const requiredPermissions = this.reflector.get<Role[]>(
       'permissions',

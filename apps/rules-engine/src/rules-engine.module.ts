@@ -6,8 +6,14 @@ import { CacheModule } from '@app/cache';
 import { NatsClientModule } from '@app/nats-client';
 import { DbModule } from '@app/db';
 import { BullModule } from '@nestjs/bullmq';
-import { RulesQueueProcessor, RulesDelayedProcessor } from './rules-queue.processor';
-import { RULES_QUEUE_NAME, RULES_DELAYED_QUEUE_NAME } from './rules-queue.constants';
+import {
+  RulesQueueProcessor,
+  RulesDelayedProcessor,
+} from './rules-queue.processor';
+import {
+  RULES_QUEUE_NAME,
+  RULES_DELAYED_QUEUE_NAME,
+} from './rules-queue.constants';
 
 @Module({
   imports: [
@@ -35,4 +41,4 @@ import { RULES_QUEUE_NAME, RULES_DELAYED_QUEUE_NAME } from './rules-queue.consta
   controllers: [RulesEngineController],
   providers: [RulesEngineService, RulesQueueProcessor, RulesDelayedProcessor],
 })
-export class RulesEngineModule { }
+export class RulesEngineModule {}

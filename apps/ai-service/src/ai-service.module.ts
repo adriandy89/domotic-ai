@@ -19,4 +19,4 @@ import { MastraAgentFactory, MastraService } from './mastra';
   controllers: [AiServiceController],
   providers: [AiServiceService, MastraService, MastraAgentFactory],
 })
-export class AiServiceModule { }
+export class AiServiceModule {}

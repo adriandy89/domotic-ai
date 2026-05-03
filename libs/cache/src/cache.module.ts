@@ -19,7 +19,9 @@ export class CacheModule {
         {
           provide: 'CACHE_OPTIONS',
           useFactory: (configService: ConfigService): CacheOptions => ({
-            redisUrl: configService.get<string>('REDIS_URL') || 'redis://localhost:6379',
+            redisUrl:
+              configService.get<string>('REDIS_URL') ||
+              'redis://localhost:6379',
             password: configService.get<string>('REDIS_PASSWORD'),
             name: 'cache',
           }),

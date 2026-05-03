@@ -28,7 +28,7 @@ import { ApiBody } from '@nestjs/swagger';
 @Controller('rules')
 @UseGuards(AuthenticatedGuard)
 export class RuleController {
-  constructor(private readonly ruleService: RuleService) { }
+  constructor(private readonly ruleService: RuleService) {}
 
   @Post()
   @ApiBody({
@@ -68,7 +68,10 @@ export class RuleController {
   })
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async create(@Body() ruleDTO: CreateRuleDto, @GetUserInfo() user: SessionUser) {
+  async create(
+    @Body() ruleDTO: CreateRuleDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     try {
       return await this.ruleService.createRule(ruleDTO, user.id);
     } catch (error) {

@@ -12,12 +12,19 @@ export class MqttModule {
       providers: [
         {
           provide: 'MQTT_CLIENT',
-          useFactory: async (configService: ConfigService): Promise<MqttClient> => {
+          useFactory: async (
+            configService: ConfigService,
+          ): Promise<MqttClient> => {
             const client: MqttClient = connect(
-              configService.get<string>('MQTT_SERVER_BASE') || 'mqtt://localhost',
+              configService.get<string>('MQTT_SERVER_BASE') ||
+                'mqtt://localhost',
               {
-                port: parseInt(configService.get<string>('MQTT_PORT', '1883'), 10),
-                clientId: configService.get<string>('MQTT_CLIENT_ID') || undefined,
+                port: parseInt(
+                  configService.get<string>('MQTT_PORT', '1883'),
+                  10,
+                ),
+                clientId:
+                  configService.get<string>('MQTT_CLIENT_ID') || undefined,
                 clean: true,
                 connectTimeout: parseInt(
                   configService.get<string>('MQTT_CONNECT_TIMEOUT', '4000'),
@@ -29,12 +36,16 @@ export class MqttModule {
                   configService.get<string>('MQTT_RECONNECT_PERIOD') || '1000',
                   10,
                 ),
-
               },
             );
             client.on('connect', () => {
               console.log('====== Connected to MQTT server ====== ');
-              console.log('Server:', configService.get<string>('MQTT_SERVER_BASE', 'default'), 'Port:', configService.get<string>('MQTT_PORT', 'default'));
+              console.log(
+                'Server:',
+                configService.get<string>('MQTT_SERVER_BASE', 'default'),
+                'Port:',
+                configService.get<string>('MQTT_PORT', 'default'),
+              );
             });
             client.on('error', (e) => {
               console.log('MQTT server Error: ', e);

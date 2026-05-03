@@ -7,42 +7,42 @@ import { SessionUser } from '@app/models';
 
 @Injectable()
 export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
-    constructor(
-        private configService: ConfigService,
-        private authService: AuthService,
-    ) {
-        super({
-            clientID: configService.get<string>('GITHUB_CLIENT_ID')!,
-            clientSecret: configService.get<string>('GITHUB_CLIENT_SECRET')!,
-            callbackURL: configService.get<string>('GITHUB_CALLBACK_URL')!,
-            scope: ['user:email'],
-        });
+  constructor(
+    private configService: ConfigService,
+    private authService: AuthService,
+  ) {
+    super({
+      clientID: configService.get<string>('GITHUB_CLIENT_ID')!,
+      clientSecret: configService.get<string>('GITHUB_CLIENT_SECRET')!,
+      callbackURL: configService.get<string>('GITHUB_CALLBACK_URL')!,
+      scope: ['user:email'],
+    });
+  }
+
+  async validate(
+    accessToken: string,
+    refreshToken: string,
+    profile: Profile,
+    done: (error: any, user?: any) => void,
+  ): Promise<any> {
+    const { id, emails, displayName, name, photos } = profile;
+
+    try {
+      // GitHub might not provide email if not public
+      const email = emails?.[0]?.value || `${profile.username}@github.local`;
+
+      const user: SessionUser = await this.authService.validateOAuthUser({
+        provider: 'github',
+        providerId: id,
+        email: email,
+        firstName: name?.givenName || displayName || profile.username || '',
+        lastName: name?.familyName || '',
+        picture: photos?.[0]?.value,
+      });
+
+      done(null, user);
+    } catch (error) {
+      done(error, null);
     }
-
-    async validate(
-        accessToken: string,
-        refreshToken: string,
-        profile: Profile,
-        done: (error: any, user?: any) => void,
-    ): Promise<any> {
-        const { id, emails, displayName, name, photos } = profile;
-
-        try {
-            // GitHub might not provide email if not public
-            const email = emails?.[0]?.value || `${profile.username}@github.local`;
-
-            const user: SessionUser = await this.authService.validateOAuthUser({
-                provider: 'github',
-                providerId: id,
-                email: email,
-                firstName: name?.givenName || displayName || profile.username || '',
-                lastName: name?.familyName || '',
-                picture: photos?.[0]?.value,
-            });
-
-            done(null, user);
-        } catch (error) {
-            done(error, null);
-        }
-    }
+  }
 }

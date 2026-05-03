@@ -9,4 +9,3 @@ export * from './user-page-options.dto';
 export * from './user-page.dto';
 export * from './user.dto';
 export * from './users-ids.dto';
-

@@ -3,7 +3,7 @@ import {
   IsDateString,
   IsNotEmpty,
   ValidateBy,
-  buildMessage
+  buildMessage,
 } from 'class-validator';
 
 export function IsAfter(property: string) {

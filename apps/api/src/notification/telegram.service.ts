@@ -13,7 +13,6 @@ export class TelegramService implements OnModuleInit {
   private readonly webhookUrl: string;
   private readonly webhookSecret: string;
 
-
   constructor(
     private readonly config: ConfigService,
     private readonly dbService: DbService,
@@ -27,7 +26,9 @@ export class TelegramService implements OnModuleInit {
 
   async onModuleInit() {
     if (!this.botToken || !this.webhookUrl) {
-      this.logger.warn('TELEGRAM_BOT_TOKEN or TELEGRAM_WEBHOOK_URL is not configured. Telegram bot disabled.');
+      this.logger.warn(
+        'TELEGRAM_BOT_TOKEN or TELEGRAM_WEBHOOK_URL is not configured. Telegram bot disabled.',
+      );
       return;
     }
     try {
@@ -36,7 +37,10 @@ export class TelegramService implements OnModuleInit {
       await this.setupWebhook();
       this.logger.log('Telegram bot initialized successfully');
     } catch (error) {
-      this.logger.error(`Error initializing Telegram bot: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error initializing Telegram bot: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -52,10 +56,15 @@ export class TelegramService implements OnModuleInit {
           this.logger.log('Webhook secret token configured successfully');
         }
       } else {
-        this.logger.warn('TELEGRAM_WEBHOOK_URL not configured. Webhook not set.');
+        this.logger.warn(
+          'TELEGRAM_WEBHOOK_URL not configured. Webhook not set.',
+        );
       }
     } catch (error) {
-      this.logger.error(`Error configuring webhook: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error configuring webhook: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -76,20 +85,26 @@ export class TelegramService implements OnModuleInit {
     }
 
     // Save new code mappings
-    await this.cacheService.set(`telegram:code:${code}:user`, userId, ttlSeconds);
+    await this.cacheService.set(
+      `telegram:code:${code}:user`,
+      userId,
+      ttlSeconds,
+    );
     await this.cacheService.set(existingCodeKey, code, ttlSeconds);
 
     return code;
   }
 
   async verifyAndLinkAccount(chatId: string, code: string): Promise<boolean> {
-    const userId = await this.cacheService.get<string>(`telegram:code:${code}:user`);
+    const userId = await this.cacheService.get<string>(
+      `telegram:code:${code}:user`,
+    );
 
     if (!userId) {
       await this.bot.sendMessage(
         chatId,
         '❌ <b>Invalid or expired code</b>\n\nPlease generate a new verification code from the <b>Domotic AI</b> dashboard.',
-        { parse_mode: 'HTML' }
+        { parse_mode: 'HTML' },
       );
       return false;
     }
@@ -107,7 +122,7 @@ export class TelegramService implements OnModuleInit {
       await this.bot.sendMessage(
         chatId,
         '✨ <b>Account Linked Successfully!</b>\n\nYou will now receive important notifications from <b>Domotic AI</b> directly in this chat. 🏠\n\n<i>You can manage your notification preferences in the dashboard.</i>',
-        { parse_mode: 'HTML' }
+        { parse_mode: 'HTML' },
       );
       return true;
     } catch (error) {
@@ -115,13 +130,18 @@ export class TelegramService implements OnModuleInit {
       await this.bot.sendMessage(
         chatId,
         '⚠️ <b>Error Linking Account</b>\n\nSomething went wrong. Please try again later or contact support.',
-        { parse_mode: 'HTML' }
+        { parse_mode: 'HTML' },
       );
       return false;
     }
   }
 
-  async sendMessage(chatId: string, message: string, replyToMessageId?: number, useMarkdown: boolean = false): Promise<boolean> {
+  async sendMessage(
+    chatId: string,
+    message: string,
+    replyToMessageId?: number,
+    useMarkdown: boolean = false,
+  ): Promise<boolean> {
     if (!this.bot) {
       this.logger.warn('Telegram bot not initialized. Cannot send message.');
       return false;
@@ -129,7 +149,9 @@ export class TelegramService implements OnModuleInit {
 
     try {
       // Clean message for Telegram (skip cleaning if using Markdown)
-      const cleanedMessage = useMarkdown ? message : this.cleanMessageForTelegram(message);
+      const cleanedMessage = useMarkdown
+        ? message
+        : this.cleanMessageForTelegram(message);
 
       // Split long messages into chunks (Telegram has a 4096 character limit)
       const MAX_LENGTH = 4000;
@@ -153,16 +175,24 @@ export class TelegramService implements OnModuleInit {
         }
 
         for (let i = 0; i < chunks.length; i++) {
-          const prefix = chunks.length > 1 ? (useMarkdown ? `*Part ${i + 1}/${chunks.length}:*\n\n` : `<b>Part ${i + 1}/${chunks.length}:</b>\n\n`) : '';
-          const chunkOptions = i === 0 ? messageOptions : {
-            parse_mode: useMarkdown ? 'Markdown' : 'HTML',
-            disable_web_page_preview: true,
-          };
+          const prefix =
+            chunks.length > 1
+              ? useMarkdown
+                ? `*Part ${i + 1}/${chunks.length}:*\n\n`
+                : `<b>Part ${i + 1}/${chunks.length}:</b>\n\n`
+              : '';
+          const chunkOptions =
+            i === 0
+              ? messageOptions
+              : {
+                  parse_mode: useMarkdown ? 'Markdown' : 'HTML',
+                  disable_web_page_preview: true,
+                };
 
           await this.bot.sendMessage(chatId, prefix + chunks[i], chunkOptions);
 
           if (i < chunks.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise((resolve) => setTimeout(resolve, 100));
           }
         }
       }
@@ -170,19 +200,28 @@ export class TelegramService implements OnModuleInit {
       return true;
     } catch (error) {
       if (error.response?.statusCode === 403) {
-        this.logger.warn(`User blocked the bot (chatId: ${chatId}). Unlinking...`);
+        this.logger.warn(
+          `User blocked the bot (chatId: ${chatId}). Unlinking...`,
+        );
         await this.dbService.user.updateMany({
           where: { telegram_chat_id: chatId },
           data: { telegram_chat_id: null },
         });
       } else {
-        this.logger.error(`Error sending Telegram message to chatId ${chatId}: ${error.message}`, error.stack);
+        this.logger.error(
+          `Error sending Telegram message to chatId ${chatId}: ${error.message}`,
+          error.stack,
+        );
       }
       return false;
     }
   }
 
-  async sendLocation(chatId: string, latitude: number, longitude: number): Promise<number | null> {
+  async sendLocation(
+    chatId: string,
+    latitude: number,
+    longitude: number,
+  ): Promise<number | null> {
     if (!this.bot) {
       this.logger.warn('Telegram bot not initialized. Cannot send location.');
       return null;
@@ -192,17 +231,24 @@ export class TelegramService implements OnModuleInit {
       const result = await this.bot.sendLocation(chatId, latitude, longitude, {
         disable_notification: true, // Send silently
       });
-      this.logger.debug(`Location sent successfully to chatId: ${chatId}, message_id: ${result.message_id}`);
+      this.logger.debug(
+        `Location sent successfully to chatId: ${chatId}, message_id: ${result.message_id}`,
+      );
       return result.message_id;
     } catch (error) {
       if (error.response?.statusCode === 403) {
-        this.logger.warn(`User blocked the bot (chatId: ${chatId}). Unlinking...`);
+        this.logger.warn(
+          `User blocked the bot (chatId: ${chatId}). Unlinking...`,
+        );
         await this.dbService.user.updateMany({
           where: { telegram_chat_id: chatId },
           data: { telegram_chat_id: null },
         });
       } else {
-        this.logger.error(`Error sending Telegram location to chatId ${chatId}: ${error.message}`, error.stack);
+        this.logger.error(
+          `Error sending Telegram location to chatId ${chatId}: ${error.message}`,
+          error.stack,
+        );
       }
       return null;
     }
@@ -210,12 +256,15 @@ export class TelegramService implements OnModuleInit {
 
   private cleanMessageForTelegram(message: string): string {
     // Check if message contains valid Telegram HTML tags
-    const hasValidHTML = /<(b|strong|i|em|u|ins|s|strike|del|code|pre|a)(\s[^>]*)?>.*?<\/(b|strong|i|em|u|ins|s|strike|del|code|pre|a)>/i.test(message);
+    const hasValidHTML =
+      /<(b|strong|i|em|u|ins|s|strike|del|code|pre|a)(\s[^>]*)?>.*?<\/(b|strong|i|em|u|ins|s|strike|del|code|pre|a)>/i.test(
+        message,
+      );
 
     if (hasValidHTML) {
       // Message already has HTML formatting, just clean up line breaks
       return message
-        .replace(/\n{3,}/g, '\n\n')  // Reduce multiple line breaks
+        .replace(/\n{3,}/g, '\n\n') // Reduce multiple line breaks
         .trim();
     }
 
@@ -224,21 +273,21 @@ export class TelegramService implements OnModuleInit {
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/&lt;br&gt;/g, '\n')  // Convert <br> to line breaks
-      .replace(/&lt;hr&gt;/g, '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n')  // Convert <hr> to line
-      .replace(/&lt;\/?\w+&gt;/g, '')  // Remove all other HTML tags
-      .replace(/\n{3,}/g, '\n\n')  // Reduce multiple line breaks
+      .replace(/&lt;br&gt;/g, '\n') // Convert <br> to line breaks
+      .replace(/&lt;hr&gt;/g, '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n') // Convert <hr> to line
+      .replace(/&lt;\/?\w+&gt;/g, '') // Remove all other HTML tags
+      .replace(/\n{3,}/g, '\n\n') // Reduce multiple line breaks
       .trim();
   }
-
-
 
   // Process webhook updates
   async processWebhookUpdate(update: any, secretToken: string) {
     this.logger.debug('Processing webhook update:', JSON.stringify(update));
     try {
       if (!this.webhookSecret || !secretToken) {
-        this.logger.warn('TELEGRAM_WEBHOOK_SECRET is not configured. Webhook not set.');
+        this.logger.warn(
+          'TELEGRAM_WEBHOOK_SECRET is not configured. Webhook not set.',
+        );
         return { success: false, error: 'Webhook not set' };
       }
       // Validate secret token if configured
@@ -251,7 +300,10 @@ export class TelegramService implements OnModuleInit {
         await this.handleMessage(update.message);
       }
     } catch (error) {
-      this.logger.error(`Error processing update: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error processing update: ${error.message}`,
+        error.stack,
+      );
     }
   }
 
@@ -263,7 +315,7 @@ export class TelegramService implements OnModuleInit {
       await this.bot.sendMessage(
         chatId,
         '👋 <b>Welcome to Domotic AI!</b>\n\nTo link your account and receive notifications:\n\n1️⃣ Go to the <b>Users</b> section in the dashboard.\n2️⃣ Click action"Telegram" on your user profile.\n3️⃣ Copy the verification code and send the command.',
-        { parse_mode: 'HTML' }
+        { parse_mode: 'HTML' },
       );
     } else if (text?.startsWith('/verify ')) {
       const code = text.substring(8); // Remove '/verify '
@@ -273,15 +325,21 @@ export class TelegramService implements OnModuleInit {
       const user = await this.dbService.user.findFirst({
         where: { telegram_chat_id: chatId.toString() },
         select: {
-          id: true, name: true, email: true, organization: {
-            select: { attributes: true }
-          }
+          id: true,
+          name: true,
+          email: true,
+          organization: {
+            select: { attributes: true },
+          },
         },
       });
       if (user) {
         if (user.organization?.attributes?.['ai']?.enabled) {
-
-          const checkMsgInProgress = await this.cacheService.setnx(`ai:in_progress:${user.id}`, '1', 60);
+          const checkMsgInProgress = await this.cacheService.setnx(
+            `ai:in_progress:${user.id}`,
+            '1',
+            60,
+          );
           if (!checkMsgInProgress) {
             await this.bot.sendMessage(
               chatId,
@@ -296,7 +354,9 @@ export class TelegramService implements OnModuleInit {
             conversationId: user.id,
           };
 
-          this.logger.log(`User ${user.id} sent message: "${text.substring(0, 50)}..."`);
+          this.logger.log(
+            `User ${user.id} sent message: "${text.substring(0, 50)}..."`,
+          );
 
           const response = await this.aiService.chat(request);
 
@@ -305,22 +365,20 @@ export class TelegramService implements OnModuleInit {
           await this.bot.sendMessage(
             chatId,
             response.response || 'No response',
-            { parse_mode: 'HTML' }
+            { parse_mode: 'HTML' },
           );
-
-
         } else {
           await this.bot.sendMessage(
             chatId,
             `✅ <b>Account Linked</b>\n\nHello <b>${user.name || user.email}</b>! 👋\n\nYou are all set to receive notifications. 🔔 \n\nFor use AI features, configure your provider in the web dashboard.`,
-            { parse_mode: 'HTML' }
+            { parse_mode: 'HTML' },
           );
         }
       } else {
         await this.bot.sendMessage(
           chatId,
           '🔒 <b>Account Not Linked</b>\n\nPlease use the <code>/verify</code> command followed by the code from your web dashboard to link your account.\n\nExample: <code>/verify 123456</code>',
-          { parse_mode: 'HTML' }
+          { parse_mode: 'HTML' },
         );
       }
     }

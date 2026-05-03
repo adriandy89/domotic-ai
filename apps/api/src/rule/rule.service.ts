@@ -3,7 +3,14 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 
 import { DbService } from '@app/db';
 import { Prisma } from 'generated/prisma/client';
-import { CreateRuleDto, ICreateCondition, ICreateResult, RulePageMetaDto, RulePageOptionsDto, UpdateRuleDto } from '@app/models';
+import {
+  CreateRuleDto,
+  ICreateCondition,
+  ICreateResult,
+  RulePageMetaDto,
+  RulePageOptionsDto,
+  UpdateRuleDto,
+} from '@app/models';
 
 @Injectable()
 export class RuleService {
@@ -17,24 +24,27 @@ export class RuleService {
     type: true,
     home_id: true,
     timestamp: true,
-    updated_at: true
+    updated_at: true,
   };
 
   constructor(
     private dbService: DbService,
     // private readonly cacheService: CacheService,
     // private readonly natsClient: NatsClientService,
-  ) { }
-
+  ) {}
 
   async createRule(createRuleDto: CreateRuleDto, user_id: string) {
     const { conditions, results, home_id, ...ruleData } = createRuleDto;
 
     // Sanitize results: convert empty string device_id to null for NOTIFICATION type
-    const sanitizedResults = results?.map((result) => ({
-      ...result,
-      device_id: result.device_id === '' || result.device_id === undefined ? null : result.device_id,
-    })) || [];
+    const sanitizedResults =
+      results?.map((result) => ({
+        ...result,
+        device_id:
+          result.device_id === '' || result.device_id === undefined
+            ? null
+            : result.device_id,
+      })) || [];
 
     try {
       return await this.dbService.rule.create({
@@ -68,19 +78,25 @@ export class RuleService {
     const { conditions, results, home_id, ...ruleData } = updateRuleDto;
 
     // Sanitize results: convert empty string device_id to null for NOTIFICATION type
-    const sanitizedResults = results?.map((result) => ({
-      ...result,
-      device_id: result.device_id === '' || result.device_id === undefined ? null : result.device_id,
-    })) || [];
+    const sanitizedResults =
+      results?.map((result) => ({
+        ...result,
+        device_id:
+          result.device_id === '' || result.device_id === undefined
+            ? null
+            : result.device_id,
+      })) || [];
 
-    const filteredConditions: ICreateCondition[] = conditions?.filter(
-      (action) => action?.id !== undefined,
-    ) || [];
-    const newConditions = conditions?.filter(
+    const filteredConditions: ICreateCondition[] =
+      conditions?.filter((action) => action?.id !== undefined) || [];
+    const newConditions =
+      conditions?.filter((action) => action.id === undefined) || [];
+    const filteredResults = sanitizedResults.filter(
+      (action) => action.id !== undefined,
+    );
+    const newResults = sanitizedResults.filter(
       (action) => action.id === undefined,
-    ) || [];
-    const filteredResults = sanitizedResults.filter((action) => action.id !== undefined);
-    const newResults = sanitizedResults.filter((action) => action.id === undefined);
+    );
     return await this.dbService.rule.update({
       where: { id },
       data: {
@@ -138,12 +154,14 @@ export class RuleService {
     const { search, take, page, orderBy, sortOrder } = optionsDto;
     const skip = (page - 1) * take;
 
-    let where: Prisma.RuleWhereInput = search ? {
-      OR: [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-      ],
-    } : {};
+    const where: Prisma.RuleWhereInput = search
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' } },
+            { description: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
     where.user_id = user_id;
 
     const [itemCount, rules] = await this.dbService.$transaction([
@@ -161,9 +179,7 @@ export class RuleService {
           _count: true,
         },
         where,
-        orderBy: orderBy
-          ? { [orderBy]: sortOrder }
-          : undefined,
+        orderBy: orderBy ? { [orderBy]: sortOrder } : undefined,
       }),
     ]);
 
@@ -226,7 +242,7 @@ export class RuleService {
           },
         },
         created_at: true,
-      }
+      },
     });
   }
 

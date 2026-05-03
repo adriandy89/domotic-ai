@@ -3,117 +3,129 @@ import { NatsClientService } from '@app/nats-client';
 import { Mastra } from '@mastra/core';
 import { RequestContext } from '@mastra/core/request-context';
 import { PostgresStore } from '@mastra/pg';
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { MastraAgentFactory } from './mastra-agent.factory';
 import {
-  AIProviderConfig
-} from './types';
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
+import { MastraAgentFactory } from './mastra-agent.factory';
+import { AIProviderConfig } from './types';
 
-/**
- * Service that manages on-demand creation of Mastra instances
- * Does not keep instances in memory for better scalability
- */
+interface CachedInstance {
+  mastra: Mastra;
+  lastUsed: number;
+}
+
+const CACHE_TTL_MS = 15 * 60 * 1000;
+const SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+
 @Injectable()
-export class MastraService implements OnModuleInit {
+export class MastraService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MastraService.name);
+  private readonly cache = new Map<string, CachedInstance>();
+  private sweepTimer?: NodeJS.Timeout;
 
   constructor(
     private readonly agentFactory: MastraAgentFactory,
     private readonly dbService: DbService,
     private readonly natsClient: NatsClientService,
-  ) { }
+  ) {}
 
   async onModuleInit() {
     this.logger.log('Initializing Mastra service...');
     await this.initPgVector();
+    this.sweepTimer = setInterval(() => {
+      void this.sweepStaleInstances();
+    }, SWEEP_INTERVAL_MS);
+    this.sweepTimer.unref?.();
+  }
+
+  async onModuleDestroy() {
+    if (this.sweepTimer) clearInterval(this.sweepTimer);
+    for (const [orgId, entry] of this.cache.entries()) {
+      await this.closeMastraConnections(entry.mastra);
+      this.cache.delete(orgId);
+    }
   }
 
   async initPgVector() {
     try {
       this.logger.log('🔧 Checking pgvector extension...');
-
       const databaseUrl = process.env.MASTRA_DATABASE_URL;
-
       if (!databaseUrl) {
         this.logger.warn(
           '⚠️  MASTRA_DATABASE_URL not configured. Memory features will be disabled.',
         );
         return;
       }
-
-      // Create temporary storage just to verify/create the pgvector extension
       const storage = new PostgresStore({
         id: 'temp-pgvector-init',
         connectionString: databaseUrl,
       });
-
-      // Initialize storage
       await storage.init();
-
-      // Create pgvector extension if it doesn't exist
       await storage.db.none('CREATE EXTENSION IF NOT EXISTS vector;');
-
-      this.logger.log('✅ pgvector extension ready!');
-      this.logger.log(
-        '📋 Mastra will create isolated memory tables per organization on first use',
-      );
-
-      // Close temporary connection
+      this.logger.log('✅ pgvector extension ready');
       await storage.close();
     } catch (error) {
       this.logger.error('❌ Error initializing pgvector:', error);
-      this.logger.warn(
-        '⚠️  Continuing without memory features. AI agents will work but without conversation history.',
-      );
+      this.logger.warn('⚠️  Continuing without memory features.');
     }
   }
 
-  /**
-   * Creates an on-demand Mastra instance for an organization
-   */
-  private async createMastra(organizationId: string, aiConfig: Record<string, any>): Promise<Mastra> {
+  private async getOrCreateMastra(
+    organizationId: string,
+    aiConfig: Record<string, any>,
+  ): Promise<Mastra> {
+    const cached = this.cache.get(organizationId);
+    if (cached) {
+      cached.lastUsed = Date.now();
+      return cached.mastra;
+    }
 
-    // Get AI provider configuration
     const config = this.getAIProviderConfig(aiConfig);
-
     if (!config) {
       throw new Error(
-        `AI configuration not found for organization. Please configure AI provider in organization attributes.ai`,
+        'AI configuration not found. Set organization attributes.ai with a provider config.',
       );
     }
-
     if (!config.enabled) {
       throw new Error(
-        `AI is disabled for organization. Enable it in organization attributes.ai.enabled`,
+        'AI is disabled for organization (attributes.ai.enabled).',
       );
     }
 
-    // Create Mastra instance
-    const mastra = this.agentFactory.createMastra(organizationId, config);
-
+    const mastra = await this.agentFactory.createMastra(organizationId, config);
+    this.cache.set(organizationId, { mastra, lastUsed: Date.now() });
+    this.logger.log(
+      `Cached Mastra instance for org ${organizationId} (cache size=${this.cache.size})`,
+    );
     return mastra;
   }
 
-  /**
-   * Generates a response using the organization's agent
-   * @param userId - User ID
-   * @param message - User message
-   * @param conversationId - Conversation ID (used as threadId in Mastra)
-   * @param timeZone - User timezone (optional)
-   * @param context - Additional context (optional)
-   */
+  private async sweepStaleInstances() {
+    const now = Date.now();
+    for (const [orgId, entry] of this.cache.entries()) {
+      if (now - entry.lastUsed > CACHE_TTL_MS) {
+        this.cache.delete(orgId);
+        this.logger.log(`Evicted stale Mastra instance for org ${orgId}`);
+        await this.closeMastraConnections(entry.mastra);
+      }
+    }
+  }
+
   async generateResponse(
     userId: string,
     message: string,
     conversationId: string,
     timeZone?: string,
   ): Promise<string> {
-    // Get user and their organization
     const user = await this.dbService.user.findUnique({
       where: { id: userId },
       select: {
-        organization_id: true, role: true,
-        organization: { select: { attributes: true } }
+        organization_id: true,
+        role: true,
+        organization: { select: { attributes: true } },
       },
     });
 
@@ -122,64 +134,50 @@ export class MastraService implements OnModuleInit {
     }
 
     const organizationId = user.organization_id;
-
-    // Create on-demand Mastra instance
-    const mastra = await this.createMastra(organizationId, user.organization.attributes['ai']);
+    const mastra = await this.getOrCreateMastra(
+      organizationId,
+      user.organization.attributes['ai'],
+    );
     const agentName = `org-${organizationId}-agent`;
 
     try {
       const agent = mastra.getAgent(agentName);
-
       if (!agent) {
         throw new Error(`Agent not found for organization: ${organizationId}`);
       }
 
-      this.logger.log(`📨 [Chat-Mastra] Processing message for user ${userId}, conversation ${conversationId}`);
-      this.logger.log(`💬 Message: "${message.substring(0, 100)}..."`);
+      this.logger.log(
+        `📨 [user=${userId}] [conv=${conversationId}] "${message.substring(0, 100)}"`,
+      );
 
       const requestContext = new RequestContext();
       requestContext.set('userId', userId);
-      requestContext.set('organizationId', user.organization_id);
+      requestContext.set('organizationId', organizationId);
       requestContext.set('userRole', user.role);
       requestContext.set('timeZone', timeZone);
       requestContext.set('dbService', this.dbService);
       requestContext.set('natsClient', this.natsClient);
 
-      const now = new Date();
-
       const result = await agent.generate(message, {
-        maxSteps: 5, // Limit tool execution steps to prevent duplicate calls
-        memory: {
-          thread: conversationId,
-          resource: userId,
-        },
+        maxSteps: 5,
+        memory: { thread: conversationId, resource: userId },
         requestContext,
         modelSettings: { temperature: 0.3 },
-        system: [
-          'ALWAYS WAIT FOR TOOLS AND WORKFLOWS FINISHED TO GENERATE A RESPONSE.',
-          `⚠️ CRITICAL: Current full date is ${now.toISOString()}`,
-        ].join('\n'),
+        system: `Current date/time: ${new Date().toISOString()}${timeZone ? ` (user timezone: ${timeZone})` : ''}. Wait for all tool calls to complete before drafting your final reply.`,
       });
 
-      // Extract response text
       return result.text;
     } catch (error) {
       this.logger.error(
         `Failed to generate response for user ${userId}`,
         error,
       );
-      return error.message || "Failed to generate response for user";
-    } finally {
-      await this.closeMastraConnections(mastra);
+      return error?.message || 'Failed to generate response.';
     }
   }
 
-  /**
-   * Closes PostgresStore connections of a Mastra instance
-   */
   private async closeMastraConnections(mastra: Mastra) {
     try {
-      // Access internal Mastra stores and close them
       const stores = (mastra as any).stores;
       if (stores && Array.isArray(stores)) {
         for (const store of stores) {
@@ -193,16 +191,13 @@ export class MastraService implements OnModuleInit {
     }
   }
 
-  /**
-   * Gets AI provider configuration from attributes
-   */
   private getAIProviderConfig(aiConfig: any): AIProviderConfig | null {
     if (!aiConfig) {
-      this.logger.warn('No AI configuration found in organization attributes.ai');
+      this.logger.warn(
+        'No AI configuration found in organization attributes.ai',
+      );
       return null;
     }
-
-    // Validate and return configuration
     try {
       return this.agentFactory.validateConfig(aiConfig);
     } catch (error) {
@@ -211,12 +206,10 @@ export class MastraService implements OnModuleInit {
     }
   }
 
-  /**
-   * Gets Mastra service statistics
-   */
   getStats() {
     return {
-      message: 'Mastra instances are created on-demand for better scalability',
+      cacheSize: this.cache.size,
+      organizations: Array.from(this.cache.keys()),
       pgvectorEnabled: !!process.env.MASTRA_DATABASE_URL,
     };
   }

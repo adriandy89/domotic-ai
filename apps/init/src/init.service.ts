@@ -1,6 +1,11 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
-import { getKeyHomeUniqueIdsDisconnected, getKeyHomeNotifiedDisconnections, getKeyHomeUniqueIdOrgId, IHomeConnectedEvent } from '@app/models';
+import {
+  getKeyHomeUniqueIdsDisconnected,
+  getKeyHomeNotifiedDisconnections,
+  getKeyHomeUniqueIdOrgId,
+  IHomeConnectedEvent,
+} from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { HttpService } from '@nestjs/axios';
 import { Injectable, OnModuleInit } from '@nestjs/common';
@@ -22,10 +27,10 @@ export class InitService implements OnModuleInit {
   @Cron('0 */1 * * * *')
   async checkHomeStatus() {
     try {
-      // get all homes 
+      // get all homes
       const homes = await this.dbService.home.findMany({
         select: {
-          unique_id: true
+          unique_id: true,
         },
         where: {
           disabled: false,
@@ -123,8 +128,14 @@ export class InitService implements OnModuleInit {
     private readonly httpService: HttpService,
   ) {
     this.mqttWebApi = this.configService.get<string>('MQTT_SERVER_API', '');
-    this.mqttWebUser = this.configService.get<string>('MQTT_SERVER_WEB_USER', '');
-    this.mqttWebPassword = this.configService.get<string>('MQTT_SERVER_WEB_PASS', '');
+    this.mqttWebUser = this.configService.get<string>(
+      'MQTT_SERVER_WEB_USER',
+      '',
+    );
+    this.mqttWebPassword = this.configService.get<string>(
+      'MQTT_SERVER_WEB_PASS',
+      '',
+    );
   }
 
   async onModuleInit() {
@@ -152,7 +163,10 @@ export class InitService implements OnModuleInit {
         },
       });
       for (const home of homes) {
-        await this.cacheService.set(getKeyHomeUniqueIdOrgId(home.unique_id), home.organization_id);
+        await this.cacheService.set(
+          getKeyHomeUniqueIdOrgId(home.unique_id),
+          home.organization_id,
+        );
       }
       this.logger.log('Homes Cache initialized OK!');
     } catch (error) {
@@ -179,9 +193,7 @@ export class InitService implements OnModuleInit {
         getKeyHomeUniqueIdsDisconnected(),
         unique_id,
       );
-      this.logger.debug(
-        `Home ${unique_id} disconnected (1st check)`,
-      );
+      this.logger.debug(`Home ${unique_id} disconnected (1st check)`);
     } else {
       // Second consecutive disconnection: check if already notified
       const alreadyNotified = await this.cacheService.sIsMember(
@@ -229,11 +241,14 @@ export class InitService implements OnModuleInit {
 
     if (updated) {
       // Emit NATS event with userIds for SSE notification
-      await this.natsClient.emit<IHomeConnectedEvent>('mqtt-core.home.connected', {
-        homeId: updated.id,
-        userIds: updated.users.map((u) => u.user_id),
-        connected,
-      });
+      await this.natsClient.emit<IHomeConnectedEvent>(
+        'mqtt-core.home.connected',
+        {
+          homeId: updated.id,
+          userIds: updated.users.map((u) => u.user_id),
+          connected,
+        },
+      );
     }
   }
 }

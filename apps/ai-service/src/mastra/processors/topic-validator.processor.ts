@@ -1,4 +1,8 @@
-import { ProcessInputArgs, ProcessInputResult, Processor } from '@mastra/core/processors';
+import {
+  ProcessInputArgs,
+  ProcessInputResult,
+  Processor,
+} from '@mastra/core/processors';
 import { generateText } from 'ai';
 
 interface TopicValidatorConfig {
@@ -11,15 +15,15 @@ interface TopicValidatorConfig {
 
 type MastraMessage = {
   role: 'user' | 'assistant' | 'system';
-  content: string | Array<{ type: string; text?: string;[key: string]: any }>;
+  content: string | Array<{ type: string; text?: string; [key: string]: any }>;
 };
 
 /**
  * Topic Validator Processor
- * 
+ *
  * Input processor that validates messages are within allowed topics.
  * Blocks or warns about off-topic questions before they reach the LLM.
- * 
+ *
  * @example
  * ```typescript
  * new TopicValidatorProcessor({
@@ -62,10 +66,14 @@ export class TopicValidatorProcessor implements Processor {
       return messages;
     }
 
-    console.log(`[TopicValidator] Last user message: ${JSON.stringify(lastUserMessage)}`);
+    console.log(
+      `[TopicValidator] Last user message: ${JSON.stringify(lastUserMessage)}`,
+    );
 
     // Convert message content to text
-    const userContent = this.extractTextContent(lastUserMessage as unknown as MastraMessage);
+    const userContent = this.extractTextContent(
+      lastUserMessage as unknown as MastraMessage,
+    );
 
     if (!userContent || userContent.trim().length === 0) {
       console.log('[TopicValidator] Empty user content');
@@ -73,10 +81,15 @@ export class TopicValidatorProcessor implements Processor {
     }
 
     // Check if message is on-topic
-    const { isOnTopic, confidence, reasoning } = await this.checkTopicRelevance(userContent);
+    const { isOnTopic, confidence, reasoning } =
+      await this.checkTopicRelevance(userContent);
 
-    console.log(`[TopicValidator] Message: "${userContent.substring(0, 50)}..."`);
-    console.log(`[TopicValidator] On-topic: ${isOnTopic}, Confidence: ${confidence}, Reasoning: ${reasoning}`);
+    console.log(
+      `[TopicValidator] Message: "${userContent.substring(0, 50)}..."`,
+    );
+    console.log(
+      `[TopicValidator] On-topic: ${isOnTopic}, Confidence: ${confidence}, Reasoning: ${reasoning}`,
+    );
 
     if (!isOnTopic) {
       if (this.config.blockStrategy === 'block') {
@@ -166,15 +179,23 @@ Respond ONLY with valid JSON.`,
       // Parse JSON response
       const jsonMatch = result.text.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
-        console.error('[TopicValidator] Failed to parse LLM response:', result.text);
+        console.error(
+          '[TopicValidator] Failed to parse LLM response:',
+          result.text,
+        );
         // Default to BLOCKING message if classification fails (safer)
-        return { isOnTopic: false, confidence: 0.1, reasoning: 'Classification failed, blocking by default' };
+        return {
+          isOnTopic: false,
+          confidence: 0.1,
+          reasoning: 'Classification failed, blocking by default',
+        };
       }
 
       const parsed = JSON.parse(jsonMatch[0]);
 
       // Apply threshold
-      const isOnTopic = parsed.isOnTopic && parsed.confidence >= this.config.threshold!;
+      const isOnTopic =
+        parsed.isOnTopic && parsed.confidence >= this.config.threshold;
 
       return {
         isOnTopic,
@@ -184,7 +205,11 @@ Respond ONLY with valid JSON.`,
     } catch (error) {
       console.error('[TopicValidator] Error checking relevance:', error);
       // Default to BLOCKING message if error occurs (safer)
-      return { isOnTopic: false, confidence: 0.1, reasoning: 'Error in classification, blocking by default' };
+      return {
+        isOnTopic: false,
+        confidence: 0.1,
+        reasoning: 'Error in classification, blocking by default',
+      };
     }
   }
 
@@ -192,7 +217,9 @@ Respond ONLY with valid JSON.`,
    * Builds a user-friendly rejection message
    */
   private buildRejectionMessage(): string {
-    const baseMessage = this.config.customMessage || 'This question is outside my area of expertise.';
+    const baseMessage =
+      this.config.customMessage ||
+      'This question is outside my area of expertise.';
 
     return `${baseMessage}
 

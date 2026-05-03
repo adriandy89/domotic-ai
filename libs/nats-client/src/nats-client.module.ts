@@ -31,4 +31,4 @@ import { NatsClientService } from './nats-client.service';
   providers: [NatsClientService],
   exports: [NatsClientService],
 })
-export class NatsClientModule { }
+export class NatsClientModule {}

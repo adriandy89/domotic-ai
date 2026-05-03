@@ -8,7 +8,7 @@ export function generateRandomPassword() {
   const length =
     Math.floor(Math.random() * (maxLength - minLength + 1)) + minLength;
 
-  let password = [
+  const password = [
     a[Math.floor(Math.random() * a.length)],
     b[Math.floor(Math.random() * b.length)],
     c[Math.floor(Math.random() * c.length)],

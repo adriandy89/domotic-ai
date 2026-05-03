@@ -1,4 +1,9 @@
-import { BadRequestException, Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import {
   CreateDeviceDto,
   UpdateDeviceDto,
@@ -38,7 +43,7 @@ export class DeviceService {
     private dbService: DbService,
     private readonly natsClient: NatsClientService,
     private readonly cacheService: CacheService,
-  ) { }
+  ) {}
 
   async statisticsOrgDevices(organization_id: string) {
     const [countEnabledDevices, countDisabledDevices] = await Promise.all([
@@ -58,7 +63,10 @@ export class DeviceService {
     };
   }
 
-  async verifyOrganizationDevicesAccess(devicesIds: string[], organization_id: string) {
+  async verifyOrganizationDevicesAccess(
+    devicesIds: string[],
+    organization_id: string,
+  ) {
     const totalDevices = await this.dbService.device.count({
       where: {
         id: {
@@ -88,13 +96,14 @@ export class DeviceService {
     const totalDevices = await this.dbService.device.count({
       where: { organization_id },
     });
-    if (totalDevices >= organization.max_devices) return { ok: false, message: 'Max devices limit reached' };
+    if (totalDevices >= organization.max_devices)
+      return { ok: false, message: 'Max devices limit reached' };
     return { ok: true };
   }
 
-
   async create(deviceDTO: CreateDeviceDto, organization_id: string) {
-    const verifyLimits = await this.verifyLimitsOrganizationDevices(organization_id);
+    const verifyLimits =
+      await this.verifyLimitsOrganizationDevices(organization_id);
     if (!verifyLimits.ok) throw new BadRequestException(verifyLimits.message);
 
     if (deviceDTO.home_id) {
@@ -137,7 +146,11 @@ export class DeviceService {
     return { ok: true, data: created };
   }
 
-  async update(id: string, deviceDTO: UpdateDeviceDto, organization_id: string) {
+  async update(
+    id: string,
+    deviceDTO: UpdateDeviceDto,
+    organization_id: string,
+  ) {
     try {
       const verifyPermissions = await this.verifyOrganizationDevicesAccess(
         [id],
@@ -210,7 +223,11 @@ export class DeviceService {
     }
   }
 
-  async updatePosition(id: string, positionDTO: UpdatePositionDto, organization_id: string) {
+  async updatePosition(
+    id: string,
+    positionDTO: UpdatePositionDto,
+    organization_id: string,
+  ) {
     try {
       const verifyPermissions = await this.verifyOrganizationDevicesAccess(
         [id],
@@ -309,12 +326,14 @@ export class DeviceService {
     const { search, take, page, orderBy, sortOrder } = optionsDto;
     const skip = (page - 1) * take;
 
-    let where: Prisma.DeviceWhereInput = search ? {
-      OR: [
-        { unique_id: { contains: search, mode: 'insensitive' } },
-        { name: { contains: search, mode: 'insensitive' } },
-      ],
-    } : {};
+    const where: Prisma.DeviceWhereInput = search
+      ? {
+          OR: [
+            { unique_id: { contains: search, mode: 'insensitive' } },
+            { name: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
     where.organization_id = organization_id;
 
     const [itemCount, devices] = await this.dbService.$transaction([
@@ -369,7 +388,7 @@ export class DeviceService {
             name: true,
             command: true,
             updated_at: true,
-          }
+          },
         },
       },
     });
@@ -505,20 +524,35 @@ export class DeviceService {
       select: { unique_id: true, home: { select: { unique_id: true } } },
     });
     if (!device || !device.home) {
-      return { ok: false };
+      return {
+        ok: false,
+        code: 'DEVICE_NOT_FOUND',
+        error: 'Device not found or disabled',
+      };
     }
-    console.log(
-      'Send command to device in MQTT: ',
-      JSON.stringify(commandDTO.command),
-    );
-    // Send command to device in MQTT
     return await this.natsClient.sendMessage<
-      { ok: boolean },
-      { homeUniqueId: string; deviceUniqueId: string; command: any }
+      {
+        ok: boolean;
+        code?: string;
+        error?: string;
+        validationErrors?: {
+          property: string;
+          code: string;
+          message: string;
+        }[];
+        retryAfterMs?: number;
+      },
+      {
+        homeUniqueId: string;
+        deviceUniqueId: string;
+        organizationId: string;
+        command: Record<string, unknown>;
+      }
     >('mqtt-core.publish-command', {
       homeUniqueId: device.home.unique_id,
       deviceUniqueId: device.unique_id,
-      command: commandDTO.command,
+      organizationId: organization_id,
+      command: commandDTO.command as Record<string, unknown>,
     });
   }
 
@@ -588,7 +622,7 @@ export class DeviceService {
       },
       select: {
         device_id: true,
-      }
+      },
     });
     const device = await this.dbService.device.findUnique({
       where: {
@@ -610,7 +644,13 @@ export class DeviceService {
     return { ok: true, device };
   }
 
-  async deleteCommand({ id, organization_id }: { id: string; organization_id: string }) {
+  async deleteCommand({
+    id,
+    organization_id,
+  }: {
+    id: string;
+    organization_id: string;
+  }) {
     const upt = await this.dbService.deviceLearnedCommands.delete({
       where: {
         id,
@@ -640,7 +680,10 @@ export class DeviceService {
   }
 
   // ! Last Data
-  async findLastDeviceDataCurrentUser(user_id: string, organization_id: string) {
+  async findLastDeviceDataCurrentUser(
+    user_id: string,
+    organization_id: string,
+  ) {
     const homes = await this.dbService.home.findMany({
       where: {
         organization_id,
@@ -659,11 +702,11 @@ export class DeviceService {
         },
       },
     });
-    const devices = homes.map(home => home.devices).flat();
+    const devices = homes.map((home) => home.devices).flat();
     const lastData = await this.dbService.sensorDataLast.findMany({
       where: {
         device_id: {
-          in: devices.map(device => device.id),
+          in: devices.map((device) => device.id),
         },
       },
       select: {
@@ -674,5 +717,4 @@ export class DeviceService {
     });
     return { ok: true, lastData };
   }
-
 }

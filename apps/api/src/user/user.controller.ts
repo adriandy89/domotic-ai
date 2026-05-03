@@ -2,11 +2,13 @@ import type { SessionUser } from '@app/models';
 import {
   AiProvider,
   CreateUserDto,
-  LinksUUIDsDto, OrgAiConfigDto, UpdateUserAttributesDto,
+  LinksUUIDsDto,
+  OrgAiConfigDto,
+  UpdateUserAttributesDto,
   UpdateUserDto,
   UpdateUserFmcTokenDto,
   UserPageOptionsDto,
-  UUIDArrayDto
+  UUIDArrayDto,
 } from '@app/models';
 import {
   BadRequestException,
@@ -33,7 +35,7 @@ import { UserService } from './user.service';
 @Controller('users')
 @UseGuards(AuthenticatedGuard)
 export class UserController {
-  constructor(private readonly userService: UserService) { }
+  constructor(private readonly userService: UserService) {}
 
   @Get('statistics/organization')
   @Permissions([Role.MANAGER])
@@ -49,7 +51,10 @@ export class UserController {
   @Post()
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async create(@Body() userDTO: CreateUserDto, @GetUserInfo() user: SessionUser) {
+  async create(
+    @Body() userDTO: CreateUserDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     try {
       return await this.userService.create(userDTO, user.organization_id);
     } catch (error) {
@@ -66,7 +71,7 @@ export class UserController {
   async updateAttributes(
     @Body() userDTO: UpdateUserAttributesDto,
     @GetUserInfo() user: SessionUser,
-    @Req() req: Request
+    @Req() req: Request,
   ) {
     try {
       const result = await this.userService.updateAttributes(userDTO, user);
@@ -84,7 +89,10 @@ export class UserController {
         }
 
         // 3. Update all OTHER active sessions
-        await this.userService.updateAllUserSessions(user.id, result.data.attributes);
+        await this.userService.updateAllUserSessions(
+          user.id,
+          result.data.attributes,
+        );
       }
       return result;
     } catch (error) {
@@ -98,7 +106,7 @@ export class UserController {
   @UseGuards(PermissionsGuard)
   async updateFmcTokens(
     @Body() fmcDTO: UpdateUserFmcTokenDto,
-    @GetUserInfo() user: SessionUser
+    @GetUserInfo() user: SessionUser,
   ) {
     return this.userService.updateFmcTokens(fmcDTO, user);
   }
@@ -108,7 +116,7 @@ export class UserController {
   @UseGuards(PermissionsGuard)
   async deleteFmcToken(
     @Body() fmcDTO: UpdateUserFmcTokenDto,
-    @GetUserInfo() user: SessionUser
+    @GetUserInfo() user: SessionUser,
   ) {
     return this.userService.deleteFmcToken(fmcDTO, user);
   }
@@ -119,7 +127,7 @@ export class UserController {
   async update(
     @Param('id') id: string,
     @Body() userDTO: UpdateUserDto,
-    @GetUserInfo() user: SessionUser
+    @GetUserInfo() user: SessionUser,
   ) {
     return this.userService.update(id, userDTO, user);
   }
@@ -131,11 +139,13 @@ export class UserController {
     return this.userService.delete(id, user);
   }
 
-
   @Get()
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)
-  async findAll(@Query() optionsDto: UserPageOptionsDto, @GetUserInfo() user: SessionUser) {
+  async findAll(
+    @Query() optionsDto: UserPageOptionsDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     return this.userService.findAll(optionsDto, user.organization_id);
   }
 
@@ -162,7 +172,7 @@ export class UserController {
   @UseGuards(PermissionsGuard)
   async countActiveSessions(
     @GetUserInfo() user: SessionUser,
-    @Req() req: Request
+    @Req() req: Request,
   ) {
     const sessionId = (req as any).sessionID;
     const count = await this.userService.countOtherSessions(user.id, sessionId);
@@ -174,7 +184,7 @@ export class UserController {
   @UseGuards(PermissionsGuard)
   async revokeOtherSessions(
     @GetUserInfo() user: SessionUser,
-    @Req() req: Request
+    @Req() req: Request,
   ) {
     const sessionId = (req as any).sessionID;
     await this.userService.revokeOtherSessions(user.id, sessionId);
@@ -184,7 +194,10 @@ export class UserController {
   @Put('disable/many')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async disableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
+  async disableMany(
+    @Body() uuidArrayDto: UUIDArrayDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     try {
       return await this.userService.disableMany(uuidArrayDto.uuids, user);
     } catch (error) {
@@ -195,9 +208,15 @@ export class UserController {
   @Put('enable/many')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async enableMany(@Body() uuidArrayDto: UUIDArrayDto, @GetUserInfo() user: SessionUser) {
+  async enableMany(
+    @Body() uuidArrayDto: UUIDArrayDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     try {
-      return await this.userService.enableMany(uuidArrayDto.uuids, user.organization_id);
+      return await this.userService.enableMany(
+        uuidArrayDto.uuids,
+        user.organization_id,
+      );
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -222,10 +241,13 @@ export class UserController {
   @UseGuards(PermissionsGuard)
   async updateAiConfig(
     @Body() aiConfig: OrgAiConfigDto,
-    @GetUserInfo() user: SessionUser
+    @GetUserInfo() user: SessionUser,
   ) {
     try {
-      return await this.userService.updateAiConfig(aiConfig, user.organization_id);
+      return await this.userService.updateAiConfig(
+        aiConfig,
+        user.organization_id,
+      );
     } catch (error) {
       throw new BadRequestException('Bad request');
     }
@@ -243,14 +265,20 @@ export class UserController {
   @Get(':id/homes')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async findAllHomeLinks(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
+  async findAllHomeLinks(
+    @Param('id') id: string,
+    @GetUserInfo() user: SessionUser,
+  ) {
     return this.userService.findAllHomesLinks(id, user.organization_id);
   }
 
   @Post('homes/link')
   @Permissions([Role.ADMIN])
   @UseGuards(PermissionsGuard)
-  async linkHomes(@Body() data: LinksUUIDsDto, @GetUserInfo() user: SessionUser) {
+  async linkHomes(
+    @Body() data: LinksUUIDsDto,
+    @GetUserInfo() user: SessionUser,
+  ) {
     try {
       return await this.userService.linksHomesUsers(data, user.organization_id);
     } catch (error) {
