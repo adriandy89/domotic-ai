@@ -499,9 +499,18 @@ export class UserService {
       }
 
       const currentAttributes = (org.attributes as Record<string, any>) || {};
+      const previousAi = (currentAttributes.ai as Record<string, any>) || {};
+
+      // Preserve the previously stored apiKey when the client omits it
+      // (the edit dialog leaves the field empty to mean "keep the existing key").
+      const merged: Record<string, any> = { ...aiConfig };
+      if (!merged.apiKey && previousAi.apiKey) {
+        merged.apiKey = previousAi.apiKey;
+      }
+
       const newAttributes: Record<string, any> = {
         ...currentAttributes,
-        ai: aiConfig,
+        ai: merged,
       };
 
       await this.dbService.organization.update({

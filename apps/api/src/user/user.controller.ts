@@ -248,8 +248,10 @@ export class UserController {
         aiConfig,
         user.organization_id,
       );
-    } catch (error) {
-      throw new BadRequestException('Bad request');
+    } catch (error: any) {
+      throw new BadRequestException(
+        error?.message ?? 'Failed to update AI configuration',
+      );
     }
   }
 

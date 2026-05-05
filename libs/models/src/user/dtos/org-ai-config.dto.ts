@@ -4,23 +4,22 @@ import {
   IsArray,
   IsBoolean,
   IsEnum,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  IsUrl,
   Max,
+  MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 
 export enum AiProvider {
   OPENAI = 'openai',
-  ANTHROPIC = 'anthropic',
   GOOGLE = 'google',
-  AZURE = 'azure',
-  GROQ = 'groq',
-  MISTRAL = 'mistral',
-  XAI = 'xai',
-  CUSTOM = 'custom',
+  OPENROUTER = 'openrouter',
 }
 
 export enum ReasoningEffort {
@@ -29,9 +28,31 @@ export enum ReasoningEffort {
   HIGH = 'high',
 }
 
+export class GoogleThinkingConfigDto {
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsNumber()
+  thinkingBudget?: number;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsBoolean()
+  includeThoughts?: boolean;
+}
+
+export class GoogleSafetySettingDto {
+  @ApiProperty()
+  @IsString()
+  category: string;
+
+  @ApiProperty()
+  @IsString()
+  threshold: string;
+}
+
 export class AiProviderOptionsDto {
   @ApiProperty({
-    description: 'Reasoning effort (OpenAI specific)',
+    description: 'Reasoning effort (OpenAI)',
     enum: ReasoningEffort,
     required: false,
   })
@@ -40,7 +61,7 @@ export class AiProviderOptionsDto {
   reasoningEffort?: ReasoningEffort;
 
   @ApiProperty({
-    description: 'Enable parallel tool calls (OpenAI specific)',
+    description: 'Enable parallel tool calls (OpenAI)',
     required: false,
   })
   @IsOptional()
@@ -48,44 +69,42 @@ export class AiProviderOptionsDto {
   parallelToolCalls?: boolean;
 
   @ApiProperty({
-    description: 'Thinking budget (Anthropic specific)',
+    description: 'Thinking config (Google Gemini)',
+    type: GoogleThinkingConfigDto,
     required: false,
   })
   @IsOptional()
-  @IsNumber()
-  budgetTokens?: number;
+  @ValidateNested()
+  @Type(() => GoogleThinkingConfigDto)
+  thinkingConfig?: GoogleThinkingConfigDto;
 
   @ApiProperty({
-    description: 'Safety settings (Google specific)',
+    description: 'Safety settings (Google Gemini)',
+    type: [GoogleSafetySettingDto],
     required: false,
   })
   @IsOptional()
   @IsArray()
-  safetySettings?: any[];
+  @ValidateNested({ each: true })
+  @Type(() => GoogleSafetySettingDto)
+  safetySettings?: GoogleSafetySettingDto[];
 
   @ApiProperty({
-    description: 'Azure resource name',
+    description: 'HTTP-Referer attribution header (OpenRouter)',
+    required: false,
+  })
+  @IsOptional()
+  @IsUrl()
+  httpReferer?: string;
+
+  @ApiProperty({
+    description: 'X-Title attribution header (OpenRouter)',
     required: false,
   })
   @IsOptional()
   @IsString()
-  resourceName?: string;
-
-  @ApiProperty({
-    description: 'Azure deployment name',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  deploymentName?: string;
-
-  @ApiProperty({
-    description: 'Base URL for custom providers',
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
-  baseURL?: string;
+  @MaxLength(120)
+  appTitle?: string;
 }
 
 export class OrgAiConfigDto {
@@ -98,15 +117,15 @@ export class OrgAiConfigDto {
   provider: AiProvider;
 
   @ApiProperty({
-    description: 'Model name',
-    required: false,
+    description:
+      'Model id. For OpenRouter must include vendor prefix (e.g. "anthropic/claude-haiku-4.5").',
   })
-  @IsOptional()
   @IsString()
-  model?: string;
+  @MinLength(1)
+  model: string;
 
   @ApiProperty({
-    description: 'API Key',
+    description: 'API Key. Leave empty when editing to keep the previously stored key.',
     required: false,
   })
   @IsOptional()
@@ -115,7 +134,7 @@ export class OrgAiConfigDto {
 
   @ApiProperty({
     description: 'Temperature (0-2)',
-    default: 0.7,
+    default: 0.5,
     minimum: 0,
     maximum: 2,
     required: false,
@@ -127,15 +146,15 @@ export class OrgAiConfigDto {
   temperature?: number;
 
   @ApiProperty({
-    description: 'Max tokens',
+    description: 'Max output tokens',
     minimum: 1,
-    maximum: 100000,
+    maximum: 200000,
     required: false,
   })
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(1)
-  @Max(100000)
+  @Max(200000)
   maxTokens?: number;
 
   @ApiProperty({
@@ -156,7 +175,7 @@ export class OrgAiConfigDto {
     required: false,
   })
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
   topK?: number;
 
@@ -184,12 +203,9 @@ export class OrgAiConfigDto {
   @Max(2)
   frequencyPenalty?: number;
 
-  @ApiProperty({
-    description: 'Seed',
-    required: false,
-  })
+  @ApiProperty({ description: 'Seed', required: false })
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   seed?: number;
 
   @ApiProperty({
@@ -203,6 +219,19 @@ export class OrgAiConfigDto {
   stopSequences?: string[];
 
   @ApiProperty({
+    description: 'Max retries for the underlying provider call',
+    minimum: 0,
+    maximum: 10,
+    default: 2,
+    required: false,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(10)
+  maxRetries?: number;
+
+  @ApiProperty({
     description: 'Provider specific options',
     type: AiProviderOptionsDto,
     required: false,
@@ -213,7 +242,7 @@ export class OrgAiConfigDto {
   providerOptions?: AiProviderOptionsDto;
 
   @ApiProperty({
-    description: 'Enable AI for this home',
+    description: 'Enable AI for this organization',
     default: true,
     required: false,
   })
