@@ -26,8 +26,10 @@ SELECT
   max((data->>'power')::float)        FILTER (WHERE data ? 'power')         AS power_max,
   max((data->>'energy')::float)       FILTER (WHERE data ? 'energy')        AS energy_max,
   min((data->>'energy')::float)       FILTER (WHERE data ? 'energy')        AS energy_min,
-  avg((data->>'voltage')::float)      FILTER (WHERE data ? 'voltage')       AS voltage_avg,
-  avg((data->>'current')::float)      FILTER (WHERE data ? 'current')       AS current_avg,
+  -- voltage/current scoped to mains devices (power present), so battery
+  -- voltage in mV doesn't pollute mains voltage in V.
+  avg((data->>'voltage')::float)      FILTER (WHERE data ? 'voltage' AND data ? 'power') AS voltage_avg,
+  avg((data->>'current')::float)      FILTER (WHERE data ? 'current' AND data ? 'power') AS current_avg,
   -- Activity / security counters
   count(*) FILTER (WHERE (data->>'contact')::boolean    = false)            AS contact_open_count,
   count(*) FILTER (WHERE (data->>'occupancy')::boolean  = true)             AS occupancy_count,
@@ -43,7 +45,8 @@ SELECT
   avg((data->>'voc')::float)          FILTER (WHERE data ? 'voc')           AS voc_avg,
   avg((data->>'pm25')::float)         FILTER (WHERE data ? 'pm25')          AS pm25_avg,
   avg((data->>'pm10')::float)         FILTER (WHERE data ? 'pm10')          AS pm10_avg,
-  -- Health
+  -- Health: battery_min scoped to battery devices (mains plugs have voltage
+  -- but no battery key — already excluded by `data ? 'battery'`).
   min((data->>'battery')::int)        FILTER (WHERE data ? 'battery')       AS battery_min,
   avg((data->>'linkquality')::int)    FILTER (WHERE data ? 'linkquality')   AS lqi_avg,
   count(*) AS sample_count
@@ -78,8 +81,8 @@ SELECT
   max((data->>'power')::float)        FILTER (WHERE data ? 'power')         AS power_max,
   max((data->>'energy')::float)       FILTER (WHERE data ? 'energy')        AS energy_max,
   min((data->>'energy')::float)       FILTER (WHERE data ? 'energy')        AS energy_min,
-  avg((data->>'voltage')::float)      FILTER (WHERE data ? 'voltage')       AS voltage_avg,
-  avg((data->>'current')::float)      FILTER (WHERE data ? 'current')       AS current_avg,
+  avg((data->>'voltage')::float)      FILTER (WHERE data ? 'voltage' AND data ? 'power') AS voltage_avg,
+  avg((data->>'current')::float)      FILTER (WHERE data ? 'current' AND data ? 'power') AS current_avg,
   -- Activity / security counters
   count(*) FILTER (WHERE (data->>'contact')::boolean    = false)            AS contact_open_count,
   count(*) FILTER (WHERE (data->>'occupancy')::boolean  = true)             AS occupancy_count,
