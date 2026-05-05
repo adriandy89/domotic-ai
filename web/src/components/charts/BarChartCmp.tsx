@@ -12,8 +12,10 @@ import { formatWithUnit } from '../../lib/format';
 import {
   AXIS_TICK,
   GRID_STROKE,
-  TOOLTIP_BG,
-  TOOLTIP_BORDER,
+  TOOLTIP_CONTENT_STYLE,
+  TOOLTIP_CURSOR_STYLE,
+  TOOLTIP_ITEM_STYLE,
+  TOOLTIP_LABEL_STYLE,
   colorAt,
 } from './chart-tokens';
 import type { SeriesDef } from './TimeSeriesChart';
@@ -91,12 +93,11 @@ export default function BarChartCmp({
           </>
         )}
         <Tooltip
-          contentStyle={{
-            background: TOOLTIP_BG,
-            border: `1px solid ${TOOLTIP_BORDER}`,
-            borderRadius: 8,
-            fontSize: 12,
-          }}
+          contentStyle={TOOLTIP_CONTENT_STYLE}
+          labelStyle={TOOLTIP_LABEL_STYLE}
+          itemStyle={TOOLTIP_ITEM_STYLE}
+          cursor={{ fill: 'rgba(148,163,184,0.08)' }}
+          wrapperStyle={{ outline: 'none' }}
           formatter={(value, name) => {
             const def = series.find((s) => s.key === String(name));
             const num = typeof value === 'number' ? value : Number(value);

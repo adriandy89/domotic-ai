@@ -3,13 +3,29 @@
  * All formatters tolerate `null`/`undefined` and return a "—" placeholder.
  */
 
+/**
+ * Pick a decimal count that keeps ~3 significant digits regardless of magnitude.
+ * This avoids rendering small bucketed values like 0.04 kWh as "0" — a hardcoded
+ * 1-decimal default loses signal on energy / current / VOC / pm-2.5 charts.
+ */
+function autoDigits(value: number): number {
+  const abs = Math.abs(value);
+  if (abs === 0) return 0;
+  if (abs < 0.01) return 4;
+  if (abs < 1) return 3;
+  if (abs < 10) return 2;
+  if (abs < 1000) return 1;
+  return 0;
+}
+
 export function formatNumber(
   value: number | null | undefined,
-  digits = 1,
+  digits?: number,
 ): string {
   if (value == null || !Number.isFinite(value)) return '—';
+  const d = digits ?? autoDigits(value);
   return value.toLocaleString(undefined, {
-    maximumFractionDigits: digits,
+    maximumFractionDigits: d,
     minimumFractionDigits: 0,
   });
 }
@@ -17,7 +33,7 @@ export function formatNumber(
 export function formatWithUnit(
   value: number | null | undefined,
   unit?: string | null,
-  digits = 1,
+  digits?: number,
 ): string {
   const n = formatNumber(value, digits);
   if (n === '—') return n;

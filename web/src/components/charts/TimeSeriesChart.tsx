@@ -16,8 +16,10 @@ import { formatWithUnit } from '../../lib/format';
 import {
   AXIS_TICK,
   GRID_STROKE,
-  TOOLTIP_BG,
-  TOOLTIP_BORDER,
+  TOOLTIP_CONTENT_STYLE,
+  TOOLTIP_CURSOR_STYLE,
+  TOOLTIP_ITEM_STYLE,
+  TOOLTIP_LABEL_STYLE,
   colorAt,
 } from './chart-tokens';
 
@@ -92,12 +94,11 @@ export default function TimeSeriesChart({
           tickFormatter={(v: number) => (yUnit ? `${v}${yUnit}` : `${v}`)}
         />
         <Tooltip
-          contentStyle={{
-            background: TOOLTIP_BG,
-            border: `1px solid ${TOOLTIP_BORDER}`,
-            borderRadius: 8,
-            fontSize: 12,
-          }}
+          contentStyle={TOOLTIP_CONTENT_STYLE}
+          labelStyle={TOOLTIP_LABEL_STYLE}
+          itemStyle={TOOLTIP_ITEM_STYLE}
+          cursor={TOOLTIP_CURSOR_STYLE}
+          wrapperStyle={{ outline: 'none' }}
           labelFormatter={(label) =>
             format(new Date(String(label)), 'PPpp')
           }

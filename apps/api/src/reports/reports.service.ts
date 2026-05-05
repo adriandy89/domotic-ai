@@ -320,7 +320,7 @@ export class ReportsService {
         avg(lqi_avg)         AS lqi_avg,
         sum(sample_count)    AS sample_count
       FROM ${table}
-      WHERE device_id = $1::uuid AND bucket >= $2 AND bucket < $3
+      WHERE device_id = $1 AND bucket >= $2 AND bucket < $3
       `,
       params.device_id,
       params.from,
@@ -378,7 +378,7 @@ export class ReportsService {
         EXTRACT(HOUR FROM bucket)::int AS hour,
         COALESCE(SUM(${spec.column}), 0)::float AS total
       FROM ${HOURLY_TABLE}
-      WHERE device_id = $1::uuid AND bucket >= $2 AND bucket < $3
+      WHERE device_id = $1 AND bucket >= $2 AND bucket < $3
       GROUP BY dow, hour
       ORDER BY dow, hour
       `,
@@ -469,7 +469,7 @@ export class ReportsService {
               battery_min::float AS y,
               lqi_avg::float AS lqi
             FROM ${DAILY_TABLE}
-            WHERE device_id = $1::uuid
+            WHERE device_id = $1
               AND bucket >= $2
               AND battery_min IS NOT NULL
           )
@@ -494,7 +494,7 @@ export class ReportsService {
           observed AS (
             SELECT count(*)::int AS hours
             FROM ${HOURLY_TABLE}
-            WHERE device_id = $1::uuid
+            WHERE device_id = $1
               AND bucket >= $2
               AND sample_count > 0
           )
@@ -968,7 +968,7 @@ export class ReportsService {
           NULL::float AS max_value,
           NULL::int   AS sample_count
         FROM sensor_data
-        WHERE device_id = $1::uuid
+        WHERE device_id = $1
           AND timestamp >= $2 AND timestamp < $3
           AND data ? '${spec.rawExpr.match(/data->>'(\w+)'/)?.[1] ?? ''}'
         ORDER BY timestamp ASC
@@ -994,7 +994,7 @@ export class ReportsService {
           energy_max AS max_value,
           sample_count
         FROM ${table}
-        WHERE device_id = $1::uuid
+        WHERE device_id = $1
           AND bucket >= $2 AND bucket < $3
           AND energy_max IS NOT NULL
         ORDER BY bucket ASC
@@ -1015,7 +1015,7 @@ export class ReportsService {
         NULL::float AS max_value,
         sample_count
       FROM ${table}
-      WHERE device_id = $1::uuid
+      WHERE device_id = $1
         AND bucket >= $2 AND bucket < $3
         AND ${spec.column} IS NOT NULL
       ORDER BY bucket ASC

@@ -1,6 +1,9 @@
 import { Mastra } from '@mastra/core';
 import { Agent } from '@mastra/core/agent';
-import { ModelRouterEmbeddingModel } from '@mastra/core/llm';
+import {
+  ModelRouterEmbeddingModel,
+  type OpenAICompatibleConfig,
+} from '@mastra/core/llm';
 import { Memory } from '@mastra/memory';
 import { PgVector, PostgresStore } from '@mastra/pg';
 import { Injectable, Logger } from '@nestjs/common';
@@ -18,20 +21,6 @@ import {
   SUPPORTED_PROVIDERS,
   SupportedProvider,
 } from './types';
-
-/**
- * Mastra accepts a model in three forms:
- *  1. A `provider/model` string — auth comes from env vars.
- *  2. An object `{ id, apiKey?, headers?, url? }` — per-call config (what we use, since each org brings its own key).
- *  3. A direct AI SDK provider instance — we don't use this.
- *
- * See: https://mastra.ai/models
- */
-type MastraModelConfig = {
-  id: string;
-  apiKey: string;
-  headers?: Record<string, string>;
-};
 
 @Injectable()
 export class MastraAgentFactory {
@@ -136,16 +125,17 @@ export class MastraAgentFactory {
   /**
    * Builds the Mastra model config object. Mastra's model router routes the call
    * based on the `id` prefix (`openai/`, `google/`, `openrouter/`) and uses the
-   * provided `apiKey` for authentication.
+   * provided `apiKey` for authentication. We use Mastra's `OpenAICompatibleConfig`
+   * shape — `id` is a `${provider}/${model}` template literal so the type matches.
    */
-  private buildModel(config: AIProviderConfig): MastraModelConfig {
+  private buildModel(config: AIProviderConfig): OpenAICompatibleConfig {
     if (!SUPPORTED_PROVIDERS.includes(config.provider as SupportedProvider)) {
       throw new Error(
         `Unsupported provider "${config.provider}". Supported: ${SUPPORTED_PROVIDERS.join(', ')}`,
       );
     }
 
-    const id = `${config.provider}/${config.model}`;
+    const id: `${string}/${string}` = `${config.provider}/${config.model}`;
     const headers: Record<string, string> = {};
 
     if (config.provider === 'openrouter') {

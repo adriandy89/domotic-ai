@@ -303,16 +303,19 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Convert our flat `providerOptions` config into Mastra's per-provider nested form.
+   * Mastra's `ProviderOptions` type is `Record<string, Record<string, JSONValue>>`
+   * (intersected with named provider keys), so the inner record uses `any` —
+   * `unknown` would be too narrow to satisfy `JSONValue`.
    * See https://mastra.ai/models — `providerOptions: { openai: {...} }` etc.
    */
   private buildRuntimeProviderOptions(
     config: AIProviderConfig,
-  ): Record<string, Record<string, unknown>> | undefined {
+  ): Record<string, Record<string, any>> | undefined {
     const opts = config.providerOptions;
     if (!opts) return undefined;
 
     if (config.provider === 'openai') {
-      const openai: Record<string, unknown> = {};
+      const openai: Record<string, any> = {};
       if (opts.reasoningEffort) openai.reasoningEffort = opts.reasoningEffort;
       if (opts.parallelToolCalls !== undefined) {
         openai.parallelToolCalls = opts.parallelToolCalls;
@@ -321,7 +324,7 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (config.provider === 'google') {
-      const google: Record<string, unknown> = {};
+      const google: Record<string, any> = {};
       if (opts.thinkingConfig) google.thinkingConfig = opts.thinkingConfig;
       if (opts.safetySettings) google.safetySettings = opts.safetySettings;
       return Object.keys(google).length > 0 ? { google } : undefined;
