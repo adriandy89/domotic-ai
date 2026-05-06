@@ -12,7 +12,11 @@ export const devicesListTool = createTool({
         .string()
         .optional()
         .describe('Case-insensitive substring to filter device or home name.'),
-      homeId: z.string().optional().describe('Restrict to a single home id.'),
+      homeId: z
+        .string()
+        .uuid()
+        .optional()
+        .describe('Restrict to a single home id.'),
       includeDisabled: z
         .boolean()
         .optional()
@@ -61,6 +65,7 @@ export const devicesListTool = createTool({
                   description: true,
                   disabled: true,
                   model: true,
+                  category: true,
                 },
                 take: 200,
               },
@@ -69,12 +74,27 @@ export const devicesListTool = createTool({
         },
       });
 
-      const totalDevices = userHomes.reduce(
-        (acc, h) => acc + (h.home?.devices?.length ?? 0),
-        0,
-      );
+      const devices = userHomes.flatMap((uh) => {
+        const home = uh.home;
+        if (!home) return [];
+        const homeMeta = {
+          id: home.id,
+          name: home.name,
+          description: home.description,
+          disabled: home.disabled,
+        };
+        return home.devices.map((d) => ({
+          id: d.id,
+          name: d.name,
+          description: d.description,
+          disabled: d.disabled,
+          model: d.model,
+          category: d.category,
+          home: homeMeta,
+        }));
+      });
 
-      return { totalDevices, data: userHomes };
+      return { totalDevices: devices.length, devices };
     } catch (error) {
       console.error('[devicesListTool] Error:', error);
       throw new Error(

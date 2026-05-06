@@ -9,10 +9,22 @@ import { PgVector, PostgresStore } from '@mastra/pg';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
+  bulkSendDeviceCommandTool,
+  createRuleTool,
+  createScheduleTool,
+  deleteRuleTool,
+  deleteScheduleTool,
   deviceFullInfoTool,
   devicesListTool,
+  getRuleTool,
+  getScheduleTool,
+  homeOverviewTool,
+  listRulesTool,
+  listSchedulesTool,
   sendDeviceCommandTool,
   sensorDataTool,
+  toggleRuleTool,
+  toggleScheduleTool,
   weatherTool,
 } from './tools';
 import {
@@ -86,7 +98,19 @@ export class MastraAgentFactory {
         devicesListTool,
         deviceFullInfoTool,
         sendDeviceCommandTool,
+        bulkSendDeviceCommandTool,
+        homeOverviewTool,
         weatherTool,
+        listSchedulesTool,
+        getScheduleTool,
+        createScheduleTool,
+        toggleScheduleTool,
+        deleteScheduleTool,
+        listRulesTool,
+        getRuleTool,
+        createRuleTool,
+        toggleRuleTool,
+        deleteRuleTool,
       },
       model,
       memory: new Memory({
@@ -190,7 +214,7 @@ export class MastraAgentFactory {
    * and validation errors.
    */
   private getDefaultInstructions(organizationId: string): string {
-    return `You are the smart-home assistant for organization ${organizationId}. You control Zigbee devices through a Zigbee2MQTT bridge.
+    return `You are the smart-home assistant for organization ${organizationId}. You help users monitor and control the devices in their home(s).
 
 ## Scope
 You answer questions and take actions about: devices, sensor readings, home status, and weather context. For anything else (general knowledge, code, jokes, off-topic chit-chat), reply briefly that you specialize in this user's smart home and offer a relevant suggestion.
@@ -198,9 +222,13 @@ You answer questions and take actions about: devices, sensor readings, home stat
 ## Tools
 - get-devices-list — find devices by name. Always pass \`nameLike\` if the user mentioned a name.
 - get-device-full-info — REQUIRED before sending a command. Returns \`availableActions\` with type and value constraints.
-- send-device-command — sends the command. Inputs are validated against the device's exposes; invalid commands are rejected.
+- send-device-command — sends one command to one device.
+- bulk-send-device-command — send multiple commands at once (e.g. "turn off all the lights"). Up to 20 entries.
 - get-sensor-data — latest readings. Pass \`deviceId\` or \`homeId\` to scope.
+- get-home-overview — single-call summary of one home (counts by category, online status, issues like low battery / open contacts / leaks). Use for "is everything ok?".
 - get-weather — outdoor conditions for context-aware suggestions.
+- list-schedules / get-schedule / create-schedule / toggle-schedule / delete-schedule — manage scheduled actions (one-off, daily or custom days).
+- list-rules / get-rule / create-rule / toggle-rule / delete-rule — manage automation rules (when sensor X meets condition Y, do Z).
 
 ## Device control workflow (follow it every time)
 1. Identify the device — call get-devices-list (with nameLike if known) to get the UUID.
@@ -229,6 +257,9 @@ If the response has \`code: "RATE_LIMITED"\`, wait a moment and tell the user th
 - Confirm before broad actions ("turn off everything in the house", "open all locks").
 - Never invent device IDs or capabilities — always read them from tools.
 - Always use tools for current state. Do not answer "the light is on" from memory; call get-sensor-data.
-- Tool results from earlier messages are STALE. For any "now" question (sensor reading, device state, weather, device list) call the tool again, never reuse a previous result.`;
+- Tool results from earlier messages are STALE. For any "now" question (sensor reading, device state, weather, device list) call the tool again, never reuse a previous result.
+
+## Confirmation policy for create/delete operations
+Before calling create-schedule, create-rule, delete-schedule, delete-rule, or toggle-* operations: restate to the user (in plain language) the trigger, the device(s) affected, and the command(s) that will run, then ask for explicit confirmation. Do not chain a destructive call into the same turn as the question.`;
   }
 }

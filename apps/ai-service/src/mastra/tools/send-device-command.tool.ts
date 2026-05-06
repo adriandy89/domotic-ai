@@ -1,5 +1,6 @@
 import { DbService } from '@app/db';
 import {
+  NormalizeWarning,
   getAvailableActions,
   getExposesFromAttributes,
   normalizeCommand,
@@ -9,12 +10,124 @@ import { NatsClientService } from '@app/nats-client';
 import { createTool } from '@mastra/core/tools';
 import z from 'zod';
 
+export interface ExecuteOneCommandResult {
+  success: boolean;
+  message?: string;
+  error?: string;
+  code?: string;
+  device?: { id: string; name: string };
+  commandSent?: Record<string, unknown>;
+  normalizationWarnings?: NormalizeWarning[];
+  validationErrors?: unknown;
+  hint?: string;
+}
+
+/**
+ * Send a single command to one device. Reused by `send-device-command`
+ * (1 device) and `bulk-send-device-command` (N devices).
+ *
+ * Pipeline: load device → derive availableActions from exposes → normalize →
+ * validate → publish via NATS to mqtt-core. Never throws on validation;
+ * errors are returned as `{ success: false, ... }`.
+ */
+export async function executeOneCommand(
+  deps: {
+    dbService: DbService;
+    natsClient: NatsClientService;
+    organizationId: string;
+    userId: string;
+  },
+  deviceId: string,
+  command: Record<string, unknown>,
+): Promise<ExecuteOneCommandResult> {
+  const { dbService, natsClient, organizationId, userId } = deps;
+
+  const device = await dbService.device.findUnique({
+    where: {
+      id: deviceId,
+      organization_id: organizationId,
+      disabled: false,
+    },
+    select: {
+      id: true,
+      unique_id: true,
+      name: true,
+      attributes: true,
+      home: { select: { unique_id: true } },
+    },
+  });
+
+  if (!device) {
+    return { success: false, error: 'Device not found or disabled' };
+  }
+  if (!device.home) {
+    return { success: false, error: 'Device is not assigned to a home' };
+  }
+
+  const exposes = getExposesFromAttributes(device.attributes);
+  const actions = getAvailableActions(exposes);
+
+  if (actions.length === 0) {
+    return {
+      success: false,
+      error: 'Device has no controllable actions (no writable exposes).',
+    };
+  }
+
+  const { command: normalized, warnings } = normalizeCommand(command, actions);
+  const validation = validateCommand(normalized, actions);
+
+  if (!validation.valid) {
+    return {
+      success: false,
+      error: 'Command rejected: invalid for this device.',
+      validationErrors: validation.errors,
+      hint: 'Call get-device-full-info again to see availableActions; build the command from there.',
+    };
+  }
+
+  const result = await natsClient.sendMessage<
+    { ok: boolean; code?: string; error?: string },
+    {
+      homeUniqueId: string;
+      deviceUniqueId: string;
+      organizationId: string;
+      command: Record<string, unknown>;
+      source: 'ai';
+      userId?: string;
+    }
+  >('mqtt-core.publish-command', {
+    homeUniqueId: device.home.unique_id,
+    deviceUniqueId: device.unique_id,
+    organizationId,
+    command: normalized,
+    source: 'ai',
+    userId,
+  });
+
+  if (result?.ok) {
+    return {
+      success: true,
+      message: `Command sent to ${device.name}.`,
+      device: { id: device.id, name: device.name },
+      commandSent: normalized,
+      normalizationWarnings: warnings,
+    };
+  }
+
+  return {
+    success: false,
+    error: result?.error ?? 'mqtt-core rejected the command',
+    code: result?.code,
+  };
+}
+
 export const sendDeviceCommandTool = createTool({
   id: 'send-device-command',
   description:
     'Send a command to a smart home device. The command is validated against the device capabilities (from get-device-full-info) before publishing. If validation fails, the tool returns success=false with errors — do NOT retry the same value, ask the user to clarify or read the constraints again.',
   inputSchema: z.object({
-    deviceId: z.string().describe('The device database UUID'),
+    deviceId: z.string().uuid().describe('The device database UUID'),
     command: z
       .record(z.any())
       .describe(
@@ -41,93 +154,11 @@ export const sendDeviceCommandTool = createTool({
     if (!organizationId) throw new Error('Organization ID is required');
 
     try {
-      const device = await dbService.device.findUnique({
-        where: {
-          id: deviceId,
-          organization_id: organizationId,
-          disabled: false,
-        },
-        select: {
-          id: true,
-          unique_id: true,
-          name: true,
-          attributes: true,
-          home: { select: { unique_id: true } },
-        },
-      });
-
-      if (!device) {
-        return { success: false, error: 'Device not found or disabled' };
-      }
-      if (!device.home) {
-        return { success: false, error: 'Device is not assigned to a home' };
-      }
-
-      const exposes = getExposesFromAttributes(device.attributes);
-      const actions = getAvailableActions(exposes);
-
-      if (actions.length === 0) {
-        return {
-          success: false,
-          error: 'Device has no controllable actions (no writable exposes).',
-        };
-      }
-
-      const { command: normalized, warnings } = normalizeCommand(
+      return await executeOneCommand(
+        { dbService, natsClient, organizationId, userId },
+        deviceId,
         command,
-        actions,
       );
-      const validation = validateCommand(normalized, actions);
-
-      if (!validation.valid) {
-        return {
-          success: false,
-          error: 'Command rejected: invalid for this device.',
-          validationErrors: validation.errors,
-          hint: 'Call get-device-full-info again to see availableActions; build the command from there.',
-        };
-      }
-
-      console.log(
-        `[sendDeviceCommandTool] "${device.name}" command:`,
-        JSON.stringify(normalized),
-        warnings.length > 0 ? `(warnings: ${warnings.length})` : '',
-      );
-
-      const result = await natsClient.sendMessage<
-        { ok: boolean; code?: string; error?: string },
-        {
-          homeUniqueId: string;
-          deviceUniqueId: string;
-          organizationId: string;
-          command: Record<string, unknown>;
-          source: 'ai';
-          userId?: string;
-        }
-      >('mqtt-core.publish-command', {
-        homeUniqueId: device.home.unique_id,
-        deviceUniqueId: device.unique_id,
-        organizationId,
-        command: normalized,
-        source: 'ai',
-        userId,
-      });
-
-      if (result?.ok) {
-        return {
-          success: true,
-          message: `Command sent to ${device.name}.`,
-          device: { id: device.id, name: device.name },
-          commandSent: normalized,
-          normalizationWarnings: warnings,
-        };
-      }
-
-      return {
-        success: false,
-        error: result?.error ?? 'mqtt-core rejected the command',
-        code: result?.code,
-      };
     } catch (error) {
       console.error('[sendDeviceCommandTool] Error:', error);
       throw new Error(

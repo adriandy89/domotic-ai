@@ -32,26 +32,32 @@ export const deviceFullInfoTool = createTool({
   description:
     'Get full device info by id, including the writable actions (with type and value constraints). Always call this before send-device-command so you can build a command that respects the device capabilities.',
   inputSchema: z.object({
-    deviceId: z.string().describe('Device database UUID'),
+    deviceId: z.string().uuid().describe('Device database UUID'),
   }),
   execute: async (inputData, context) => {
     const userId: string | undefined = context?.requestContext?.get('userId');
+    const organizationId: string | undefined =
+      context?.requestContext?.get('organizationId');
     const dbService: DbService | undefined =
       context?.requestContext?.get('dbService');
     const { deviceId } = inputData;
 
     if (!userId)
       throw new Error('User ID is required for device data operations');
+    if (!organizationId)
+      throw new Error('Organization ID is required for device data operations');
     if (!dbService) throw new Error('Database service not available');
 
     try {
       const device = await dbService.device.findUnique({
-        where: { id: deviceId },
+        where: { id: deviceId, organization_id: organizationId },
         select: {
           id: true,
           name: true,
           description: true,
           disabled: true,
+          model: true,
+          category: true,
           sensorDataLasts: { select: { data: true, timestamp: true } },
           attributes: true,
         },
@@ -69,6 +75,8 @@ export const deviceFullInfoTool = createTool({
           name: device.name,
           description: device.description,
           disabled: device.disabled,
+          model: device.model,
+          category: device.category,
           sensorDataLasts: device.sensorDataLasts,
         },
         availableActions,

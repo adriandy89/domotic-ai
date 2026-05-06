@@ -8,8 +8,8 @@ export const sensorDataTool = createTool({
     'Get the latest sensor readings (temperature, humidity, contact, presence, etc.) from devices the user has access to. Use deviceId to fetch one device, homeId for one home, or no filter to list all.',
   inputSchema: z
     .object({
-      deviceId: z.string().optional(),
-      homeId: z.string().optional(),
+      deviceId: z.string().uuid().optional(),
+      homeId: z.string().uuid().optional(),
     })
     .optional(),
 
@@ -47,7 +47,8 @@ export const sensorDataTool = createTool({
                   id: true,
                   name: true,
                   description: true,
-                  disabled: true,
+                  model: true,
+                  category: true,
                   sensorDataLasts: {
                     select: { data: true, timestamp: true },
                   },
@@ -59,12 +60,29 @@ export const sensorDataTool = createTool({
         },
       });
 
-      const totalDevices = userHomes.reduce(
-        (acc, h) => acc + (h.home?.devices?.length ?? 0),
-        0,
-      );
+      const devices = userHomes.flatMap((uh) => {
+        const home = uh.home;
+        if (!home) return [];
+        const homeMeta = {
+          id: home.id,
+          name: home.name,
+          description: home.description,
+          disabled: home.disabled,
+          connected: home.connected,
+          lastUpdate: home.last_update,
+        };
+        return home.devices.map((d) => ({
+          id: d.id,
+          name: d.name,
+          description: d.description,
+          model: d.model,
+          category: d.category,
+          sensorDataLasts: d.sensorDataLasts,
+          home: homeMeta,
+        }));
+      });
 
-      return { totalDevices, data: userHomes };
+      return { totalDevices: devices.length, devices };
     } catch (error) {
       console.error('[sensorDataTool] Error:', error);
       throw new Error(

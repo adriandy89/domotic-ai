@@ -164,7 +164,7 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
       const t0 = Date.now();
       try {
         const result = await agent.generate(message, {
-          maxSteps: 5,
+          maxSteps: 8,
           memory: { thread: conversationId, resource: userId },
           requestContext,
           modelSettings: {

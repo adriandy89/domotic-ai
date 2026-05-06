@@ -1,10 +1,23 @@
 import {
+  ACCESS_PUBLISHED,
   ACCESS_SET,
   COLOR_COMPOSITE_NAMES,
   ColorCompositeName,
   DeviceAction,
   DeviceExpose,
 } from './exposes.types';
+
+/**
+ * A normalized, readable (published) attribute derived from a device's exposes.
+ * Used to validate Rule conditions / Result attributes against what the device
+ * can actually publish.
+ */
+export interface DeviceReadableAttribute {
+  property: string;
+  type: string;
+  unit?: string;
+  values?: (string | number)[];
+}
 
 /**
  * Returns leaf exposes (depth-first), skipping intermediate `composite`/`light`/`switch` wrappers.
@@ -114,6 +127,44 @@ export function getAvailableActions(exposes: DeviceExpose[]): DeviceAction[] {
     seen.add(action.property);
     return true;
   });
+}
+
+/**
+ * Derives the list of readable (published) attributes from a device's `exposes`.
+ *
+ * Rules:
+ * - Walks exposes recursively (composites are unwrapped via `flattenExposes`).
+ * - Only leaf exposes whose `access & ACCESS_PUBLISHED` is set are returned.
+ * - Properties are deduped by name (first wins).
+ *
+ * Used by Rule/Schedule validation: a Condition.attribute or notification-event
+ * attribute must reference a property the device can actually publish.
+ */
+export function getReadableAttributes(
+  exposes: DeviceExpose[],
+): DeviceReadableAttribute[] {
+  const result: DeviceReadableAttribute[] = [];
+  const seen = new Set<string>();
+
+  for (const expose of flattenExposes(exposes)) {
+    if (expose.access === undefined) continue;
+    if ((expose.access & ACCESS_PUBLISHED) === 0) continue;
+
+    const property = expose.property || expose.name;
+    if (!property || seen.has(property)) continue;
+
+    const attr: DeviceReadableAttribute = {
+      property,
+      type: expose.type,
+    };
+    if (expose.unit) attr.unit = expose.unit;
+    if (expose.type === 'enum' && expose.values) attr.values = expose.values;
+
+    seen.add(property);
+    result.push(attr);
+  }
+
+  return result;
 }
 
 /**
