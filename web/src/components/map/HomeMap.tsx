@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useMemo, useState, useRef } from 'react';
 import { useDevicesStore } from '../../store/useDevicesStore';
 import type { Device } from '../../store/useDevicesStore';
 import type { Home } from '../../store/useHomesStore';
@@ -24,9 +24,19 @@ interface HomeMapProps {
 
 export function HomeMap({ home }: HomeMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { getDevicesByHomeId, updateDevice } = useDevicesStore();
+  // Subscribe to the slices we render — reading via .getState() inside JSX
+  // bypasses Zustand reactivity, so the modal/markers can show stale data
+  // when SSE pushes a new sensor.data event.
+  const devicesById = useDevicesStore((s) => s.devices);
+  const devicesByHome = useDevicesStore((s) => s.devicesByHome);
+  const devicesData = useDevicesStore((s) => s.devicesData);
+  const updateDevice = useDevicesStore((s) => s.updateDevice);
   const { updateHome } = useHomesStore();
-  const devices = getDevicesByHomeId(home.id);
+
+  const devices = useMemo(() => {
+    const ids = devicesByHome[home.id] || [];
+    return ids.map((id) => devicesById[id]).filter(Boolean) as Device[];
+  }, [devicesById, devicesByHome, home.id]);
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [showImageSelector, setShowImageSelector] = useState(false);
@@ -168,7 +178,7 @@ export function HomeMap({ home }: HomeMapProps) {
     if (!draggingRef.current) return;
 
     const deviceId = draggingRef.current.id;
-    const device = getDevicesByHomeId(home.id).find((d) => d.id === deviceId);
+    const device = useDevicesStore.getState().getDeviceById(deviceId);
 
     // Clean up
     draggingRef.current = null;
@@ -214,14 +224,13 @@ export function HomeMap({ home }: HomeMapProps) {
         )}
 
         {assignedDevices.map((device: Device) => {
-          const deviceData = useDevicesStore
-            .getState()
-            .getDeviceDataById(device.id);
+          const deviceData = devicesData[device.id];
           return (
             <DeviceMarker
               key={device.id}
               device={device}
               data={deviceData?.data}
+              timestamp={deviceData?.timestamp}
               isSelected={selectedDeviceId === device.id}
               onClick={(e) => {
                 e.stopPropagation();
@@ -326,9 +335,8 @@ export function HomeMap({ home }: HomeMapProps) {
               const selectedDevice = assignedDevices.find(
                 (d) => d.id === selectedDeviceId,
               );
-              const selectedDeviceData = useDevicesStore
-                .getState()
-                .getDeviceDataById(selectedDeviceId);
+              // Read from the subscribed slice so the modal updates live.
+              const selectedDeviceData = devicesData[selectedDeviceId];
 
               if (!selectedDevice) return null;
 

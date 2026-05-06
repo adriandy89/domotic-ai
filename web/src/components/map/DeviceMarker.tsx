@@ -6,6 +6,7 @@ import DeviceImage from '../device/DeviceImage';
 interface DeviceMarkerProps {
   device: Device;
   data?: Record<string, any> | undefined;
+  timestamp?: string;
   onClick: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
   onMouseDown?: (e: React.MouseEvent) => void;
@@ -15,6 +16,7 @@ interface DeviceMarkerProps {
 export function DeviceMarker({
   device,
   data,
+  timestamp,
   onClick,
   onContextMenu,
   onMouseDown,
@@ -25,11 +27,13 @@ export function DeviceMarker({
   const batteryAlert =
     (!isNaN(data?.battery) && data?.battery < 20) || data?.battery_low === true;
 
-  // Last Seen Alert Logic (from old frontend)
-  // Shows if last_seen is older than 8 hours
+  // Prefer the SSE receipt timestamp — devices like contact sensors only
+  // include `last_seen` in the payload when state changes, so the marker
+  // would otherwise stay "stale" after every heartbeat.
+  const lastSeenSource = timestamp ?? data?.last_seen;
   let lastSeenAlert = false;
-  if (data?.last_seen) {
-    const lastSeen = new Date(data.last_seen);
+  if (lastSeenSource) {
+    const lastSeen = new Date(lastSeenSource);
     const now = new Date();
     const diff = now.getTime() - lastSeen.getTime();
     if (diff > 1000 * 60 * 60 * 8) {

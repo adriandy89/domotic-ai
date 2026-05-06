@@ -114,6 +114,7 @@ export default function DeviceCard({
   const [showCommands, setShowCommands] = useState(false);
 
   const data = deviceData?.data || {};
+  const lastUpdateTimestamp = deviceData?.timestamp;
   const exposes = device.attributes?.definition?.exposes || [];
 
   // Separate main exposes from diagnostic (diagnostic shown in footer)
@@ -133,7 +134,10 @@ export default function DeviceCard({
 
   const battery = data.battery as number | undefined;
   const linkquality = data.linkquality as number | undefined;
-  const lastSeen = data.last_seen as string | number | undefined;
+  // Prefer the SSE/last-data timestamp — `data.last_seen` is reported by the
+  // device and is omitted from many heartbeats, so it lags behind reality.
+  const lastSeen =
+    lastUpdateTimestamp ?? (data.last_seen as string | number | undefined);
   const lqiStatus = getLqiStatus(linkquality);
 
   const powerSource = device.attributes?.power_source || 'Unknown';

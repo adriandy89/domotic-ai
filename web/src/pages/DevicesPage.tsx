@@ -53,8 +53,7 @@ export default function DevicesPage() {
     if (!confirm('Are you sure you want to remove this device?')) return;
     try {
       await api.delete(`/devices/${deviceId}`);
-      console.log('Device removed:', deviceId);
-      // TODO: Refresh device list
+      useDevicesStore.getState().removeDevice(deviceId);
     } catch (error) {
       console.error('Failed to remove device:', error);
     }

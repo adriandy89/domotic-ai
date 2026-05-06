@@ -101,6 +101,7 @@ interface DevicesState {
     updateDevice: (deviceId: string, updates: Partial<Device>) => void;
     updateDeviceAttributes: (deviceId: string, attributes: Partial<DeviceAttributes>) => void;
     updateDeviceData: (deviceId: string, data: Record<string, unknown>, timestamp?: string) => void;
+    removeDevice: (deviceId: string) => void;
     getDeviceById: (deviceId: string) => Device | undefined;
     getDeviceDataById: (deviceId: string) => DeviceData | undefined;
     getDevicesByHomeId: (homeId: string) => Device[];
@@ -208,20 +209,34 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
     },
 
     updateDeviceData: (deviceId: string, data: Record<string, unknown>, timestamp?: string) => {
-        const { devicesData } = get();
-        const existingData = devicesData[deviceId];
-
-        set({
+        // Replace (not merge) to mirror backend `sensor_data_last` behavior:
+        // mqtt-core upserts with `data: message`, so the row holds the latest
+        // complete payload. Merging on the client kept stale fields (e.g. an
+        // old `contact: true`) visible after the source row had moved on.
+        set((state) => ({
             devicesData: {
-                ...devicesData,
+                ...state.devicesData,
                 [deviceId]: {
                     device_id: deviceId,
                     timestamp: timestamp || new Date().toISOString(),
-                    data: existingData
-                        ? { ...existingData.data, ...data } // Merge with existing data
-                        : data
-                }
+                    data,
+                },
+            },
+        }));
+    },
+
+    removeDevice: (deviceId: string) => {
+        set((state) => {
+            const devices = { ...state.devices };
+            const devicesData = { ...state.devicesData };
+            delete devices[deviceId];
+            delete devicesData[deviceId];
+            const devicesByHome: Record<string, string[]> = {};
+            for (const [homeId, ids] of Object.entries(state.devicesByHome)) {
+                const filtered = ids.filter((id) => id !== deviceId);
+                if (filtered.length > 0) devicesByHome[homeId] = filtered;
             }
+            return { devices, devicesData, devicesByHome };
         });
     },
 
