@@ -21,7 +21,15 @@ export function BinaryFeature({ expose, value, onChange }: FeatureProps) {
   const canSet = (expose.access & FeatureAccessMode.SET) !== 0;
   const valueOn = expose.value_on ?? true;
   const valueOff = expose.value_off ?? false;
-  const isOn = value === valueOn || value === true || value === 'ON';
+  // Trust the expose definition strictly. The previous fallback
+  // (`|| value === true`) corrupted exposes whose `value_on` is `false`
+  // (e.g. zigbee2mqtt's `contact`: value_on=false, value_off=true), making
+  // both `true` and `false` resolve to isOn=true — that's why the card kept
+  // showing "Closed" regardless of the door's real state.
+  const isOn =
+    expose.value_on !== undefined
+      ? value === expose.value_on
+      : value === true || value === 'ON';
 
   const handleChange = useCallback(() => {
     if (!canSet) return;
@@ -29,19 +37,28 @@ export function BinaryFeature({ expose, value, onChange }: FeatureProps) {
     onChange(expose.property, newValue);
   }, [canSet, isOn, valueOn, valueOff, expose.property, onChange]);
 
+  // For contact sensors, the zigbee2mqtt convention is ON = open, OFF = closed,
+  // so the labels follow the semantic meaning of isOn (not the raw value).
   const isContact = expose.name === 'contact' || expose.property === 'contact';
-  const displayOn = isContact ? 'Closed' : 'ON';
-  const displayOff = isContact ? 'Open' : 'OFF';
+  const displayOn = isContact ? 'Open' : 'ON';
+  const displayOff = isContact ? 'Closed' : 'OFF';
 
   if (!canSet) {
+    // For contact sensors, isOn means "open" (alert state) — color it amber
+    // so it visually matches the marker's red glow on the map.
+    const stateColor = isContact
+      ? isOn
+        ? 'text-amber-500'
+        : 'text-emerald-500'
+      : isOn
+        ? 'text-emerald-500'
+        : 'text-muted-foreground';
     return (
       <div className="flex items-center justify-between py-1 px-2 bg-background/30 rounded">
         <span className="text-xs text-muted-foreground">
           {expose.label || expose.name}
         </span>
-        <span
-          className={`text-xs font-medium ${isOn ? 'text-emerald-500' : 'text-muted-foreground'}`}
-        >
+        <span className={`text-xs font-medium ${stateColor}`}>
           {value === undefined ? 'N/A' : isOn ? displayOn : displayOff}
         </span>
       </div>
