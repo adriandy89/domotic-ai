@@ -7,12 +7,7 @@ export const NATS_QUEUE = {
   AI_SERVICE: 'ai_service_queue',
 } as const;
 
-// export const SCHEDULES_PATTERNS = {
-//   CREATE_SCHEDULE: 'schedules.create',
-//   LIST_SCHEDULES: 'schedules.list',
-//   GET_SCHEDULE: 'schedules.get',
-//   UPDATE_SCHEDULE: 'schedules.update',
-//   DELETE_SCHEDULE: 'schedules.delete',
-//   EXECUTE_SCHEDULE: 'schedules.execute',
-//   SCHEDULE_STATS: 'schedules.stats',
-// } as const;
+export const SCHEDULES_PATTERNS = {
+  UPSERT: 'schedules.upsert',
+  DELETE: 'schedules.delete',
+} as const;

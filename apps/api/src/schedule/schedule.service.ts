@@ -1,17 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { DbService } from '@app/db';
+import { NatsClientService } from '@app/nats-client';
 import { Prisma } from 'generated/prisma/client';
 import {
   CreateScheduleDto,
   ICreateScheduleAction,
   SchedulePageMetaDto,
   SchedulePageOptionsDto,
+  SCHEDULES_PATTERNS,
   UpdateScheduleDto,
 } from '@app/models';
 
 @Injectable()
 export class ScheduleService {
+  private readonly logger = new Logger(ScheduleService.name);
+
   selectSchedule: Prisma.ScheduleSelect = {
     id: true,
     name: true,
@@ -26,7 +30,45 @@ export class ScheduleService {
     updated_at: true,
   };
 
-  constructor(private dbService: DbService) {}
+  private selectForExecutor: Prisma.ScheduleSelect = {
+    id: true,
+    active: true,
+    date: true,
+    frequency: true,
+    days: true,
+  };
+
+  constructor(
+    private dbService: DbService,
+    private natsClient: NatsClientService,
+  ) {}
+
+  private async emitUpsert(id: string): Promise<void> {
+    try {
+      const payload = await this.dbService.schedule.findUnique({
+        where: { id },
+        select: this.selectForExecutor,
+      });
+      if (!payload) return;
+      await this.natsClient.emit(SCHEDULES_PATTERNS.UPSERT, payload);
+    } catch (error) {
+      this.logger.error(
+        `Failed to emit ${SCHEDULES_PATTERNS.UPSERT} for ${id}`,
+        error,
+      );
+    }
+  }
+
+  private async emitDelete(id: string): Promise<void> {
+    try {
+      await this.natsClient.emit(SCHEDULES_PATTERNS.DELETE, { id });
+    } catch (error) {
+      this.logger.error(
+        `Failed to emit ${SCHEDULES_PATTERNS.DELETE} for ${id}`,
+        error,
+      );
+    }
+  }
 
   private sanitizeActions(actions?: ICreateScheduleAction[]) {
     return (
@@ -44,7 +86,7 @@ export class ScheduleService {
     const { actions, home_id, date, ...scheduleData } = createScheduleDto;
     const sanitizedActions = this.sanitizeActions(actions);
 
-    return await this.dbService.schedule.create({
+    const created = await this.dbService.schedule.create({
       data: {
         ...scheduleData,
         date: date ? new Date(date) : null,
@@ -62,6 +104,8 @@ export class ScheduleService {
       },
       select: this.selectSchedule,
     });
+    await this.emitUpsert(created.id);
+    return created;
   }
 
   async updateSchedule(id: string, updateScheduleDto: UpdateScheduleDto) {
@@ -73,7 +117,7 @@ export class ScheduleService {
     );
     const newActions = sanitizedActions.filter((a) => a.id === undefined);
 
-    return await this.dbService.schedule.update({
+    const updated = await this.dbService.schedule.update({
       where: { id },
       data: {
         ...scheduleData,
@@ -102,6 +146,8 @@ export class ScheduleService {
       },
       select: this.selectSchedule,
     });
+    await this.emitUpsert(updated.id);
+    return updated;
   }
 
   async findAllByCurrentUser(user_id: string) {
@@ -177,14 +223,17 @@ export class ScheduleService {
 
   async delete(id: string, user_id: string) {
     await this.dbService.schedule.delete({ where: { id, user_id } });
+    await this.emitDelete(id);
     return { ok: true };
   }
 
   async toggle(id: string, scheduleDTO: { active: boolean }, user_id: string) {
-    return await this.dbService.schedule.update({
+    const updated = await this.dbService.schedule.update({
       where: { id, user_id },
       data: scheduleDTO,
       select: { ...this.selectSchedule },
     });
+    await this.emitUpsert(updated.id);
+    return updated;
   }
 }
