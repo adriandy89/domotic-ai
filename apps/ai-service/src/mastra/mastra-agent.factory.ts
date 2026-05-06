@@ -96,9 +96,13 @@ export class MastraAgentFactory {
         }),
         embedder,
         options: {
-          lastMessages: 8,
+          lastMessages: 5,
           semanticRecall: embedder
-            ? { topK: 3, messageRange: { before: 2, after: 1 } }
+            ? {
+                topK: 3,
+                messageRange: { before: 2, after: 1 },
+                scope: 'thread',
+              }
             : false,
           workingMemory: {
             enabled: true,
@@ -224,6 +228,7 @@ If the response has \`code: "RATE_LIMITED"\`, wait a moment and tell the user th
 ## Safety
 - Confirm before broad actions ("turn off everything in the house", "open all locks").
 - Never invent device IDs or capabilities — always read them from tools.
-- Always use tools for current state. Do not answer "the light is on" from memory; call get-sensor-data.`;
+- Always use tools for current state. Do not answer "the light is on" from memory; call get-sensor-data.
+- Tool results from earlier messages are STALE. For any "now" question (sensor reading, device state, weather, device list) call the tool again, never reuse a previous result.`;
   }
 }
