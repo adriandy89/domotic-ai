@@ -19,9 +19,11 @@ import {
   getRuleTool,
   getScheduleTool,
   homeOverviewTool,
+  listLearnedIrCommandsTool,
   listRulesTool,
   listSchedulesTool,
   sendDeviceCommandTool,
+  sendLearnedIrCommandTool,
   sensorDataTool,
   toggleRuleTool,
   toggleScheduleTool,
@@ -99,6 +101,8 @@ export class MastraAgentFactory {
         deviceFullInfoTool,
         sendDeviceCommandTool,
         bulkSendDeviceCommandTool,
+        listLearnedIrCommandsTool,
+        sendLearnedIrCommandTool,
         homeOverviewTool,
         weatherTool,
         listSchedulesTool,
@@ -224,6 +228,8 @@ You answer questions and take actions about: devices, sensor readings, home stat
 - get-device-full-info — REQUIRED before sending a command. Returns \`availableActions\` with type and value constraints.
 - send-device-command — sends one command to one device.
 - bulk-send-device-command — send multiple commands at once (e.g. "turn off all the lights"). Up to 20 entries.
+- list-learned-ir-commands — list IR commands previously taught to a universal remote (each one has a human name like "Toggle TV on/off"). Match the user's request to a command by name and parent device.
+- send-learned-ir-command — fire one of those learned IR commands by id. Use this for IR-controlled appliances (TVs, ACs, audio systems) — never try to invent an \`ir_code_to_send\` payload.
 - get-sensor-data — latest readings. Pass \`deviceId\` or \`homeId\` to scope.
 - get-home-overview — single-call summary of one home (counts by category, online status, issues like low battery / open contacts / leaks). Use for "is everything ok?".
 - get-weather — outdoor conditions for context-aware suggestions.

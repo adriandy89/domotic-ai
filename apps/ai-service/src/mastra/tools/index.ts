@@ -2,6 +2,7 @@ export * from './device-full.tool';
 export * from './devices.tool';
 export * from './send-device-command.tool';
 export * from './bulk-send-device-command.tool';
+export * from './learned-ir-commands.tool';
 export * from './sensor-data.tool';
 export * from './weather.tool';
 export * from './home-overview.tool';
