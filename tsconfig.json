@@ -22,8 +22,12 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
+      "@app/ai-tools": ["libs/ai-tools/src"],
+      "@app/ai-tools/*": ["libs/ai-tools/src/*"],
       "@app/cache": ["libs/cache/src"],
       "@app/cache/*": ["libs/cache/src/*"],
+      "@app/crypto": ["libs/crypto/src"],
+      "@app/crypto/*": ["libs/crypto/src/*"],
       "@app/db": ["libs/db/src"],
       "@app/db/*": ["libs/db/src/*"],
       "@app/models": ["libs/models/src"],

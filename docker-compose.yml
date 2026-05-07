@@ -81,6 +81,22 @@ services:
       init:
         condition: service_started
 
+  integrations:
+    container_name: integrations
+    env_file:
+      - ./.env.local
+    build:
+      context: .
+      target: production
+      args:
+        - SERVICE_NAME=integrations
+    restart: always
+    deploy:
+      replicas: 1
+    depends_on:
+      init:
+        condition: service_started
+
 networks:
   default:
     external: true

@@ -28,7 +28,7 @@ import {
   toggleRuleTool,
   toggleScheduleTool,
   weatherTool,
-} from './tools';
+} from '@app/ai-tools';
 import {
   AIProviderConfig,
   AIProviderConfigSchema,

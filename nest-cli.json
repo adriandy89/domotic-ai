@@ -18,6 +18,15 @@
         "tsConfigPath": "apps/ai-service/tsconfig.app.json"
       }
     },
+    "ai-tools": {
+      "type": "library",
+      "root": "libs/ai-tools",
+      "entryFile": "index",
+      "sourceRoot": "libs/ai-tools/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/ai-tools/tsconfig.lib.json"
+      }
+    },
     "api": {
       "type": "application",
       "root": "apps/api",
@@ -36,6 +45,15 @@
         "tsConfigPath": "libs/cache/tsconfig.lib.json"
       }
     },
+    "crypto": {
+      "type": "library",
+      "root": "libs/crypto",
+      "entryFile": "index",
+      "sourceRoot": "libs/crypto/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/crypto/tsconfig.lib.json"
+      }
+    },
     "db": {
       "type": "library",
       "root": "libs/db",
@@ -52,6 +70,15 @@
       "sourceRoot": "apps/init/src",
       "compilerOptions": {
         "tsConfigPath": "apps/init/tsconfig.app.json"
+      }
+    },
+    "integrations": {
+      "type": "application",
+      "root": "apps/integrations",
+      "entryFile": "main",
+      "sourceRoot": "apps/integrations/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/integrations/tsconfig.app.json"
       }
     },
     "models": {

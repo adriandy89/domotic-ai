@@ -13,11 +13,15 @@ rules:
 ai:
 	pnpm run start:dev ai-service
 
+integrations:
+	pnpm run start:dev integrations
+
 all:
 	pnpm concurrently "pnpm run start:dev init" \
 	"pnpm run start:dev api" \
 	"pnpm run start:dev mqtt-core" \
 	"pnpm run start:dev rules-engine" \
-	"pnpm run start:dev ai-service"
+	"pnpm run start:dev ai-service" \
+	"pnpm run start:dev integrations"
 
-.PHONY: all init api core rules ai
+.PHONY: all init api core rules ai integrations

@@ -8,6 +8,8 @@ import { AiModule } from './ai';
 import { AuthModule } from './auth';
 import { DeviceModule } from './device';
 import { HomeModule } from './home';
+import { XiaozhiIntegrationModule } from './integrations/xiaozhi/xiaozhi.module';
+import { McpModule } from './mcp/mcp.module';
 import { NotificationModule } from './notification';
 import { ReportsModule } from './reports';
 import { RuleModule } from './rule';
@@ -39,6 +41,8 @@ import { UserModule } from './user';
     ReportsModule,
     NotificationModule,
     AiModule,
+    McpModule,
+    XiaozhiIntegrationModule,
   ],
   controllers: [],
   providers: [],

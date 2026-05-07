@@ -27,6 +27,8 @@ import {
 } from '../components/ui/select';
 import { Separator } from '../components/ui/separator';
 import { Switch } from '../components/ui/switch';
+import McpEndpointCard from '../components/settings/McpEndpointCard';
+import XiaozhiIntegrationCard from '../components/settings/XiaozhiIntegrationCard';
 import { api } from '../lib/api';
 import { useAuthStore } from '../store/useAuthStore';
 
@@ -417,6 +419,10 @@ export default function SettingsPage() {
       </Card>
 
       {/* HERE */}
+
+      <McpEndpointCard />
+
+      <XiaozhiIntegrationCard />
 
       {user?.role === 'ADMIN' && (
         <Card className="bg-card/40 border-border">
