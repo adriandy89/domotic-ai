@@ -84,11 +84,20 @@ export class XiaozhiToolDispatcher {
     };
   }
 
+  /**
+   * Reply shape mirrors the official xiaozhi reference client
+   * (shenjingnan/xiaozhi-client src/endpoint/endpoint.ts handleMessage).
+   * Xiaozhi closes the WS with 4003 "Unsupported protocol version" if
+   * any other protocolVersion is declared.
+   */
   handleInitialize(req: JsonRpcRequest): JsonRpcResponse {
     return okResp(req.id ?? null, {
-      protocolVersion: '2025-06-18',
+      protocolVersion: '2024-11-05',
+      capabilities: {
+        tools: { listChanged: true },
+        logging: {},
+      },
       serverInfo: { name: 'domotic-ai', version: '1.0.0' },
-      capabilities: { tools: { listChanged: false } },
     });
   }
 
@@ -162,9 +171,10 @@ export class XiaozhiToolDispatcher {
       this.logger.warn(
         `tool ${tool.id} owner=${owner.id} fail ${duration}ms: ${message}`,
       );
-      return okResp(req.id ?? null, {
-        content: [{ type: 'text', text: message }],
-        isError: true,
+      // Reference (shenjingnan/xiaozhi-client) returns a JSON-RPC error
+      // for tool exceptions, not a success-result with isError. Match that.
+      return errResp(req.id ?? null, RPC_ERROR.INTERNAL, message, {
+        toolName: tool.id,
       });
     }
   }

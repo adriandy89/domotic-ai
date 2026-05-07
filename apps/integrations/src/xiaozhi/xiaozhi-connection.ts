@@ -30,7 +30,16 @@ const BACKOFF_FACTOR = 2;
 const HEARTBEAT_MS = 30_000;
 const PONG_DEADLINE_MS = 35_000;
 const MAX_AUTH_FAILS = 3;
-const AUTH_FAIL_CLOSE_CODES = new Set([401, 1008, 4001, 4003]);
+// 4003 is "Unsupported protocol version" — that is a *content* error, not
+// an auth failure. We exclude it from the circuit-breaker so xiaozhi
+// flapping over a wrong protocolVersion reply doesn't lock us out after
+// 3 close events.
+const AUTH_FAIL_CLOSE_CODES = new Set([401, 1008, 4001]);
+// Time the connection must stay open before we consider it "stable" and
+// reset the consecutive auth-fail counter. Avoids the bug where a
+// successful TCP/TLS open immediately followed by a 401 close zeroes the
+// counter every cycle.
+const STABLE_AFTER_MS = 5_000;
 
 export class XiaozhiConnection {
   private ws: WebSocket | null = null;
@@ -40,6 +49,7 @@ export class XiaozhiConnection {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private pongDeadline: NodeJS.Timeout | null = null;
+  private stableTimer: NodeJS.Timeout | null = null;
   private closed = false;
   private connectingPromise: Promise<void> | null = null;
 
@@ -82,14 +92,25 @@ export class XiaozhiConnection {
       this.connectingPromise = new Promise<void>((resolve) => {
         ws.once('open', () => {
           this.attempt = 0;
-          this.consecutiveAuthFails = 0;
           this.setState('connected');
           this.opts.logger.log('connected');
           this.startHeartbeat();
+          // Only reset auth-fail counter once the connection has stayed up
+          // long enough that we trust the credentials.
+          if (this.stableTimer) clearTimeout(this.stableTimer);
+          this.stableTimer = setTimeout(() => {
+            this.stableTimer = null;
+            this.consecutiveAuthFails = 0;
+          }, STABLE_AFTER_MS);
           resolve();
         });
 
         ws.on('message', (data: RawData) => {
+          if (process.env.INTEGRATIONS_DEBUG_TOOL_IO === 'true') {
+            const text =
+              typeof data === 'string' ? data : (data as Buffer).toString('utf8');
+            this.opts.logger.debug(`<< ${text.slice(0, 500)}`);
+          }
           void this.handleFrame(data).catch((e: unknown) =>
             this.opts.logger.error(
               `handleFrame: ${e instanceof Error ? e.message : String(e)}`,
@@ -105,6 +126,10 @@ export class XiaozhiConnection {
             `closed code=${code} reason=${reason || '(none)'}`,
           );
           this.stopHeartbeat();
+          if (this.stableTimer) {
+            clearTimeout(this.stableTimer);
+            this.stableTimer = null;
+          }
           this.ws = null;
           this.connectingPromise = null;
 
@@ -178,7 +203,11 @@ export class XiaozhiConnection {
     const ws = this.ws;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     try {
-      ws.send(serializeFrame(response as never));
+      const frame = serializeFrame(response as never);
+      if (process.env.INTEGRATIONS_DEBUG_TOOL_IO === 'true') {
+        this.opts.logger.debug(`>> ${frame.trim().slice(0, 500)}`);
+      }
+      ws.send(frame);
     } catch (err) {
       this.opts.logger.warn(
         `send failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -260,6 +289,10 @@ export class XiaozhiConnection {
 
   private async tearDownSocket() {
     this.stopHeartbeat();
+    if (this.stableTimer) {
+      clearTimeout(this.stableTimer);
+      this.stableTimer = null;
+    }
     const ws = this.ws;
     this.ws = null;
     this.connectingPromise = null;
