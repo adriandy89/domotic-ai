@@ -299,7 +299,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      const device = await this.dbService.device.findUnique({
+      const existingDevice = await this.dbService.device.findUnique({
         where: {
           unique_id_organization_id: {
             organization_id: homeOrgId,
@@ -318,12 +318,15 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         },
       });
 
-      if (!device?.id) {
-        this.logger.error(
-          `Not Found device = ${deviceUniqueId} for home = ${homeUniqueId}`,
-        );
-        return;
-      }
+      const device =
+        existingDevice ??
+        (await this.autoRegisterDevice({
+          homeUniqueId,
+          deviceUniqueId,
+          organizationId: homeOrgId,
+        }));
+
+      if (!device?.id) return;
 
       if (device.disabled) {
         this.logger.warn(
@@ -668,6 +671,99 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       result: publishResult,
     });
     return publishResult;
+  }
+
+  private async autoRegisterDevice(input: {
+    homeUniqueId: string;
+    deviceUniqueId: string;
+    organizationId: string;
+  }): Promise<{
+    id: string;
+    name: string;
+    disabled: boolean | null;
+    conditions: { rule_id: string }[];
+  } | null> {
+    const { homeUniqueId, deviceUniqueId, organizationId } = input;
+
+    const home = await this.dbService.home.findUnique({
+      where: { unique_id: homeUniqueId, disabled: false },
+      select: { id: true, organization_id: true },
+    });
+    if (!home) {
+      this.logger.error(
+        `Auto-register skipped: home not found unique_id=${homeUniqueId} device=${deviceUniqueId}`,
+      );
+      return null;
+    }
+    if (home.organization_id !== organizationId) {
+      this.logger.error(
+        `Auto-register skipped: organization mismatch home=${homeUniqueId} cacheOrg=${organizationId} dbOrg=${home.organization_id}`,
+      );
+      return null;
+    }
+
+    const organization = await this.dbService.organization.findUnique({
+      where: { id: organizationId },
+      select: { max_devices: true },
+    });
+    if (!organization) {
+      this.logger.error(
+        `Auto-register skipped: organization not found id=${organizationId} device=${deviceUniqueId}`,
+      );
+      return null;
+    }
+
+    const totalDevices = await this.dbService.device.count({
+      where: { organization_id: organizationId },
+    });
+    if (totalDevices >= organization.max_devices) {
+      this.logger.error(
+        `Auto-register skipped: max devices reached organization=${organizationId} current=${totalDevices} limit=${organization.max_devices} device=${deviceUniqueId}`,
+      );
+      return null;
+    }
+
+    try {
+      const created = await this.dbService.device.create({
+        data: {
+          unique_id: deviceUniqueId,
+          name: deviceUniqueId,
+          home_id: home.id,
+          organization_id: organizationId,
+          disabled: false,
+        },
+        select: {
+          id: true,
+          name: true,
+          disabled: true,
+          conditions: { select: { rule_id: true } },
+        },
+      });
+      this.logger.log(
+        `Auto-registered device: id=${created.id} unique_id=${deviceUniqueId} home=${homeUniqueId} organization=${organizationId} (devices=${totalDevices + 1}/${organization.max_devices})`,
+      );
+      this.refreshBridgeDevices(homeUniqueId);
+      return created;
+    } catch (err) {
+      this.logger.error(
+        `Auto-register failed for device=${deviceUniqueId} home=${homeUniqueId}: ${(err as Error).message}`,
+      );
+      return null;
+    }
+  }
+
+  // Re-subscribe to the home's retained bridge/devices topic so the broker
+  // re-delivers the latest device list. The existing bridge/devices handler
+  // will then enrich the new device with model/attributes.
+  private refreshBridgeDevices(homeUniqueId: string) {
+    const topic = `home/id/${homeUniqueId}/bridge/devices`;
+    this.mqttClient.subscribe(topic, { qos: 1 }, (err) => {
+      if (err) {
+        this.logger.warn(
+          `Failed to re-subscribe ${topic} for metadata refresh: ${err.message}`,
+        );
+      }
+    });
   }
 
   /**
