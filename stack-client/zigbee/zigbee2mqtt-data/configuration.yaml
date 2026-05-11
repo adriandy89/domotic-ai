@@ -19,7 +19,7 @@ advanced:
   pan_id: GENERATE
   ext_pan_id: GENERATE
   network_key: GENERATE
-  channel: 25
+  channel: 20
   last_seen: epoch
 homeassistant:
   enabled: false
