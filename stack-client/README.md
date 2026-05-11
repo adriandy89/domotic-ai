@@ -84,7 +84,10 @@ nano zigbee2mqtt-data/configuration.yaml
 ### **Network Key**: Generate a new secure network key or keep `GENERATE` for auto-generation
   ```yaml
   advanced:
+    pan_id: GENERATE        # o un número entre 1 y 0xFFFE
+    ext_pan_id: GENERATE    # o un array de 8 bytes aleatorios
     network_key: GENERATE
+    channel: 25             # prueba 15, 20 o 25 (evita 11 si tienes mucho WiFi)
     last_seen: epoch
   ```
 
