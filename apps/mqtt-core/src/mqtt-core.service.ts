@@ -200,15 +200,25 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
                   this.logger.verbose(
                     `Bridge Update Device: ${item.friendly_name} - Home: ${foundHome.unique_id}`,
                   );
+                  const trimmedDescription =
+                    typeof item.description === 'string'
+                      ? item.description.trim()
+                      : '';
                   const sanitizedData = sanitizeInput({
                     model: item.model_id,
                     attributes: item,
+                    description: trimmedDescription
+                      ? trimmedDescription.substring(0, 512)
+                      : undefined,
                   });
                   await this.dbService.device.update({
                     where: { id: deviceFound.id },
                     data: {
                       model: sanitizedData.model,
                       attributes: sanitizedData.attributes,
+                      ...(sanitizedData.description !== undefined && {
+                        description: sanitizedData.description,
+                      }),
                     },
                   });
                 } else {
@@ -232,6 +242,10 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
                       this.logger.verbose(
                         `Bridge Create Device: ${item.friendly_name}`,
                       );
+                      const trimmedDescription =
+                        typeof item.description === 'string'
+                          ? item.description.trim()
+                          : '';
                       const sanitizedData = sanitizeInput({
                         unique_id: item.friendly_name,
                         name:
@@ -239,6 +253,9 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
                           item.friendly_name,
                         model: item.model_id,
                         attributes: item,
+                        description: trimmedDescription
+                          ? trimmedDescription.substring(0, 512)
+                          : undefined,
                       });
 
                       await this.dbService.device.create({
@@ -250,6 +267,9 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
                           home_id: foundHome.id,
                           organization_id: foundHome.organization_id,
                           disabled: true,
+                          ...(sanitizedData.description !== undefined && {
+                            description: sanitizedData.description,
+                          }),
                         },
                       });
                     } else {
