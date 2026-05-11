@@ -164,25 +164,41 @@ export class HomeService {
       organization_id,
     );
     try {
-      // ? Create mqtt credentials
-      const { ok, encryptedPassword, mqttId } =
-        await this.mqttCredentialsService.createCredentials(created.unique_id);
+      // ? Create mqtt credentials (house owner: pub + sub) and MCP credentials (read-only) in parallel
+      const [houseCreds, mcpCreds] = await Promise.all([
+        this.mqttCredentialsService.createCredentials(created.unique_id),
+        this.mqttCredentialsService.createMcpCredentials(created.unique_id),
+      ]);
       // ? Update home mqtt credentials
-      if (ok) {
+      if (houseCreds.ok) {
+        const updateData: Prisma.HomeUpdateInput = {
+          mqtt_password: houseCreds.encryptedPassword,
+          mqtt_username: created.unique_id,
+          mqtt_id: houseCreds.mqttId,
+        };
+        if (mcpCreds.ok) {
+          updateData.mcp_password = mcpCreds.encryptedPassword;
+          updateData.mcp_username = `mcp-${created.unique_id}`;
+          updateData.mcp_id = mcpCreds.mqttId;
+        }
         const updated = await this.dbService.home.update({
-          data: {
-            mqtt_password: encryptedPassword,
-            mqtt_username: created.unique_id,
-            mqtt_id: mqttId,
-          },
+          data: updateData,
           where: { id: created.id },
         });
-        const decryptedPassword = encryptedPassword
-          ? decrypt(encryptedPassword)
+        const decryptedPassword = houseCreds.encryptedPassword
+          ? decrypt(houseCreds.encryptedPassword)
           : '';
+        const decryptedMcpPassword =
+          mcpCreds.ok && mcpCreds.encryptedPassword
+            ? decrypt(mcpCreds.encryptedPassword)
+            : '';
         return {
           ok: true,
-          data: { ...updated, mqtt_password: decryptedPassword },
+          data: {
+            ...updated,
+            mqtt_password: decryptedPassword,
+            mcp_password: decryptedMcpPassword,
+          },
         };
       }
     } catch (error) {
@@ -274,9 +290,12 @@ export class HomeService {
       //     }
       //   });
       // }
-      // ? Change mqq password to decrypted
+      // ? Change mqtt + mcp passwords to decrypted
       if (updated.mqtt_password) {
         updated.mqtt_password = decrypt(updated.mqtt_password);
+      }
+      if (updated.mcp_password) {
+        updated.mcp_password = decrypt(updated.mcp_password);
       }
       return { ok: true, data: updated };
     } catch (error) {
@@ -326,6 +345,7 @@ export class HomeService {
         select: {
           ...this.prismaHomesSelect,
           mqtt_id: true,
+          mcp_id: true,
           users: { select: { user_id: true } },
         },
       });
@@ -343,10 +363,15 @@ export class HomeService {
       //     }
       //   });
       // }
-      // ! Delete mqtt credentials
-      if (deleted.mqtt_id) {
-        await this.mqttCredentialsService.deleteCredentials(deleted.mqtt_id);
-      }
+      // ! Delete mqtt + mcp credentials in parallel
+      await Promise.all([
+        deleted.mqtt_id
+          ? this.mqttCredentialsService.deleteCredentials(deleted.mqtt_id)
+          : Promise.resolve(),
+        deleted.mcp_id
+          ? this.mqttCredentialsService.deleteCredentials(deleted.mcp_id)
+          : Promise.resolve(),
+      ]);
       return { ok: true };
     } catch (error) {
       console.log(error);
@@ -429,6 +454,8 @@ export class HomeService {
           ...this.prismaHomesSelect,
           mqtt_password: true,
           mqtt_username: true,
+          mcp_password: true,
+          mcp_username: true,
         },
         where,
         orderBy: orderBy ? { [orderBy]: sortOrder } : undefined,
@@ -438,10 +465,13 @@ export class HomeService {
       itemCount,
       pageOptions: optionsDto,
     });
-    // ? Change mqq password to decrypted
+    // ? Change mqtt + mcp passwords to decrypted
     homes.map((home) => {
       if (home.mqtt_password) {
         home.mqtt_password = decrypt(home.mqtt_password);
+      }
+      if (home.mcp_password) {
+        home.mcp_password = decrypt(home.mcp_password);
       }
     });
     return { data: homes, meta: userPaginatedMeta };
@@ -454,6 +484,8 @@ export class HomeService {
         ...this.prismaHomesSelect,
         mqtt_password: true,
         mqtt_username: true,
+        mcp_password: true,
+        mcp_username: true,
       },
     });
     if (!found) {
@@ -461,6 +493,9 @@ export class HomeService {
     }
     if (found?.mqtt_password) {
       found.mqtt_password = decrypt(found.mqtt_password);
+    }
+    if (found?.mcp_password) {
+      found.mcp_password = decrypt(found.mcp_password);
     }
     return found;
   }

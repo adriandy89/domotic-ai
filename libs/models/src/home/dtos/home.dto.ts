@@ -20,6 +20,15 @@ export class HomeDto {
   readonly mqtt_id?: string;
 
   @ApiProperty()
+  readonly mcp_password?: string;
+
+  @ApiProperty()
+  readonly mcp_username?: string;
+
+  @ApiProperty()
+  readonly mcp_id?: string;
+
+  @ApiProperty()
   readonly description?: string;
 
   @ApiProperty()

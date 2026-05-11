@@ -62,6 +62,8 @@ interface HomeData {
   last_update: string | null;
   mqtt_username: string | null;
   mqtt_password: string | null;
+  mcp_username: string | null;
+  mcp_password: string | null;
   attributes: Record<string, unknown>;
   icon: string | null;
   image: string | null;
@@ -896,6 +898,294 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                           >
                                             {copiedField ===
                                             `topic-${home.id}` ? (
+                                              <Check className="h-3 w-3 text-emerald-500" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="border-t border-border pt-4">
+                              <h4 className="text-lg font-semibold mb-4 text-foreground">
+                                MCP Configuration
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div className="bg-background/50 p-3 rounded-lg border border-border">
+                                  <span className="text-xs text-muted-foreground uppercase">
+                                    Host
+                                  </span>
+                                  <div className="flex items-center justify-between">
+                                    <p className="font-mono text-sm">
+                                      {visibleFields[`mcp-host-${home.id}`]
+                                        ? `${mqttConfig?.mqttHost || 'N/A'}:${mqttConfig?.mqttPort || 'N/A'}`
+                                        : '••••••••••••'}
+                                    </p>
+                                    <div className="flex gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        onClick={() =>
+                                          setVisibleFields((prev) => ({
+                                            ...prev,
+                                            [`mcp-host-${home.id}`]:
+                                              !prev[`mcp-host-${home.id}`],
+                                          }))
+                                        }
+                                      >
+                                        {visibleFields[
+                                          `mcp-host-${home.id}`
+                                        ] ? (
+                                          <EyeOff className="h-3 w-3" />
+                                        ) : (
+                                          <Eye className="h-3 w-3" />
+                                        )}
+                                      </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6"
+                                        onClick={() =>
+                                          copyToClipboard(
+                                            `${mqttConfig?.mqttHost}:${mqttConfig?.mqttPort}`,
+                                            `mcp-host-${home.id}`,
+                                          )
+                                        }
+                                      >
+                                        {copiedField ===
+                                        `mcp-host-${home.id}` ? (
+                                          <Check className="h-3 w-3 text-emerald-500" />
+                                        ) : (
+                                          <Copy className="h-3 w-3" />
+                                        )}
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="bg-background/50 p-3 rounded-lg border border-border">
+                                  <span className="text-xs text-muted-foreground uppercase">
+                                    Username
+                                  </span>
+                                  <div className="flex items-center justify-between">
+                                    <p className="font-mono text-sm">
+                                      {visibleFields[`mcp-user-${home.id}`]
+                                        ? home.mcp_username || 'N/A'
+                                        : '••••••••'}
+                                    </p>
+                                    <div className="flex gap-1">
+                                      {home.mcp_username && (
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              setVisibleFields((prev) => ({
+                                                ...prev,
+                                                [`mcp-user-${home.id}`]:
+                                                  !prev[`mcp-user-${home.id}`],
+                                              }))
+                                            }
+                                          >
+                                            {visibleFields[
+                                              `mcp-user-${home.id}`
+                                            ] ? (
+                                              <EyeOff className="h-3 w-3" />
+                                            ) : (
+                                              <Eye className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              copyToClipboard(
+                                                home.mcp_username!,
+                                                `mcp-user-${home.id}`,
+                                              )
+                                            }
+                                          >
+                                            {copiedField ===
+                                            `mcp-user-${home.id}` ? (
+                                              <Check className="h-3 w-3 text-emerald-500" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="bg-background/50 p-3 rounded-lg border border-border">
+                                  <span className="text-xs text-muted-foreground uppercase">
+                                    Password
+                                  </span>
+                                  <div className="flex items-center justify-between">
+                                    <p className="font-mono text-sm">
+                                      {visibleFields[`mcp-pass-${home.id}`]
+                                        ? home.mcp_password || 'N/A'
+                                        : '••••••••'}
+                                    </p>
+                                    <div className="flex gap-1">
+                                      {home.mcp_password && (
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              setVisibleFields((prev) => ({
+                                                ...prev,
+                                                [`mcp-pass-${home.id}`]:
+                                                  !prev[`mcp-pass-${home.id}`],
+                                              }))
+                                            }
+                                          >
+                                            {visibleFields[
+                                              `mcp-pass-${home.id}`
+                                            ] ? (
+                                              <EyeOff className="h-3 w-3" />
+                                            ) : (
+                                              <Eye className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              copyToClipboard(
+                                                home.mcp_password!,
+                                                `mcp-pass-${home.id}`,
+                                              )
+                                            }
+                                          >
+                                            {copiedField ===
+                                            `mcp-pass-${home.id}` ? (
+                                              <Check className="h-3 w-3 text-emerald-500" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="bg-background/50 p-3 rounded-lg border border-border">
+                                  <span className="text-xs text-muted-foreground uppercase">
+                                    Client ID
+                                  </span>
+                                  <div className="flex items-center justify-between">
+                                    <p className="font-mono text-sm">
+                                      {visibleFields[`mcp-client-${home.id}`]
+                                        ? home.mcp_username || 'N/A'
+                                        : '••••••••'}
+                                    </p>
+                                    <div className="flex gap-1">
+                                      {home.mcp_username && (
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              setVisibleFields((prev) => ({
+                                                ...prev,
+                                                [`mcp-client-${home.id}`]:
+                                                  !prev[
+                                                    `mcp-client-${home.id}`
+                                                  ],
+                                              }))
+                                            }
+                                          >
+                                            {visibleFields[
+                                              `mcp-client-${home.id}`
+                                            ] ? (
+                                              <EyeOff className="h-3 w-3" />
+                                            ) : (
+                                              <Eye className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              copyToClipboard(
+                                                home.mcp_username!,
+                                                `mcp-client-${home.id}`,
+                                              )
+                                            }
+                                          >
+                                            {copiedField ===
+                                            `mcp-client-${home.id}` ? (
+                                              <Check className="h-3 w-3 text-emerald-500" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="bg-background/50 p-3 rounded-lg border border-border md:col-span-2">
+                                  <span className="text-xs text-muted-foreground uppercase">
+                                    Base Topic
+                                  </span>
+                                  <div className="flex items-center justify-between">
+                                    <p className="font-mono text-sm">
+                                      {visibleFields[`mcp-topic-${home.id}`]
+                                        ? `home/id/${home.mqtt_username}`
+                                        : '••••••••••••••'}
+                                    </p>
+                                    <div className="flex gap-1">
+                                      {home.mqtt_username && (
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              setVisibleFields((prev) => ({
+                                                ...prev,
+                                                [`mcp-topic-${home.id}`]:
+                                                  !prev[
+                                                    `mcp-topic-${home.id}`
+                                                  ],
+                                              }))
+                                            }
+                                          >
+                                            {visibleFields[
+                                              `mcp-topic-${home.id}`
+                                            ] ? (
+                                              <EyeOff className="h-3 w-3" />
+                                            ) : (
+                                              <Eye className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              copyToClipboard(
+                                                `home/id/${home.mqtt_username}`,
+                                                `mcp-topic-${home.id}`,
+                                              )
+                                            }
+                                          >
+                                            {copiedField ===
+                                            `mcp-topic-${home.id}` ? (
                                               <Check className="h-3 w-3 text-emerald-500" />
                                             ) : (
                                               <Copy className="h-3 w-3" />

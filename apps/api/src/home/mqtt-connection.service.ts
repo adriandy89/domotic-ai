@@ -22,6 +22,15 @@ interface MqttCredentialsValue {
   };
 }
 
+interface CreateCredentialsOptions {
+  name: string;
+  userName: string;
+  clientType?: string;
+  clientId?: string | null;
+  pubAuthRulePatterns: string[];
+  subAuthRulePatterns: string[];
+}
+
 @Injectable()
 export class MqttConnectionService {
   private readonly logger = new Logger(MqttConnectionService.name);
@@ -76,53 +85,88 @@ export class MqttConnectionService {
     }
   }
 
-  async createCredentials(uuid: string) {
-    this.logger.log('Creating MQTT credentials for device with UUID: ' + uuid);
+  private async postCredentials(opts: CreateCredentialsOptions) {
     const password = generateRandomPassword();
     const encryptedPassword = encrypt(password);
 
     const credentialsValue: MqttCredentialsValue = {
-      clientId: null,
-      userName: uuid,
+      clientId: opts.clientId ?? null,
+      userName: opts.userName,
       password,
       authRules: {
-        pubAuthRulePatterns: ['home/id/' + uuid + '/.*'],
-        subAuthRulePatterns: ['home/id/' + uuid + '/.*'],
+        pubAuthRulePatterns: opts.pubAuthRulePatterns,
+        subAuthRulePatterns: opts.subAuthRulePatterns,
       },
     };
     const mqttCredentials: MqttCredentials = {
-      clientType: 'DEVICE',
+      clientType: opts.clientType ?? 'DEVICE',
       credentialsType: 'MQTT_BASIC',
       credentialsValue: JSON.stringify(credentialsValue),
-      name: uuid,
+      name: opts.name,
     };
-    try {
-      const resp = await this.mqttWebApiLogin();
-      if (!resp?.token) {
-        return { ok: false };
-      }
-      const { data } = await firstValueFrom(
-        this.httpService
-          .post(
-            this.mqttWebApi + '/api/mqtt/client/credentials',
-            mqttCredentials,
-            {
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${resp.token}`,
-              },
+
+    const resp = await this.mqttWebApiLogin();
+    if (!resp?.token) {
+      return { ok: false as const };
+    }
+    const { data } = await firstValueFrom(
+      this.httpService
+        .post(
+          this.mqttWebApi + '/api/mqtt/client/credentials',
+          mqttCredentials,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${resp.token}`,
             },
-          )
-          .pipe(
-            catchError((error: AxiosError) => {
-              this.logger.error(error.response?.data);
-              throw 'An error happened!';
-            }),
-          ),
-      );
-      return { ok: true, encryptedPassword, mqttId: data.id };
+          },
+        )
+        .pipe(
+          catchError((error: AxiosError) => {
+            this.logger.error(error.response?.data);
+            throw 'An error happened!';
+          }),
+        ),
+    );
+    return {
+      ok: true as const,
+      encryptedPassword,
+      mqttId: data.id as string,
+    };
+  }
+
+  async createCredentials(uuid: string) {
+    this.logger.log('Creating MQTT credentials for home with UUID: ' + uuid);
+    try {
+      return await this.postCredentials({
+        name: uuid,
+        userName: uuid,
+        clientType: 'DEVICE',
+        clientId: null,
+        pubAuthRulePatterns: ['home/id/' + uuid + '/.*'],
+        subAuthRulePatterns: ['home/id/' + uuid + '/.*'],
+      });
     } catch (error) {
-      return { ok: false };
+      return { ok: false as const };
+    }
+  }
+
+  async createMcpCredentials(uuid: string) {
+    this.logger.log(
+      'Creating MCP MQTT credentials for home with UUID: ' + uuid,
+    );
+    const userName = `mcp-${uuid}`;
+    try {
+      return await this.postCredentials({
+        name: userName,
+        userName,
+        clientType: 'DEVICE',
+        clientId: null,
+        pubAuthRulePatterns: ['home/id/' + uuid + '/.*'],
+        subAuthRulePatterns: ['home/id/' + uuid + '/.*'],
+      });
+    } catch (error) {
+      return { ok: false as const };
     }
   }
 
