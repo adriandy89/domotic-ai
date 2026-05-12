@@ -101,7 +101,7 @@ export class RulesEngineService {
           ),
         ),
       );
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
     }
   }
@@ -358,7 +358,7 @@ export class RulesEngineService {
       } else {
         this.logger.warn(`Delayed job ${jobId} not found for rule ${ruleId}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn(`Failed to cancel job ${jobId}: ${error}`);
     }
 
@@ -397,7 +397,7 @@ export class RulesEngineService {
           where: { id: jobData.ruleId },
           data: { timestamp: new Date() },
         });
-      } catch (error) {
+      } catch (error: any) {
         this.logger.error(
           `Error executing delayed result ${result.id}: ${error}`,
         );
@@ -657,7 +657,7 @@ export class RulesEngineService {
           where: { id: rule.id },
           data: { timestamp: new Date() },
         });
-      } catch (error) {
+      } catch (error: any) {
         this.logger.error(`Error executing result ${result.id}: ${error}`);
       }
     }

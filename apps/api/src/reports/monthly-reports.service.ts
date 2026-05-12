@@ -35,7 +35,7 @@ export class MonthlyReportsService {
         `Starting monthly reports job for ${from.toISOString()}..${to.toISOString()}`,
       );
       await this.dispatchToAllHomes({ from, to });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Monthly job failed: ${(error as Error).message}`);
     }
   }
@@ -61,9 +61,7 @@ export class MonthlyReportsService {
         new Set(
           home.users
             .map((uh) => uh.user.email)
-            .filter(
-              (e): e is string => typeof e === 'string' && e.length > 0,
-            ),
+            .filter((e): e is string => typeof e === 'string' && e.length > 0),
         ),
       );
       if (recipients.length === 0) continue;
@@ -115,7 +113,10 @@ export class MonthlyReportsService {
     const home = await this.db.home.findUnique({
       where: { id: homeId },
       include: {
-        devices: { where: { disabled: false }, select: { id: true, name: true } },
+        devices: {
+          where: { disabled: false },
+          select: { id: true, name: true },
+        },
       },
     });
     if (!home) return '<p>Home not found.</p>';
@@ -210,9 +211,10 @@ export class MonthlyReportsService {
     </tr>
   </table>
 
-  ${topConsumers.length === 0
-    ? ''
-    : `<h2 style="border-bottom:1px solid #e2e8f0; padding-bottom:4px;">Top consuming devices</h2>
+  ${
+    topConsumers.length === 0
+      ? ''
+      : `<h2 style="border-bottom:1px solid #e2e8f0; padding-bottom:4px;">Top consuming devices</h2>
        <ol>
          ${topConsumers
            .map(
@@ -220,7 +222,8 @@ export class MonthlyReportsService {
                `<li>${escapeHtml(d.name)} — <strong>${d.energy.toFixed(2)} kWh</strong></li>`,
            )
            .join('')}
-       </ol>`}
+       </ol>`
+  }
 
   <p style="color:#94a3b8; font-size:12px; margin-top:32px;">
     This is an automated monthly summary. You can configure the energy price and comfort range under each home's settings.

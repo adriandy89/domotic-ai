@@ -72,7 +72,7 @@ export default function LearnIRModal({
           if (response.data) {
             updateDevice(deviceId, response.data);
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error saving command:', error);
           setLearningResult({
             success: false,

@@ -22,7 +22,7 @@ export default function DevicesPage() {
           command,
         });
         console.log('Command sent:', deviceId, command);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to send command:', error);
       }
     },
@@ -41,7 +41,7 @@ export default function DevicesPage() {
           useDevicesStore.getState().updateDevice(deviceId, { name: newName });
           console.log('Device renamed:', deviceId, newName);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to rename device:', error);
       }
     },
@@ -54,7 +54,7 @@ export default function DevicesPage() {
     try {
       await api.delete(`/devices/${deviceId}`);
       useDevicesStore.getState().removeDevice(deviceId);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to remove device:', error);
     }
   }, []);

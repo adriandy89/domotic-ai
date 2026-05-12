@@ -99,7 +99,7 @@ export function HomeMap({ home }: HomeMapProps) {
       if (response.data?.ok && response.data?.data) {
         updateDevice(device.id, response.data.data);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update device map position', error);
       // Revert on error could be implemented here
     }
@@ -121,19 +121,22 @@ export function HomeMap({ home }: HomeMapProps) {
       if (response.data?.ok && response.data?.data) {
         updateDevice(device.id, response.data.data);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to remove device from map', error);
     }
   };
 
-  const handleCommand = async (deviceId: string, command: Record<string, unknown>) => {
+  const handleCommand = async (
+    deviceId: string,
+    command: Record<string, unknown>,
+  ) => {
     try {
       await api.post('/devices/command/send', {
         device_id: deviceId,
         command,
       });
       console.log('Command sent:', deviceId, command);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to send command:', error);
     }
   };
@@ -194,7 +197,7 @@ export function HomeMap({ home }: HomeMapProps) {
         if (response.data?.ok && response.data?.data) {
           updateDevice(device.id, response.data.data);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to save device position', error);
       }
     }

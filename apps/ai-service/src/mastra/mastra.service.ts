@@ -67,7 +67,7 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
       await storage.db.none('CREATE EXTENSION IF NOT EXISTS vector;');
       this.logger.log('✅ pgvector extension ready');
       await storage.close();
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('❌ Error initializing pgvector:', error);
       this.logger.warn('⚠️  Continuing without memory features.');
     }
@@ -204,7 +204,7 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
         });
 
         return result.text;
-      } catch (error) {
+      } catch (error: any) {
         await this.recordAiUsage({
           organizationId,
           userId,
@@ -221,7 +221,7 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
         });
         throw error;
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Failed to generate response for user ${userId}`,
         error,
@@ -239,8 +239,9 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
     const promptTokens =
       Number(u.promptTokens ?? u.inputTokens ?? u.prompt_tokens ?? 0) || 0;
     const completionTokens =
-      Number(u.completionTokens ?? u.outputTokens ?? u.completion_tokens ?? 0) ||
-      0;
+      Number(
+        u.completionTokens ?? u.outputTokens ?? u.completion_tokens ?? 0,
+      ) || 0;
     const totalTokens =
       Number(u.totalTokens ?? u.total_tokens ?? 0) ||
       promptTokens + completionTokens;
@@ -295,9 +296,7 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
         },
       });
     } catch (err) {
-      this.logger.warn(
-        `ai_usage insert failed: ${(err as Error).message}`,
-      );
+      this.logger.warn(`ai_usage insert failed: ${(err as Error).message}`);
     }
   }
 
@@ -345,7 +344,7 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.warn('Error closing Mastra connections:', error);
     }
   }
@@ -359,7 +358,7 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
     }
     try {
       return this.agentFactory.validateConfig(aiConfig);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Invalid AI configuration:', error);
       return null;
     }

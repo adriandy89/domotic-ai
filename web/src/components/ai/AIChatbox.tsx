@@ -82,7 +82,7 @@ const loadSpeechLanguage = (): string => {
 const saveSpeechLanguage = (lang: string) => {
   try {
     localStorage.setItem(SPEECH_LANG_KEY, lang);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error saving speech language:', error);
   }
 };
@@ -96,7 +96,7 @@ const loadConversation = (userId: string): StoredConversation | null => {
     if (stored) {
       return JSON.parse(stored);
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error loading conversation from localStorage:', error);
   }
   return null;
@@ -115,7 +115,7 @@ const saveConversation = (
       messages: trimmedMessages,
     };
     localStorage.setItem(getStorageKey(userId), JSON.stringify(data));
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error saving conversation to localStorage:', error);
   }
 };
@@ -123,7 +123,7 @@ const saveConversation = (
 const clearConversation = (userId: string) => {
   try {
     localStorage.removeItem(getStorageKey(userId));
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error clearing conversation from localStorage:', error);
   }
 };
@@ -231,7 +231,7 @@ export default function AIChatbox() {
 
       setMessages((prev) => [...prev, assistantMessage]);
       setConversationId(response.data.conversationId);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending message:', error);
       const errorMessage: ChatMessage = {
         id: crypto.randomUUID(),

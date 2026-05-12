@@ -56,7 +56,7 @@ export class SchedulesService implements OnModuleInit {
       for (const s of active) {
         await this.upsert(s);
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Failed to resync schedules on boot', error);
     }
   }
@@ -94,9 +94,7 @@ export class SchedulesService implements OnModuleInit {
           removeOnFail: { age: 3600 },
         },
       );
-      this.logger.log(
-        `Scheduled ONCE ${schedule.id} in ${timing.delayMs}ms`,
-      );
+      this.logger.log(`Scheduled ONCE ${schedule.id} in ${timing.delayMs}ms`);
       return;
     }
 
@@ -127,7 +125,7 @@ export class SchedulesService implements OnModuleInit {
     // Repeatable side
     try {
       await this.schedulesQueue.removeJobScheduler(id);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.debug(
         `removeJobScheduler(${id}) noop or failed: ${(error as Error).message}`,
       );
@@ -136,7 +134,7 @@ export class SchedulesService implements OnModuleInit {
     try {
       const job = await this.schedulesQueue.getJob(id);
       if (job) await job.remove();
-    } catch (error) {
+    } catch (error: any) {
       this.logger.debug(
         `getJob(${id}).remove() noop or failed: ${(error as Error).message}`,
       );
@@ -171,7 +169,7 @@ export class SchedulesService implements OnModuleInit {
     for (const action of schedule.actions) {
       try {
         await this.executeAction(schedule, action);
-      } catch (error) {
+      } catch (error: any) {
         this.logger.error(
           `Error executing action ${action.id} for schedule ${schedule.id}`,
           error,

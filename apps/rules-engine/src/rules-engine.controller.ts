@@ -34,7 +34,7 @@ export class RulesEngineController {
         },
       });
       this.logger.verbose(`Queued job for device: ${payload.deviceId}`);
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
       this.logger.error(
         `Error queuing mqtt-core.rules.data for device: ${payload.deviceId}`,

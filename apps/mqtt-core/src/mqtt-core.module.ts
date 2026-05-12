@@ -63,7 +63,7 @@ export class MqttCoreModule implements OnModuleInit {
         ? packet.payload
         : Buffer.from(packet.payload);
       await this.sensorDataService.handleMessage(topic, message);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error handling MQTT message:', error);
     } finally {
       this.processingCount--;

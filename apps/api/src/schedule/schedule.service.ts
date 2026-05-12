@@ -51,7 +51,7 @@ export class ScheduleService {
       });
       if (!payload) return;
       await this.natsClient.emit(SCHEDULES_PATTERNS.UPSERT, payload);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Failed to emit ${SCHEDULES_PATTERNS.UPSERT} for ${id}`,
         error,
@@ -62,7 +62,7 @@ export class ScheduleService {
   private async emitDelete(id: string): Promise<void> {
     try {
       await this.natsClient.emit(SCHEDULES_PATTERNS.DELETE, { id });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Failed to emit ${SCHEDULES_PATTERNS.DELETE} for ${id}`,
         error,
@@ -112,9 +112,7 @@ export class ScheduleService {
     const { actions, home_id, date, ...scheduleData } = updateScheduleDto;
     const sanitizedActions = this.sanitizeActions(actions);
 
-    const existingActions = sanitizedActions.filter(
-      (a) => a?.id !== undefined,
-    );
+    const existingActions = sanitizedActions.filter((a) => a?.id !== undefined);
     const newActions = sanitizedActions.filter((a) => a.id === undefined);
 
     const updated = await this.dbService.schedule.update({
@@ -181,7 +179,10 @@ export class ScheduleService {
       }),
     ]);
 
-    const meta = new SchedulePageMetaDto({ itemCount, pageOptions: optionsDto });
+    const meta = new SchedulePageMetaDto({
+      itemCount,
+      pageOptions: optionsDto,
+    });
     return { data: schedules, meta };
   }
 

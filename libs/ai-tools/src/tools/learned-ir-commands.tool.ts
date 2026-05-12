@@ -86,7 +86,7 @@ export const listLearnedIrCommandsTool = createTool({
       }));
 
       return { totalCommands: commands.length, commands };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[listLearnedIrCommandsTool] Error:', error);
       throw new Error(
         `Failed to list learned IR commands: ${error instanceof Error ? error.message : 'Unknown error'}`,
@@ -165,7 +165,7 @@ export const sendLearnedIrCommandTool = createTool({
         ...result,
         learnedCommand: { id: learned.id, name: learned.name },
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[sendLearnedIrCommandTool] Error:', error);
       throw new Error(
         `Failed to send learned IR command: ${error instanceof Error ? error.message : 'Unknown error'}`,

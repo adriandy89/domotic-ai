@@ -19,7 +19,7 @@ export class NatsClientService {
           .send<TResult, typeof payload>(pattern, payload)
           .pipe(timeout(60_000)),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error sending message to ${pattern}:`, error);
       throw error;
     }
@@ -41,7 +41,7 @@ export class NatsClientService {
           }),
         ),
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error during emit to ${pattern}:`, error);
       throw error;
     }

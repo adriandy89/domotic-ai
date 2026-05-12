@@ -7,6 +7,7 @@ import {
   getKeyHomeUniqueIdOrgId,
   getKeyHomeUniqueIdsDisconnected,
   IHomeConnectedEvent,
+  IHomeConnectionNotification,
   IRulesSensorData,
   ISensorData,
   IUserSensorNotification,
@@ -136,10 +137,20 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
           select: {
             unique_id: true,
             id: true,
+            name: true,
             organization_id: true,
             users: {
               select: {
                 user_id: true,
+                user: {
+                  select: {
+                    id: true,
+                    channels: true,
+                    telegram_chat_id: true,
+                    email: true,
+                    is_active: true,
+                  },
+                },
               },
             },
             connected: true,
@@ -171,13 +182,30 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
               foundHome.unique_id,
             );
           }
-          // notify to user
+          // notify to user (SSE)
           await this.natsClient.emit<IHomeConnectedEvent>(
             'mqtt-core.home.connected',
             {
               homeId: foundHome.id,
               userIds: foundHome.users.map((user) => user.user_id),
               connected: true,
+            },
+          );
+
+          // Emit NATS event for email/telegram notification dispatch
+          await this.natsClient.emit<IHomeConnectionNotification>(
+            'notification.home-connection',
+            {
+              homeId: foundHome.id,
+              homeName: foundHome.name,
+              connected: true,
+              users: foundHome.users.map((u) => ({
+                id: u.user.id,
+                channels: u.user.channels,
+                telegram_chat_id: u.user.telegram_chat_id,
+                email: u.user.email,
+                is_active: u.user.is_active,
+              })),
             },
           );
         }
@@ -277,11 +305,11 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
                         `Max devices reached for organization: ${foundHome.organization_id}`,
                       );
                     }
-                  } catch (error) {
+                  } catch (error: any) {
                     console.log('Error:', error);
                   }
                 }
-              } catch (error) {
+              } catch (error: any) {
                 this.logger.error(`Error: ${error}`);
               }
             }),
@@ -445,7 +473,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
           updatedHome,
         );
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('Error handling message:', error);
     }
   }

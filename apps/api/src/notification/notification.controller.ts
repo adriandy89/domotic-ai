@@ -2,7 +2,11 @@ import { Controller, Logger } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { TelegramService } from './telegram.service';
 import { EmailService } from './email.service';
-import type { IUserSensorNotification, userAttr } from '@app/models';
+import type {
+  IHomeConnectionNotification,
+  IUserSensorNotification,
+  userAttr,
+} from '@app/models';
 import { NotificationChannel } from 'generated/prisma/enums';
 
 const userAttrKeys: {
@@ -122,6 +126,64 @@ export class NotificationController {
     }
   }
 
+  // NATS Event Handler for Home Connection / Disconnection
+  @EventPattern('notification.home-connection')
+  async handleHomeConnectionNotification(
+    @Payload() payload: IHomeConnectionNotification,
+  ) {
+    if (!payload || !Array.isArray(payload.users)) {
+      this.logger.error(
+        `Invalid home-connection payload: ${JSON.stringify(payload)}`,
+      );
+      return;
+    }
+
+    const { homeId, homeName, connected, users } = payload;
+    this.logger.log(
+      `Received notification.home-connection for home=${homeId} connected=${connected} users=${users.length}`,
+    );
+
+    for (const user of users) {
+      if (!user.is_active || !user.channels?.length) continue;
+
+      for (const channel of user.channels) {
+        switch (channel) {
+          case NotificationChannel.TELEGRAM:
+            if (user.telegram_chat_id) {
+              await this.sendTelegramHomeConnection(
+                user.telegram_chat_id,
+                homeName,
+                connected,
+              );
+            } else {
+              this.logger.warn(
+                `User ${user.id} has TELEGRAM channel but no chat_id linked`,
+              );
+            }
+            break;
+
+          case NotificationChannel.EMAIL:
+            if (user.email) {
+              await this.sendEmailHomeConnection(
+                user.email,
+                homeName,
+                connected,
+              );
+            } else {
+              this.logger.warn(
+                `User ${user.id} has EMAIL channel but no email address`,
+              );
+            }
+            break;
+
+          default:
+            // SMS / PUSH / WEBHOOK not implemented yet
+            break;
+        }
+      }
+    }
+  }
+
   // NATS Event Handler for Rule Telegram Notifications
   @EventPattern('notification.telegram')
   async handleRuleTelegramNotification(
@@ -155,7 +217,7 @@ export class NotificationController {
           `Failed to send telegram notification for rule ${payload.ruleId}`,
         );
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error sending telegram notification: ${error.message}`,
         error.stack,
@@ -180,7 +242,7 @@ export class NotificationController {
       this.logger.log(
         `Email notification sent successfully for rule ${payload.ruleId}`,
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error sending email notification: ${error.message}`,
         error.stack,
@@ -227,9 +289,56 @@ export class NotificationController {
         userAttrKeys[attributeKey as userAttr],
       );
       this.logger.log(`Email sensor notification sent to ${email}`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Failed to send email sensor notification to ${email}: ${error.message}`,
+      );
+    }
+  }
+
+  private async sendTelegramHomeConnection(
+    chatId: string,
+    homeName: string,
+    connected: boolean,
+  ): Promise<void> {
+    const icon = connected ? '🟢' : '🔴';
+    const title = connected ? 'Home Reconnected' : 'Home Disconnected';
+    const message = `${icon} <b>${title}</b>
+
+🏠 ${this.escapeHtml(homeName)}
+
+${connected ? 'The home is back online.' : 'The home has lost connection.'}
+`;
+
+    const success = await this.telegramService.sendMessage(chatId, message);
+    if (success) {
+      this.logger.log(
+        `Telegram home-connection notification sent to ${chatId} (connected=${connected})`,
+      );
+    } else {
+      this.logger.warn(
+        `Failed to send telegram home-connection notification to ${chatId}`,
+      );
+    }
+  }
+
+  private async sendEmailHomeConnection(
+    email: string,
+    homeName: string,
+    connected: boolean,
+  ): Promise<void> {
+    try {
+      await this.emailService.sendHomeConnectionEmail(
+        email,
+        homeName,
+        connected,
+      );
+      this.logger.log(
+        `Email home-connection notification sent to ${email} (connected=${connected})`,
+      );
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to send email home-connection notification to ${email}: ${error.message}`,
       );
     }
   }

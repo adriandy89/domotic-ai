@@ -94,7 +94,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
     try {
       const response = await api.get<Schedule[]>('/schedules/all/user');
       set({ schedules: response.data || [], isLoading: false });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch schedules', error);
       set({ error: 'Failed to fetch schedules', isLoading: false });
     }
@@ -106,7 +106,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
       const response = await api.get<ScheduleDetail>(`/schedules/${id}`);
       set({ currentSchedule: response.data, isLoading: false });
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch schedule', error);
       set({
         error: 'Failed to fetch schedule',
@@ -124,7 +124,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
       set({ isLoading: false });
       get().fetchSchedules();
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create schedule', error);
       set({ error: 'Failed to create schedule', isLoading: false });
       return false;
@@ -138,7 +138,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
       set({ isLoading: false });
       get().fetchSchedules();
       return true;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update schedule', error);
       set({ error: 'Failed to update schedule', isLoading: false });
       return false;
@@ -153,7 +153,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
     }));
     try {
       await api.put(`/schedules/toggle/${id}`, { active });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to toggle schedule', error);
       set((state) => ({
         schedules: state.schedules.map((s) =>
@@ -171,7 +171,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
     }));
     try {
       await api.delete(`/schedules/${id}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to delete schedule', error);
       set({ schedules: previous, error: 'Failed to delete schedule' });
     }

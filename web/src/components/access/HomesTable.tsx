@@ -157,7 +157,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       const response = await api.get<PaginatedResponse<HomeData>>(url);
       setHomes(response.data.data);
       setMeta(response.data.meta);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch homes:', error);
     } finally {
       setLoading(false);
@@ -168,7 +168,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
     try {
       const response = await api.get<MqttConfig>('/homes/mqtt/config');
       setMqttConfig(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch MQTT config:', error);
     }
   }, []);
@@ -191,7 +191,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       setSelectedIds([]);
       fetchHomes();
       onDataChange?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to toggle status:', error);
     }
   };
@@ -1159,9 +1159,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                               setVisibleFields((prev) => ({
                                                 ...prev,
                                                 [`mcp-topic-${home.id}`]:
-                                                  !prev[
-                                                    `mcp-topic-${home.id}`
-                                                  ],
+                                                  !prev[`mcp-topic-${home.id}`],
                                               }))
                                             }
                                           >

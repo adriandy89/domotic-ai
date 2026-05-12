@@ -5,6 +5,7 @@ import {
   getKeyHomeNotifiedDisconnections,
   getKeyHomeUniqueIdOrgId,
   IHomeConnectedEvent,
+  IHomeConnectionNotification,
 } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { HttpService } from '@nestjs/axios';
@@ -103,7 +104,7 @@ export class InitService implements OnModuleInit {
             this.logger.verbose(`Home ${home.unique_id} is not connected`);
             await this.handleDisconnection(home.unique_id);
           }
-        } catch (error) {
+        } catch (error: any) {
           if (error.response && error.response.status === 404) {
             this.logger.verbose(`Home ${home.unique_id} not found`);
           } else {
@@ -115,7 +116,7 @@ export class InitService implements OnModuleInit {
           await this.handleDisconnection(home.unique_id);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
     }
   }
@@ -169,7 +170,7 @@ export class InitService implements OnModuleInit {
         );
       }
       this.logger.log('Homes Cache initialized OK!');
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
       this.logger.error('Error initializing Homes Cache');
     }
@@ -230,9 +231,19 @@ export class InitService implements OnModuleInit {
       where: { unique_id },
       select: {
         id: true,
+        name: true,
         users: {
           select: {
             user_id: true,
+            user: {
+              select: {
+                id: true,
+                channels: true,
+                telegram_chat_id: true,
+                email: true,
+                is_active: true,
+              },
+            },
           },
         },
       },
@@ -247,6 +258,23 @@ export class InitService implements OnModuleInit {
           homeId: updated.id,
           userIds: updated.users.map((u) => u.user_id),
           connected,
+        },
+      );
+
+      // Emit NATS event for email/telegram notification dispatch
+      await this.natsClient.emit<IHomeConnectionNotification>(
+        'notification.home-connection',
+        {
+          homeId: updated.id,
+          homeName: updated.name,
+          connected,
+          users: updated.users.map((u) => ({
+            id: u.user.id,
+            channels: u.user.channels,
+            telegram_chat_id: u.user.telegram_chat_id,
+            email: u.user.email,
+            is_active: u.user.is_active,
+          })),
         },
       );
     }

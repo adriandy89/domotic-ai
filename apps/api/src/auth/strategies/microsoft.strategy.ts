@@ -39,7 +39,7 @@ export class MicrosoftStrategy extends PassportStrategy(Strategy, 'microsoft') {
       });
 
       done(null, user);
-    } catch (error) {
+    } catch (error: any) {
       done(error, null);
     }
   }

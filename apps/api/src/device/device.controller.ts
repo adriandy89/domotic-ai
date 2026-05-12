@@ -42,7 +42,7 @@ export class DeviceController {
   ) {
     try {
       return await this.deviceService.create(deviceDTO, user.organization_id);
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
       if (error.code === 'P2002') {
         throw new ConflictException('Duplicate, already exist');
@@ -65,7 +65,7 @@ export class DeviceController {
         positionDTO,
         user.organization_id,
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -84,7 +84,7 @@ export class DeviceController {
         deviceDTO,
         user.organization_id,
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -95,7 +95,7 @@ export class DeviceController {
   async delete(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     try {
       return await this.deviceService.delete(id, user.organization_id);
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -167,7 +167,7 @@ export class DeviceController {
         uuidArrayDto.uuids,
         user.organization_id,
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -184,7 +184,7 @@ export class DeviceController {
         uuidArrayDto.uuids,
         user.organization_id,
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -254,7 +254,7 @@ export class DeviceController {
       return await this.deviceService.statisticsOrgDevices(
         user.organization_id,
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -269,7 +269,7 @@ export class DeviceController {
         user.id,
         user.organization_id,
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }

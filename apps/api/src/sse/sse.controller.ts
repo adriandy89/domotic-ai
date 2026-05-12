@@ -128,7 +128,7 @@ export class SSEController implements OnModuleDestroy {
           );
 
           return hasPermission;
-        } catch (error) {
+        } catch (error: any) {
           this.logger.error(
             `Permission check error for user ${user.id}:`,
             error,

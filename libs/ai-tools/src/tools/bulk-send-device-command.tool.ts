@@ -50,7 +50,7 @@ export const bulkSendDeviceCommandTool = createTool({
         try {
           const r = await executeOneCommand(deps, deviceId, command);
           return { deviceId, ...r };
-        } catch (error) {
+        } catch (error: any) {
           return {
             deviceId,
             success: false,

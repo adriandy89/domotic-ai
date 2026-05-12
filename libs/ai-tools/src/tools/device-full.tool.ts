@@ -86,7 +86,7 @@ export const deviceFullInfoTool = createTool({
             ? `Use send-device-command with deviceId="${device.id}" and a command object whose properties and values match availableActions. The validator will reject anything else.`
             : 'This device has no controllable actions.',
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[deviceFullTool] Error:', error);
       throw new Error(
         `Failed to fetch device data: ${error instanceof Error ? error.message : 'Unknown error'}`,

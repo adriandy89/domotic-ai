@@ -41,7 +41,7 @@ export class GitHubStrategy extends PassportStrategy(Strategy, 'github') {
       });
 
       done(null, user);
-    } catch (error) {
+    } catch (error: any) {
       done(error, null);
     }
   }

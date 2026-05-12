@@ -56,7 +56,7 @@ export default function CommandSelector({
       // Simulate a small delay for better UX
       await new Promise((resolve) => setTimeout(resolve, 500));
       onClose(); // Close modal on success
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending command:', error);
     } finally {
       setIsSending(false);
@@ -83,7 +83,7 @@ export default function CommandSelector({
         updateDevice(deviceId, response.data);
       }
       setShowEditDialog(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating command:', error);
     } finally {
       setIsEditing(false);
@@ -108,7 +108,7 @@ export default function CommandSelector({
       }
       setSelectedCommandId(''); // Reset selection
       setShowDeleteDialog(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting command:', error);
     } finally {
       setIsDeleting(false);

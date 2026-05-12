@@ -141,7 +141,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
       const response = await api.get<PaginatedResponse<DeviceData>>(url);
       setDevices(response.data.data);
       setMeta(response.data.meta);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch devices:', error);
     } finally {
       setLoading(false);
@@ -165,7 +165,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
       setSelectedIds([]);
       fetchDevices();
       onDataChange?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to toggle status:', error);
     }
   };

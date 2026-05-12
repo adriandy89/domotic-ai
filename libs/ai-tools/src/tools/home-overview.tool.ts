@@ -178,7 +178,7 @@ export const homeOverviewTool = createTool({
             })),
         truncated,
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[homeOverviewTool] Error:', error);
       throw new Error(
         `Failed to fetch home overview: ${error instanceof Error ? error.message : 'Unknown error'}`,

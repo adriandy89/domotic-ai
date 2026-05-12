@@ -159,7 +159,7 @@ export const sendDeviceCommandTool = createTool({
         deviceId,
         command,
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('[sendDeviceCommandTool] Error:', error);
       throw new Error(
         `Failed to send command: ${error instanceof Error ? error.message : 'Unknown error'}`,

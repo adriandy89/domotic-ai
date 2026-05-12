@@ -74,7 +74,7 @@ export class RuleController {
   ) {
     try {
       return await this.ruleService.createRule(ruleDTO, user.id);
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
       throw new BadRequestException('Bad request');
     }
@@ -127,7 +127,7 @@ export class RuleController {
         throw new NotFoundException('Rule not found');
       }
       return await this.ruleService.updateRule(id, ruleDTO);
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
       if (error instanceof NotFoundException) throw error;
       throw new BadRequestException('Bad request');
@@ -144,7 +144,7 @@ export class RuleController {
   ) {
     try {
       return await this.ruleService.toggle(id, ruleDTO, user.id);
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -158,7 +158,7 @@ export class RuleController {
   ) {
     try {
       return await this.ruleService.delete(id, user.id);
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }

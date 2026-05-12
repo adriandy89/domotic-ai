@@ -25,7 +25,7 @@ export class MqttCoreController {
   ): Promise<PublishCommandResult> {
     try {
       return await this.mqttCoreService.publishCommand(payload);
-    } catch (error) {
+    } catch (error: any) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(
         `publishCommand failed: ${message}`,

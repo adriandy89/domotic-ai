@@ -201,7 +201,7 @@ export class HomeService {
           },
         };
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('Error: ', error);
       throw new Error(error);
     }
@@ -298,7 +298,7 @@ export class HomeService {
         updated.mcp_password = decrypt(updated.mcp_password);
       }
       return { ok: true, data: updated };
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 'P2025') throw new Error('role not found');
       throw new Error(error);
     }
@@ -325,7 +325,7 @@ export class HomeService {
       });
 
       return { ok: true, data: updated };
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 'P2025') throw new Error('Home not found');
       throw new Error(error);
     }
@@ -373,7 +373,7 @@ export class HomeService {
           : Promise.resolve(),
       ]);
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
       throw new InternalServerErrorException(error);
     }
@@ -552,7 +552,7 @@ export class HomeService {
         },
       });
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error);
     }
   }
@@ -614,7 +614,7 @@ export class HomeService {
         },
       });
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error);
     }
   }
@@ -681,7 +681,7 @@ export class HomeService {
       );
       // await this.refreshUserRulesSchedules([...data.toUpdate, ...data.toDelete]);
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error);
     }
   }

@@ -202,7 +202,7 @@ Respond ONLY with valid JSON.`,
         confidence: parsed.confidence,
         reasoning: parsed.reasoning || 'No reasoning provided',
       };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[TopicValidator] Error checking relevance:', error);
       // Default to BLOCKING message if error occurs (safer)
       return {

@@ -34,7 +34,7 @@ export class TelegramController {
       setImmediate(async () => {
         try {
           await this.telegramService.processWebhookUpdate(update, secretToken);
-        } catch (error) {
+        } catch (error: any) {
           this.logger.error(
             `Error processing webhook: ${error.message}`,
             error.stack,
@@ -43,7 +43,7 @@ export class TelegramController {
       });
 
       return { success: true };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error handling webhook: ${error.message}`,
         error.stack,
@@ -82,7 +82,7 @@ export class TelegramController {
         instructions:
           'Start a conversation with our Telegram bot and send the command /verify followed by this code.',
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error generating Telegram code: ${error.message}`,
         error.stack,

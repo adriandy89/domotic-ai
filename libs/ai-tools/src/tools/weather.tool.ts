@@ -82,7 +82,7 @@ export const weatherTool = createTool({
       console.log(`[WeatherTool] Weather data fetched successfully:`, result);
 
       return result;
-    } catch (error) {
+    } catch (error: any) {
       console.error(`[WeatherTool] Error fetching weather:`, error);
       throw new Error(
         `Failed to fetch weather for "${location}": ${error instanceof Error ? error.message : 'Unknown error'}`,

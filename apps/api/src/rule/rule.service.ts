@@ -69,7 +69,7 @@ export class RuleService {
         },
         select: this.selectRules,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating rule: ', error);
     }
   }
@@ -252,7 +252,7 @@ export class RuleService {
         where: { id, user_id },
       });
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error);
     }
   }
@@ -267,7 +267,7 @@ export class RuleService {
         },
       });
       return rule;
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error);
     }
   }

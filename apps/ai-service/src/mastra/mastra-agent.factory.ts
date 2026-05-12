@@ -78,7 +78,7 @@ export class MastraAgentFactory {
 
     try {
       await storage.init();
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Failed to initialize PostgresStore for org=${organizationId}`,
         error,

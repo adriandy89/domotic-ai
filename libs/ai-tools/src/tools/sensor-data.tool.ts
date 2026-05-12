@@ -83,7 +83,7 @@ export const sensorDataTool = createTool({
       });
 
       return { totalDevices: devices.length, devices };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[sensorDataTool] Error:', error);
       throw new Error(
         `Failed to fetch sensor data: ${error instanceof Error ? error.message : 'Unknown error'}`,

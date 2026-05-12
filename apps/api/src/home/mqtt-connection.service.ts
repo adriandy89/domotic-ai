@@ -80,7 +80,7 @@ export class MqttConnectionService {
           ),
       );
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       return null;
     }
   }
@@ -146,7 +146,7 @@ export class MqttConnectionService {
         pubAuthRulePatterns: ['home/id/' + uuid + '/.*'],
         subAuthRulePatterns: ['home/id/' + uuid + '/.*'],
       });
-    } catch (error) {
+    } catch (error: any) {
       return { ok: false as const };
     }
   }
@@ -165,7 +165,7 @@ export class MqttConnectionService {
         pubAuthRulePatterns: ['home/id/' + uuid + '/.*'],
         subAuthRulePatterns: ['home/id/' + uuid + '/.*'],
       });
-    } catch (error) {
+    } catch (error: any) {
       return { ok: false as const };
     }
   }
@@ -195,7 +195,7 @@ export class MqttConnectionService {
           ),
       );
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       return { ok: false };
     }
   }

@@ -61,7 +61,7 @@ export default function AccessPage() {
         devices: prev?.devices ?? null,
         users: prev?.users ?? null,
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch home statistics:', error);
     }
   }, []);
@@ -77,7 +77,7 @@ export default function AccessPage() {
         homes: prev?.homes ?? null,
         users: prev?.users ?? null,
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch device statistics:', error);
     }
   }, []);
@@ -93,7 +93,7 @@ export default function AccessPage() {
         homes: prev?.homes ?? null,
         devices: prev?.devices ?? null,
       }));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch user statistics:', error);
     }
   }, []);
@@ -117,7 +117,7 @@ export default function AccessPage() {
         devices: devicesRes.data,
         users: usersRes.data,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch statistics:', error);
     } finally {
       setLoadingStats(false);

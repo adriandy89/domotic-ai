@@ -62,7 +62,7 @@ export class ScheduleController {
   ) {
     try {
       return await this.scheduleService.createSchedule(scheduleDTO, user.id);
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
       throw new BadRequestException('Bad request');
     }
@@ -114,7 +114,7 @@ export class ScheduleController {
         throw new NotFoundException('Schedule not found');
       }
       return await this.scheduleService.updateSchedule(id, scheduleDTO);
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
       if (error instanceof NotFoundException) throw error;
       throw new BadRequestException('Bad request');
@@ -131,7 +131,7 @@ export class ScheduleController {
   ) {
     try {
       return await this.scheduleService.toggle(id, scheduleDTO, user.id);
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
       throw new BadRequestException('Bad request');
     }
@@ -146,7 +146,7 @@ export class ScheduleController {
   ) {
     try {
       return await this.scheduleService.delete(id, user.id);
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
       throw new BadRequestException('Bad request');
     }

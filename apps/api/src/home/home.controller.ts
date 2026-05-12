@@ -37,7 +37,7 @@ export class HomeController {
   async statisticsOrgHomes(@GetUserInfo() user: SessionUser) {
     try {
       return await this.homeService.statisticsOrgHomes(user.organization_id);
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -55,7 +55,7 @@ export class HomeController {
         user.organization_id,
         user.id,
       );
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 'P2002') {
         throw new ConflictException('Duplicate, already exist');
       }
@@ -73,7 +73,7 @@ export class HomeController {
   ) {
     try {
       return await this.homeService.update(id, homeDTO, user.organization_id);
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -92,7 +92,7 @@ export class HomeController {
         attributes,
         user.organization_id,
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -103,7 +103,7 @@ export class HomeController {
   async delete(@Param('id') id: string, @GetUserInfo() user: SessionUser) {
     try {
       return await this.homeService.delete(id, user.organization_id);
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -129,7 +129,7 @@ export class HomeController {
   async findAllByCurrentUser(@GetUserInfo() user: SessionUser) {
     try {
       return await this.homeService.findAllByUserId(user.id);
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -174,7 +174,7 @@ export class HomeController {
         uuidArrayDto.uuids,
         user.organization_id,
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -191,7 +191,7 @@ export class HomeController {
         uuidArrayDto.uuids,
         user.organization_id,
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -217,7 +217,7 @@ export class HomeController {
   ) {
     try {
       return await this.homeService.linksUsersHomes(data, user.organization_id);
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }

@@ -32,7 +32,7 @@ export class RulesQueueProcessor extends WorkerHost {
       this.logger.verbose(
         `Job ${job.id} completed for device: ${job.data.deviceId}`,
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Job ${job.id} failed for device: ${job.data.deviceId}`,
         error,
@@ -66,7 +66,7 @@ export class RulesDelayedProcessor extends WorkerHost {
       this.logger.verbose(
         `Delayed rule ${job.data.ruleId} executed successfully`,
       );
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Delayed rule ${job.data.ruleId} failed`, error);
       throw error;
     }

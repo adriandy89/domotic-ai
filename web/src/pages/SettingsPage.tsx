@@ -200,7 +200,7 @@ export default function SettingsPage() {
           apiKey: '', // Clear API key for security when editing
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch AI config', error);
     }
   };
@@ -262,7 +262,7 @@ export default function SettingsPage() {
       await api.put('/users/org/attributes/ai', payload);
       await fetchAiConfig();
       setIsAiConfigOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update AI config', error);
       const message =
         (error as { response?: { data?: { message?: string } } })?.response
@@ -279,7 +279,7 @@ export default function SettingsPage() {
       if (response.data?.ok) {
         setActiveSessionsCount(response.data.count);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch active sessions', error);
     }
   };
@@ -290,7 +290,7 @@ export default function SettingsPage() {
       await api.delete('/users/sessions/others');
       await fetchActiveSessions();
       setIsConfirmOpen(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to revoke sessions', error);
       setError('Failed to log out other devices');
     } finally {
@@ -566,9 +566,7 @@ export default function SettingsPage() {
                     <div className="flex items-center justify-between">
                       <Label htmlFor="apiKey">API Key</Label>
                       <a
-                        href={
-                          PROVIDER_META[editingAiConfig.provider].apiKeyUrl
-                        }
+                        href={PROVIDER_META[editingAiConfig.provider].apiKeyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs text-primary hover:underline flex items-center gap-1"

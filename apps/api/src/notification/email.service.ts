@@ -47,6 +47,23 @@ export class EmailService {
   }
 
   /**
+   * Send a notification email for home connection status changes
+   */
+  async sendHomeConnectionEmail(
+    email: string,
+    homeName: string,
+    connected: boolean,
+  ): Promise<void> {
+    const icon = connected ? '🟢' : '🔴';
+    const status = connected ? 'reconnected' : 'disconnected';
+    const message = `🏠 Home: ${homeName}\n\n${icon} The home has ${status}.`;
+    const subject = `${icon} Domotic AI - Home ${connected ? 'Reconnected' : 'Disconnected'}: ${homeName}`;
+    const html = this.createSimpleEmailHTML(message);
+
+    await this.sendEmail(email, subject, html);
+  }
+
+  /**
    * Send a notification email for sensor events
    */
   async sendNotificationEmail(
@@ -72,7 +89,7 @@ export class EmailService {
       const info = await this.transporter.sendMail(mailOptions);
       this.logger.debug(`Email sent: ${info.response}`);
       return info;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error sending email: ${error.message}`);
       throw error;
     }

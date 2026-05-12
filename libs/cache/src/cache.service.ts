@@ -64,7 +64,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.client.flushAll();
       this.logger.verbose(`FLUSHALL executed on Redis [${this.serviceName}]`);
-    } catch (error) {
+    } catch (error: any) {
       console.error(`Error in FLUSHALL on Redis [${this.serviceName}]:`, error);
     }
   }
@@ -78,7 +78,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
     try {
       return await this.client.ttl(key);
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error in TTL from Redis [${this.serviceName}], key: ${key}:`,
         error,
@@ -97,7 +97,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     try {
       const value = await this.client.get(key);
       return value ? (JSON.parse(value) as T) : null;
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error in GET from Redis [${this.serviceName}], key: ${key}:`,
         error,
@@ -120,7 +120,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       } else {
         await this.client.set(key, stringValue);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error in SET to Redis [${this.serviceName}], key: ${key}:`,
         error,
@@ -142,7 +142,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
         EX: ttlSeconds, // Set expiration if provided
       });
       return result === 'OK'; // Redis returns 'OK' on success
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error in SETNX to Redis [${this.serviceName}], key: ${key}:`,
         error,
@@ -160,7 +160,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
     try {
       await this.client.del(key);
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error in DEL from Redis [${this.serviceName}], key: ${key}:`,
         error,
@@ -178,7 +178,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     try {
       const exists = await this.client.exists(key);
       return exists === 1;
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error in EXISTS from Redis [${this.serviceName}], key: ${key}:`,
         error,
@@ -197,7 +197,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     try {
       const keys = await this.client.keys(pattern);
       return keys;
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error in KEYS from Redis [${this.serviceName}], pattern: ${pattern}:`,
         error,
@@ -215,7 +215,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
     try {
       await this.client.expire(key, seconds);
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error in EXPIRE from Redis [${this.serviceName}], key: ${key}:`,
         error,
@@ -232,7 +232,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
     try {
       await this.client.sAdd(key, value);
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error in SADD to Redis [${this.serviceName}], key: ${key}:`,
         error,
@@ -250,7 +250,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     try {
       const members = await this.client.sMembers(key);
       return members;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error in SMEMBERS from Redis [${this.serviceName}], key: ${key}:`,
         error,
@@ -268,7 +268,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
     try {
       await this.client.sRem(key, value);
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error in SREM from Redis [${this.serviceName}], key: ${key}:`,
         error,
@@ -286,7 +286,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     try {
       const members = await this.client.lRange(key, start, stop);
       return members;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error in LRANGE from Redis [${this.serviceName}], key: ${key}:`,
         error,
@@ -305,7 +305,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     try {
       const isMember = await this.client.sIsMember(key, value);
       return isMember === 1; // Redis returns 1 for true, 0 for false
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error in SISMEMBER from Redis [${this.serviceName}], key: ${key}, value: ${value}:`,
         error,
@@ -331,7 +331,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
         await this.client.expire(key, expireSeconds);
       }
       return value;
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error in INCR/EXPIRE from Redis [${this.serviceName}], key: ${key}:`,
         error,
@@ -365,7 +365,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
           `No cache found for device IDs: ${deviceIds.join(', ')} [${this.serviceName}]`,
         );
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error clearing all devices cache in Redis [${this.serviceName}]:`,
         error,
@@ -393,7 +393,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       for (const key of allKeys) {
         await this.client.sRem(key, userIds);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error clearing all users cache in Redis [${this.serviceName}]:`,
         error,
@@ -420,7 +420,7 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       if (keysToDelete.length > 0) {
         await this.client.del(keysToDelete);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `Error clearing phone cache in Redis [${this.serviceName}]:`,
         error,

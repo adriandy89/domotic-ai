@@ -23,7 +23,7 @@ export class SchedulesProcessor extends WorkerHost {
     );
     try {
       await this.schedulesService.executeSchedule(job.data.scheduleId);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Schedule job ${job.id} failed for schedule ${job.data.scheduleId}`,
         error,

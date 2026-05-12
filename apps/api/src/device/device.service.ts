@@ -217,7 +217,7 @@ export class DeviceService {
         // }
       }
       return { ok: true, data: updated };
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 'P2025') throw new Error('role not found');
       throw new Error(error);
     }
@@ -263,7 +263,7 @@ export class DeviceService {
         where: { id },
       });
       return { ok: true, data: updated };
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 'P2025') throw new Error('device not found');
       throw new Error(error);
     }
@@ -292,7 +292,7 @@ export class DeviceService {
       //   await this.cacheService.sRem(redisKeyHomeUniqueIds, deleted.unique_id);
       // }
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error);
     }
   }
@@ -444,7 +444,7 @@ export class DeviceService {
         },
       });
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error);
     }
   }
@@ -503,7 +503,7 @@ export class DeviceService {
         },
       });
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error);
     }
   }

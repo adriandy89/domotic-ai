@@ -43,7 +43,7 @@ export class UserController {
   async statisticsOrgUsers(@GetUserInfo() user: SessionUser) {
     try {
       return await this.userService.statisticsOrgUsers(user.organization_id);
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -57,7 +57,7 @@ export class UserController {
   ) {
     try {
       return await this.userService.create(userDTO, user.organization_id);
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 11000 || error.code === 'P2002') {
         throw new ConflictException('Duplicate, already exist');
       }
@@ -95,7 +95,7 @@ export class UserController {
         );
       }
       return result;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating attributes:', error);
       throw new BadRequestException('Bad request');
     }
@@ -200,7 +200,7 @@ export class UserController {
   ) {
     try {
       return await this.userService.disableMany(uuidArrayDto.uuids, user);
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -217,7 +217,7 @@ export class UserController {
         uuidArrayDto.uuids,
         user.organization_id,
       );
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }
@@ -283,7 +283,7 @@ export class UserController {
   ) {
     try {
       return await this.userService.linksHomesUsers(data, user.organization_id);
-    } catch (error) {
+    } catch (error: any) {
       throw new BadRequestException('Bad request');
     }
   }

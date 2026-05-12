@@ -192,7 +192,7 @@ export class UserService {
       // ! Refresh user fmc tokens form redis
       // await this.cacheService.sAdd(redisKey, fmcDTO.fmc_token);
       return { ok: true, data: updated };
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 'P2025') throw new Error('not found');
       throw new Error(error);
     }
@@ -216,7 +216,7 @@ export class UserService {
       // ! Refresh user fmc tokens form redis
       // await this.cacheService.sRem(redisKey, fmcDTO.fmc_token);
       return { ok: true, data: updated };
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 'P2025') throw new Error('not found');
       throw new Error(error);
     }
@@ -283,7 +283,7 @@ export class UserService {
       // }
       // await this.refreshUserRulesSchedules([id]);
       return { ok: true, data: updated };
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 'P2025') throw new Error('not found');
       throw new Error(error);
     }
@@ -333,7 +333,7 @@ export class UserService {
       // await this.cacheService.sRem(redisKeyAllUsersIds, id.toString());
       // await this.refreshUserRulesSchedules([id]);
       return { ok: true, data: deleted };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error);
     }
   }
@@ -422,7 +422,7 @@ export class UserService {
       });
       // await this.refreshUserRulesSchedules(ids);
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error);
     }
   }
@@ -475,7 +475,7 @@ export class UserService {
       });
       // await this.refreshUserRulesSchedules(ids);
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error);
     }
   }
@@ -519,7 +519,7 @@ export class UserService {
       });
 
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       if (error.code === 'P2025') throw new Error('Home not found');
       throw error;
     }
@@ -601,7 +601,7 @@ export class UserService {
       );
       // await this.refreshUserRulesSchedules(data.uuids);
       return { ok: true };
-    } catch (error) {
+    } catch (error: any) {
       throw new Error(error);
     }
   }
@@ -650,7 +650,7 @@ export class UserService {
 
       // Notify via NATS for SSE
       await this.natsClient.emit('user.attributes.updated', { userId });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update user sessions:', error);
     }
   }

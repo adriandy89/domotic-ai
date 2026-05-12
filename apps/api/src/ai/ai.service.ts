@@ -39,7 +39,7 @@ export class AiService {
         response,
         conversationId: request.conversationId,
       };
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error('Error calling AI service:', error);
       return {
         response: 'Error al procesar tu solicitud',

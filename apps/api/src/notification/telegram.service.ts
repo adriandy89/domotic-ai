@@ -36,7 +36,7 @@ export class TelegramService implements OnModuleInit {
       this.bot = new TelegramBot(this.botToken, { polling: false });
       await this.setupWebhook();
       this.logger.log('Telegram bot initialized successfully');
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error initializing Telegram bot: ${error.message}`,
         error.stack,
@@ -60,7 +60,7 @@ export class TelegramService implements OnModuleInit {
           'TELEGRAM_WEBHOOK_URL not configured. Webhook not set.',
         );
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error configuring webhook: ${error.message}`,
         error.stack,
@@ -125,7 +125,7 @@ export class TelegramService implements OnModuleInit {
         { parse_mode: 'HTML' },
       );
       return true;
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(`Error linking account: ${error.message}`, error.stack);
       await this.bot.sendMessage(
         chatId,
@@ -198,7 +198,7 @@ export class TelegramService implements OnModuleInit {
       }
 
       return true;
-    } catch (error) {
+    } catch (error: any) {
       if (error.response?.statusCode === 403) {
         this.logger.warn(
           `User blocked the bot (chatId: ${chatId}). Unlinking...`,
@@ -235,7 +235,7 @@ export class TelegramService implements OnModuleInit {
         `Location sent successfully to chatId: ${chatId}, message_id: ${result.message_id}`,
       );
       return result.message_id;
-    } catch (error) {
+    } catch (error: any) {
       if (error.response?.statusCode === 403) {
         this.logger.warn(
           `User blocked the bot (chatId: ${chatId}). Unlinking...`,
@@ -299,7 +299,7 @@ export class TelegramService implements OnModuleInit {
       if (update.message) {
         await this.handleMessage(update.message);
       }
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Error processing update: ${error.message}`,
         error.stack,

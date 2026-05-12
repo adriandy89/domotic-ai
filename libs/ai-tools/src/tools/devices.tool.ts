@@ -95,7 +95,7 @@ export const devicesListTool = createTool({
       });
 
       return { totalDevices: devices.length, devices };
-    } catch (error) {
+    } catch (error: any) {
       console.error('[devicesListTool] Error:', error);
       throw new Error(
         `Failed to fetch devices: ${error instanceof Error ? error.message : 'Unknown error'}`,

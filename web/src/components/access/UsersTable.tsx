@@ -161,7 +161,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       const response = await api.get<PaginatedResponse<UserData>>(url);
       setUsers(response.data.data);
       setMeta(response.data.meta);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to fetch users:', error);
     } finally {
       setLoading(false);
@@ -185,7 +185,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       setSelectedIds([]);
       fetchUsers();
       onDataChange?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to toggle status:', error);
     }
   };
@@ -332,7 +332,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         console.error('Failed to generate Telegram code:', response.data.error);
         // Optionally show toast or alert here
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating Telegram code:', error);
     }
   };
