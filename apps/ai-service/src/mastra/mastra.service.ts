@@ -364,6 +364,21 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async invalidateCache(organizationId: string): Promise<void> {
+    const entry = this.cache.get(organizationId);
+    if (!entry) {
+      this.logger.log(
+        `No cached Mastra instance to invalidate for org ${organizationId}`,
+      );
+      return;
+    }
+    this.cache.delete(organizationId);
+    await this.closeMastraConnections(entry.mastra);
+    this.logger.log(
+      `Invalidated Mastra cache for org ${organizationId} (cache size=${this.cache.size})`,
+    );
+  }
+
   getStats() {
     return {
       cacheSize: this.cache.size,

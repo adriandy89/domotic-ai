@@ -13,12 +13,14 @@ import {
   UserPageOptionsDto,
 } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import bcrypt from 'bcrypt';
 import { Prisma } from 'generated/prisma/client';
 
 @Injectable()
 export class UserService {
+  private readonly logger = new Logger(UserService.name);
+
   readonly prismaUserSelect: Prisma.UserSelect = {
     id: true,
     email: true,
@@ -517,6 +519,16 @@ export class UserService {
         data: { attributes: newAttributes },
         where: { id: organization_id },
       });
+
+      try {
+        await this.natsClient.emit('ai.config.updated', {
+          organizationId: organization_id,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `Failed to emit ai.config.updated for org ${organization_id}: ${(err as Error).message}`,
+        );
+      }
 
       return { ok: true };
     } catch (error: any) {
