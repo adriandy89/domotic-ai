@@ -247,6 +247,20 @@ export default function McpEndpointCard() {
           <div className="space-y-3 mt-3 text-sm">
             <div>
               <p className="text-muted-foreground mb-1">
+                <strong>URL-only clients</strong> (Claude.ai custom connector,
+                n8n, agent webhooks): paste this URL — the token travels as a
+                query param.
+              </p>
+              <pre className="bg-muted/40 p-3 rounded text-xs overflow-x-auto">
+{`${ENDPOINT_URL}?token=YOUR_TOKEN`}
+              </pre>
+              <p className="text-xs text-muted-foreground mt-1">
+                The token ends up in server logs and browser history. Prefer
+                the Bearer header below for Claude Desktop / Cursor.
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground mb-1">
                 <strong>Claude Desktop / Cursor</strong> via{' '}
                 <code className="text-xs">mcp-remote</code>:
               </p>
@@ -265,7 +279,9 @@ export default function McpEndpointCard() {
               <p className="text-muted-foreground mb-1">
                 <strong>MCP Inspector</strong>: select <em>Streamable HTTP</em>,
                 point it at <code className="text-xs">{ENDPOINT_URL}</code> and
-                set header <code className="text-xs">Authorization: Bearer …</code>.
+                either set header{' '}
+                <code className="text-xs">Authorization: Bearer …</code> or
+                append <code className="text-xs">?token=…</code> to the URL.
               </p>
             </div>
           </div>
@@ -356,6 +372,42 @@ export default function McpEndpointCard() {
             {copiedField === 'reveal' && (
               <p className="text-xs text-muted-foreground">Copied.</p>
             )}
+
+            <Label className="mt-3">URL with token (for URL-only clients)</Label>
+            <div className="relative">
+              <Input
+                readOnly
+                value={
+                  revealToken ? `${ENDPOINT_URL}?token=${revealToken}` : ''
+                }
+                type={showSecret ? 'text' : 'password'}
+                className="font-mono text-xs pr-10"
+              />
+              <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    revealToken &&
+                    copy(
+                      `${ENDPOINT_URL}?token=${revealToken}`,
+                      'reveal-url',
+                    )
+                  }
+                  className="p-1.5 rounded text-muted-foreground hover:text-foreground"
+                  aria-label="Copy URL"
+                >
+                  <Copy className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            {copiedField === 'reveal-url' && (
+              <p className="text-xs text-muted-foreground">Copied.</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Paste this directly into Claude.ai custom connectors, n8n, or
+              any client that only accepts a URL.
+            </p>
+
             <p className="text-xs text-amber-600 dark:text-amber-400">
               Treat this token like a password. Anyone with it can act on your
               smart home.
