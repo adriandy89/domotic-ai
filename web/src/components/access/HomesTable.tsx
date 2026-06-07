@@ -21,6 +21,7 @@ import {
 } from '../ui/dialog';
 import { DropdownMenu, DropdownMenuItem } from '../ui/dropdown-menu';
 import { LinkDialog } from './LinkDialog';
+import { IntegrationsPanel } from './IntegrationsPanel';
 import {
   Home,
   Plus,
@@ -629,6 +630,15 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                 </p>
                               </div>
                             </div>
+
+                            {home.mqtt_username && home.mqtt_password && (
+                              <IntegrationsPanel
+                                uniqueId={home.mqtt_username}
+                                password={home.mqtt_password}
+                                host={mqttConfig?.mqttHost || ''}
+                                port={mqttConfig?.mqttPort || 1883}
+                              />
+                            )}
 
                             <div className="border-t border-border pt-4">
                               <h4 className="text-lg font-semibold mb-4 text-foreground">

@@ -114,6 +114,7 @@ model Device {
   name             String                  @db.VarChar(128)
   model            String?                 @db.VarChar(128)
   category         String?                 @db.VarChar(128)
+  protocol         String                  @default("zigbee") @db.VarChar(32)
   description      String?                 @db.VarChar(512)
   icon             String?                 @db.VarChar(512)
   attributes       Json?                   @db.JsonB
@@ -138,6 +139,7 @@ model Device {
 
   @@unique([unique_id, organization_id], map: "uq_devices_uniqueid_organization")
   @@index([organization_id], map: "idx_device_organization")
+  @@index([organization_id, protocol], map: "idx_device_organization_protocol")
   @@index([unique_id], map: "idx_devices_uniqueid")
   @@index([home_id], map: "idx_device_home")
   @@index([disabled], map: "idx_device_disabled")

@@ -1,18 +1,18 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
 import {
-  getAvailableActions,
-  getExposesFromAttributes,
+  DeviceProtocol,
+  getAdapter,
   getKeyHomeNotifiedDisconnections,
   getKeyHomeUniqueIdOrgId,
   getKeyHomeUniqueIdsDisconnected,
+  HaDeviceAttributes,
   IHomeConnectedEvent,
   IHomeConnectionNotification,
   IRulesSensorData,
   ISensorData,
   IUserSensorNotification,
   userAttr,
-  validateCommand,
 } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import {
@@ -34,6 +34,14 @@ const SAFE_DEVICE_ID_REGEX = /^[a-zA-Z0-9_\-:.]+$/;
 const RATE_LIMIT_WINDOW_MS = 1000;
 const RATE_LIMIT_MAX_PER_WINDOW = 2;
 const RATE_LIMIT_SWEEP_MS = 30_000;
+
+/** Device record shape needed to ingest a state message. */
+interface IngestDevice {
+  id: string;
+  name: string;
+  disabled: boolean | null;
+  conditions: { rule_id: string }[];
+}
 
 export interface PublishCommandResult {
   ok: boolean;
@@ -82,6 +90,17 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
   private readonly commandTimestamps = new Map<string, number[]>();
   private rateLimitSweepTimer?: NodeJS.Timeout;
 
+  /**
+   * HA-Discovery state-topic → device index, built from retained discovery
+   * messages. Z-Wave/WiFi/BLE entities publish state on arbitrary topics declared
+   * in their discovery config, so we can't map them to a device by topic position
+   * (as Zigbee does). Rebuilt automatically on reconnect from retained configs.
+   */
+  private readonly haStateIndex = new Map<
+    string,
+    { deviceId: string; property: string }
+  >();
+
   constructor(
     private readonly cacheService: CacheService,
     private readonly natsClient: NatsClientService,
@@ -110,372 +129,520 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Routes an incoming MQTT message by topic shape:
+   *   home/id/{home}/{protocol}/bridge/devices        → Zigbee discovery
+   *   home/id/{home}/discovery/<component>/.../config  → HA-Discovery (zwave/wifi/ble)
+   *   home/id/{home}/zigbee/{device}                   → Zigbee state
+   *   home/id/{home}/{protocol}/...                    → HA state (via index)
+   */
   async handleMessage(topic: string, bufferMsg: Buffer) {
     try {
-      const topicParts = topic.split('/');
-      if (topic.endsWith('bridge/devices')) {
-        let homeBridgeDevices: any[];
-        try {
-          const parsed = JSON.parse(bufferMsg.toString());
-          if (!Array.isArray(parsed)) {
-            this.logger.error(
-              `bridge/devices payload is not an array (topic=${topic})`,
-            );
-            return;
-          }
-          homeBridgeDevices = parsed;
-        } catch (err) {
-          this.logger.error(
-            `Failed to parse bridge/devices JSON for topic ${topic}: ${err}`,
-          );
-          return;
-        }
-        const homeBridgeUniqueId = topicParts[topicParts.length - 3];
+      const parts = topic.split('/');
+      if (parts.length < 4) return;
+      const homeUniqueId = parts[2];
+      const seg3 = parts[3];
 
-        const foundHome = await this.dbService.home.findUnique({
-          where: { unique_id: homeBridgeUniqueId, disabled: false },
-          select: {
-            unique_id: true,
-            id: true,
-            name: true,
-            organization_id: true,
-            users: {
-              select: {
-                user_id: true,
-                user: {
-                  select: {
-                    id: true,
-                    channels: true,
-                    telegram_chat_id: true,
-                    email: true,
-                    is_active: true,
-                  },
-                },
-              },
-            },
-            connected: true,
-          },
-        });
-        if (!foundHome) {
-          this.logger.error(`Not Found home bridge = ${homeBridgeUniqueId}`);
-          return;
-        }
-        if (!foundHome.connected) {
-          await this.dbService.home.update({
-            where: { id: foundHome.id },
-            data: { connected: true },
-          });
-          // ! Remove from disconnected cache
-          await this.cacheService.sRem(
-            getKeyHomeUniqueIdsDisconnected(),
-            foundHome.unique_id,
-          );
-          // Check if this home was previously notified as disconnected
-          const wasNotified = await this.cacheService.sIsMember(
-            getKeyHomeNotifiedDisconnections(),
-            foundHome.unique_id,
-          );
-          if (wasNotified) {
-            // Remove from notified set
-            await this.cacheService.sRem(
-              getKeyHomeNotifiedDisconnections(),
-              foundHome.unique_id,
-            );
-          }
-          // notify to user (SSE)
-          await this.natsClient.emit<IHomeConnectedEvent>(
-            'mqtt-core.home.connected',
-            {
-              homeId: foundHome.id,
-              userIds: foundHome.users.map((user) => user.user_id),
-              connected: true,
-            },
-          );
-
-          // Emit NATS event for email/telegram notification dispatch
-          await this.natsClient.emit<IHomeConnectionNotification>(
-            'notification.home-connection',
-            {
-              homeId: foundHome.id,
-              homeName: foundHome.name,
-              connected: true,
-              users: foundHome.users.map((u) => ({
-                id: u.user.id,
-                channels: u.user.channels,
-                telegram_chat_id: u.user.telegram_chat_id,
-                email: u.user.email,
-                is_active: u.user.is_active,
-              })),
-            },
-          );
-        }
-
-        await Promise.all(
-          homeBridgeDevices
-            .filter((item) => item.type != 'Coordinator')
-            .map(async (item) => {
-              try {
-                const deviceFound = await this.dbService.device.findUnique({
-                  where: {
-                    unique_id_organization_id: {
-                      organization_id: foundHome.organization_id,
-                      unique_id: item.friendly_name,
-                    },
-                  },
-                  select: { id: true },
-                });
-                if (deviceFound) {
-                  this.logger.verbose(
-                    `Bridge Update Device: ${item.friendly_name} - Home: ${foundHome.unique_id}`,
-                  );
-                  const trimmedDescription =
-                    typeof item.description === 'string'
-                      ? item.description.trim()
-                      : '';
-                  const sanitizedData = sanitizeInput({
-                    model: item.model_id,
-                    attributes: item,
-                    description: trimmedDescription
-                      ? trimmedDescription.substring(0, 512)
-                      : undefined,
-                  });
-                  await this.dbService.device.update({
-                    where: { id: deviceFound.id },
-                    data: {
-                      model: sanitizedData.model,
-                      attributes: sanitizedData.attributes,
-                      ...(sanitizedData.description !== undefined && {
-                        description: sanitizedData.description,
-                      }),
-                    },
-                  });
-                } else {
-                  try {
-                    const organization =
-                      await this.dbService.organization.findUnique({
-                        where: {
-                          id: foundHome.organization_id,
-                        },
-                        select: {
-                          max_devices: true,
-                        },
-                      });
-                    if (!organization) {
-                      throw new Error('Organization not found');
-                    }
-                    const totalDevices = await this.dbService.device.count({
-                      where: { organization_id: foundHome.organization_id },
-                    });
-                    if (totalDevices < organization.max_devices) {
-                      this.logger.verbose(
-                        `Bridge Create Device: ${item.friendly_name}`,
-                      );
-                      const trimmedDescription =
-                        typeof item.description === 'string'
-                          ? item.description.trim()
-                          : '';
-                      const sanitizedData = sanitizeInput({
-                        unique_id: item.friendly_name,
-                        name:
-                          item.definition?.description?.substring(0, 124) ??
-                          item.friendly_name,
-                        model: item.model_id,
-                        attributes: item,
-                        description: trimmedDescription
-                          ? trimmedDescription.substring(0, 512)
-                          : undefined,
-                      });
-
-                      await this.dbService.device.create({
-                        data: {
-                          unique_id: sanitizedData.unique_id,
-                          name: sanitizedData.name,
-                          model: sanitizedData.model,
-                          attributes: sanitizedData.attributes,
-                          home_id: foundHome.id,
-                          organization_id: foundHome.organization_id,
-                          disabled: true,
-                          ...(sanitizedData.description !== undefined && {
-                            description: sanitizedData.description,
-                          }),
-                        },
-                      });
-                    } else {
-                      this.logger.error(
-                        `Max devices reached for organization: ${foundHome.organization_id}`,
-                      );
-                    }
-                  } catch (error: any) {
-                    console.log('Error:', error);
-                  }
-                }
-              } catch (error: any) {
-                this.logger.error(`Error: ${error}`);
-              }
-            }),
-        );
-
-        return;
-      }
-      const homeUniqueId = topicParts[topicParts.length - 2];
-      const deviceUniqueId = topicParts[topicParts.length - 1];
-
-      let message: unknown;
-      try {
-        message = JSON.parse(bufferMsg.toString().replace(/\u0000/g, ''));
-      } catch (err) {
-        this.logger.error(
-          `Failed to parse JSON for device=${deviceUniqueId} home=${homeUniqueId}: ${err}`,
-        );
-        return;
-      }
-      if (!message || typeof message !== 'object') {
-        this.logger.error(
-          `Invalid message (not an object) for device=${deviceUniqueId} home=${homeUniqueId}`,
-        );
-        return;
+      if (seg3 === 'discovery') {
+        return this.handleHaDiscovery(homeUniqueId, parts.slice(4), bufferMsg);
       }
 
-      // ? Save message to database
-      const homeOrgId = await this.cacheService.get<string>(
-        getKeyHomeUniqueIdOrgId(homeUniqueId),
-      );
-      if (!homeOrgId) {
-        this.logger.error(
-          `Not Found Organization ID = ${homeOrgId} for home = ${homeUniqueId}`,
-        );
-        return;
+      const protocol = seg3;
+      const isBridgeDevices =
+        parts[4] === 'bridge' && parts[5] === 'devices' && parts.length === 6;
+      if (isBridgeDevices) {
+        if (protocol !== DeviceProtocol.ZIGBEE) return;
+        return this.handleZigbeeBridgeDevices(homeUniqueId, bufferMsg);
       }
 
-      const existingDevice = await this.dbService.device.findUnique({
-        where: {
-          unique_id_organization_id: {
-            organization_id: homeOrgId,
-            unique_id: deviceUniqueId,
-          },
-        },
-        select: {
-          id: true,
-          name: true,
-          disabled: true,
-          conditions: {
-            select: {
-              rule_id: true,
-            },
-          },
-        },
-      });
-
-      const device =
-        existingDevice ??
-        (await this.autoRegisterDevice({
-          homeUniqueId,
-          deviceUniqueId,
-          organizationId: homeOrgId,
-        }));
-
-      if (!device?.id) return;
-
-      if (device.disabled) {
-        this.logger.warn(
-          `Device = ${deviceUniqueId} for home = ${homeUniqueId} is disabled`,
-        );
-        return;
+      if (protocol === DeviceProtocol.ZIGBEE) {
+        // Device state lives exactly at home/id/{home}/zigbee/{device}.
+        // Sub-topics (availability, bridge/*) are ignored.
+        if (parts.length !== 5) return;
+        return this.handleZigbeeState(homeUniqueId, parts[4], bufferMsg);
       }
 
-      this.logger.verbose(`Incoming Message: ${deviceUniqueId}`);
-      await this.dbService.sensorData.create({
-        data: {
-          device_id: device.id,
-          data: message,
-        },
-        select: {
-          device_id: true,
-          data: true,
-          timestamp: true,
-        },
-      });
-
-      // ? get previous data
-      const prevSensorData = await this.dbService.sensorDataLast.findUnique({
-        where: {
-          device_id: device.id,
-        },
-        select: {
-          data: true,
-        },
-      });
-
-      const newSensorData = await this.dbService.sensorDataLast.upsert({
-        where: {
-          device_id: device.id,
-        },
-        create: {
-          device_id: device.id,
-          data: message,
-        },
-        update: {
-          data: message,
-        },
-        select: {
-          device_id: true,
-          data: true,
-          timestamp: true,
-        },
-      });
-
-      const updatedHome = await this.dbService.home.update({
-        where: { unique_id: homeUniqueId },
-        data: { last_update: new Date() },
-        select: {
-          id: true,
-          name: true,
-          users: {
-            select: {
-              user: {
-                select: {
-                  id: true,
-                  channels: true,
-                  telegram_chat_id: true,
-                  email: true,
-                  is_active: true,
-                  attributes: true,
-                },
-              },
-            },
-          },
-        },
-      });
-
-      await this.natsClient.emit<ISensorData>('mqtt-core.sensor.data', {
-        homeId: updatedHome.id,
-        userIds: updatedHome.users.map((user) => user.user.id),
-        deviceId: newSensorData.device_id,
-        timestamp: newSensorData.timestamp,
-        data: newSensorData.data,
-      });
-
-      if (updatedHome && prevSensorData && newSensorData) {
-        if (device.conditions?.length > 0) {
-          await this.natsClient.emit<IRulesSensorData>('mqtt-core.rules.data', {
-            ruleIds: device.conditions.map((condition) => condition.rule_id),
-            deviceId: newSensorData.device_id,
-            timestamp: newSensorData.timestamp,
-            data: newSensorData.data,
-            prevData: prevSensorData.data,
-          });
-        }
-        // compare last data with new data
-        await this.globalUserAttributesNotification(
-          device.name,
-          newSensorData,
-          prevSensorData,
-          updatedHome,
-        );
-      }
+      // Z-Wave / WiFi / BLE state — resolved via the HA-Discovery index.
+      return this.handleHaState(topic, homeUniqueId, bufferMsg);
     } catch (error: any) {
       console.log('Error handling message:', error);
     }
+  }
+
+  // ── Zigbee discovery (bridge/devices) ──────────────────────────────────────
+  private async handleZigbeeBridgeDevices(
+    homeUniqueId: string,
+    bufferMsg: Buffer,
+  ) {
+    let homeBridgeDevices: any[];
+    try {
+      const parsed = JSON.parse(bufferMsg.toString());
+      if (!Array.isArray(parsed)) {
+        this.logger.error(`bridge/devices payload is not an array`);
+        return;
+      }
+      homeBridgeDevices = parsed;
+    } catch (err) {
+      this.logger.error(`Failed to parse bridge/devices JSON: ${err}`);
+      return;
+    }
+
+    const foundHome = await this.dbService.home.findUnique({
+      where: { unique_id: homeUniqueId, disabled: false },
+      select: {
+        unique_id: true,
+        id: true,
+        name: true,
+        organization_id: true,
+        users: {
+          select: {
+            user_id: true,
+            user: {
+              select: {
+                id: true,
+                channels: true,
+                telegram_chat_id: true,
+                email: true,
+                is_active: true,
+              },
+            },
+          },
+        },
+        connected: true,
+      },
+    });
+    if (!foundHome) {
+      this.logger.error(`Not Found home bridge = ${homeUniqueId}`);
+      return;
+    }
+    if (!foundHome.connected) {
+      await this.markHomeConnected(foundHome);
+    }
+
+    const adapter = getAdapter(DeviceProtocol.ZIGBEE);
+    await Promise.all(
+      homeBridgeDevices.map(async (item) => {
+        try {
+          const discovered = adapter.parseDiscovery(item);
+          if (!discovered) return; // coordinator / invalid
+
+          const trimmedDescription =
+            typeof item.description === 'string' ? item.description.trim() : '';
+          const sanitized = sanitizeInput({
+            unique_id: discovered.uniqueId,
+            name: discovered.name,
+            model: discovered.model,
+            attributes: discovered.attributes,
+            description: trimmedDescription
+              ? trimmedDescription.substring(0, 512)
+              : undefined,
+          });
+
+          const deviceFound = await this.dbService.device.findUnique({
+            where: {
+              unique_id_organization_id: {
+                organization_id: foundHome.organization_id,
+                unique_id: sanitized.unique_id,
+              },
+            },
+            select: { id: true },
+          });
+
+          if (deviceFound) {
+            await this.dbService.device.update({
+              where: { id: deviceFound.id },
+              data: {
+                model: sanitized.model,
+                attributes: sanitized.attributes,
+                ...(sanitized.description !== undefined && {
+                  description: sanitized.description,
+                }),
+              },
+            });
+            return;
+          }
+
+          if (
+            !(await this.hasDeviceQuota(
+              foundHome.organization_id,
+              sanitized.unique_id,
+            ))
+          )
+            return;
+
+          await this.dbService.device.create({
+            data: {
+              unique_id: sanitized.unique_id,
+              name: sanitized.name,
+              model: sanitized.model,
+              protocol: DeviceProtocol.ZIGBEE,
+              attributes: sanitized.attributes,
+              home_id: foundHome.id,
+              organization_id: foundHome.organization_id,
+              disabled: true,
+              ...(sanitized.description !== undefined && {
+                description: sanitized.description,
+              }),
+            },
+          });
+        } catch (error: any) {
+          this.logger.error(`Error: ${error}`);
+        }
+      }),
+    );
+  }
+
+  // ── Zigbee state ───────────────────────────────────────────────────────────
+  private async handleZigbeeState(
+    homeUniqueId: string,
+    deviceUniqueId: string,
+    bufferMsg: Buffer,
+  ) {
+    let message: unknown;
+    try {
+      message = JSON.parse(bufferMsg.toString().replace(/\u0000/g, ''));
+    } catch (err) {
+      this.logger.error(
+        `Failed to parse JSON for device=${deviceUniqueId} home=${homeUniqueId}: ${err}`,
+      );
+      return;
+    }
+    if (!message || typeof message !== 'object') {
+      this.logger.error(
+        `Invalid message (not an object) for device=${deviceUniqueId} home=${homeUniqueId}`,
+      );
+      return;
+    }
+
+    const homeOrgId = await this.cacheService.get<string>(
+      getKeyHomeUniqueIdOrgId(homeUniqueId),
+    );
+    if (!homeOrgId) {
+      this.logger.error(
+        `Not Found Organization ID for home = ${homeUniqueId}`,
+      );
+      return;
+    }
+
+    const existingDevice = await this.dbService.device.findUnique({
+      where: {
+        unique_id_organization_id: {
+          organization_id: homeOrgId,
+          unique_id: deviceUniqueId,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        disabled: true,
+        conditions: { select: { rule_id: true } },
+      },
+    });
+
+    const device =
+      existingDevice ??
+      (await this.autoRegisterDevice({
+        homeUniqueId,
+        deviceUniqueId,
+        organizationId: homeOrgId,
+      }));
+
+    if (!device?.id) return;
+    if (device.disabled) {
+      this.logger.warn(
+        `Device = ${deviceUniqueId} for home = ${homeUniqueId} is disabled`,
+      );
+      return;
+    }
+
+    this.logger.verbose(`Incoming Message: ${deviceUniqueId}`);
+    await this.ingestSensorData(device, message, homeUniqueId);
+  }
+
+  // ── HA-Discovery (zwave/wifi/ble) ──────────────────────────────────────────
+  private async handleHaDiscovery(
+    homeUniqueId: string,
+    rest: string[],
+    bufferMsg: Buffer,
+  ) {
+    // rest = [<component>, (<node_id>)?, <object_id>, 'config']
+    if (rest[rest.length - 1] !== 'config') return;
+
+    const str = bufferMsg.toString().replace(/\u0000/g, '');
+    if (!str.trim()) return; // cleared/retained-null = entity removed (no-op)
+
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(str);
+    } catch (err) {
+      this.logger.error(`Failed to parse HA discovery config: ${err}`);
+      return;
+    }
+
+    // Any HA protocol key resolves to the shared HA-Discovery adapter.
+    const adapter = getAdapter(DeviceProtocol.WIFI);
+    const discovered = adapter.parseDiscovery({ topicParts: rest, payload });
+    if (!discovered) return;
+
+    const home = await this.dbService.home.findUnique({
+      where: { unique_id: homeUniqueId, disabled: false },
+      select: { id: true, organization_id: true },
+    });
+    if (!home) {
+      this.logger.error(`HA discovery: home not found = ${homeUniqueId}`);
+      return;
+    }
+
+    const protocol = discovered.protocol ?? DeviceProtocol.WIFI;
+    const existing = await this.dbService.device.findUnique({
+      where: {
+        unique_id_organization_id: {
+          organization_id: home.organization_id,
+          unique_id: discovered.uniqueId,
+        },
+      },
+      select: { id: true, attributes: true },
+    });
+
+    let deviceId: string;
+    if (existing) {
+      const attributes = adapter.mergeDiscovery
+        ? adapter.mergeDiscovery(existing.attributes, discovered)
+        : discovered.attributes;
+      await this.dbService.device.update({
+        where: { id: existing.id },
+        data: {
+          model: discovered.model,
+          protocol,
+          attributes: attributes as Prisma.InputJsonValue,
+        },
+      });
+      deviceId = existing.id;
+    } else {
+      if (
+        !(await this.hasDeviceQuota(home.organization_id, discovered.uniqueId))
+      )
+        return;
+      const created = await this.dbService.device.create({
+        data: {
+          unique_id: discovered.uniqueId,
+          name: discovered.name,
+          model: discovered.model,
+          protocol,
+          attributes: discovered.attributes as Prisma.InputJsonValue,
+          home_id: home.id,
+          organization_id: home.organization_id,
+          disabled: true,
+        },
+        select: { id: true },
+      });
+      deviceId = created.id;
+    }
+
+    this.indexHaStateTopics(deviceId, discovered.attributes);
+  }
+
+  /** Register every entity's state_topic so its state messages resolve to this device. */
+  private indexHaStateTopics(deviceId: string, attributes: unknown) {
+    const attrs = attributes as HaDeviceAttributes | undefined;
+    if (!attrs || attrs.source !== 'hadiscovery' || !attrs.entities) return;
+    for (const entity of Object.values(attrs.entities)) {
+      if (entity.stateTopic) {
+        this.haStateIndex.set(entity.stateTopic, {
+          deviceId,
+          property: entity.property,
+        });
+      }
+    }
+  }
+
+  // ── HA state ───────────────────────────────────────────────────────────────
+  private async handleHaState(
+    topic: string,
+    homeUniqueId: string,
+    bufferMsg: Buffer,
+  ) {
+    const entry = this.haStateIndex.get(topic);
+    if (!entry) return; // not (yet) discovered — ignore
+
+    const raw = bufferMsg.toString().replace(/\u0000/g, '');
+    let value: unknown;
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      value = raw; // plain string state (e.g. "ON")
+    }
+
+    const device = await this.dbService.device.findUnique({
+      where: { id: entry.deviceId },
+      select: {
+        id: true,
+        name: true,
+        disabled: true,
+        conditions: { select: { rule_id: true } },
+      },
+    });
+    if (!device || device.disabled) return;
+
+    await this.ingestSensorData(
+      device,
+      { [entry.property]: value },
+      homeUniqueId,
+    );
+  }
+
+  // ── Shared state ingestion (protocol-agnostic) ─────────────────────────────
+  private async ingestSensorData(
+    device: IngestDevice,
+    message: object,
+    homeUniqueId: string,
+  ) {
+    await this.dbService.sensorData.create({
+      data: { device_id: device.id, data: message as Prisma.InputJsonValue },
+      select: { device_id: true, data: true, timestamp: true },
+    });
+
+    const prevSensorData = await this.dbService.sensorDataLast.findUnique({
+      where: { device_id: device.id },
+      select: { data: true },
+    });
+
+    const newSensorData = await this.dbService.sensorDataLast.upsert({
+      where: { device_id: device.id },
+      create: { device_id: device.id, data: message as Prisma.InputJsonValue },
+      update: { data: message as Prisma.InputJsonValue },
+      select: { device_id: true, data: true, timestamp: true },
+    });
+
+    const updatedHome = await this.dbService.home.update({
+      where: { unique_id: homeUniqueId },
+      data: { last_update: new Date() },
+      select: {
+        id: true,
+        name: true,
+        users: {
+          select: {
+            user: {
+              select: {
+                id: true,
+                channels: true,
+                telegram_chat_id: true,
+                email: true,
+                is_active: true,
+                attributes: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    await this.natsClient.emit<ISensorData>('mqtt-core.sensor.data', {
+      homeId: updatedHome.id,
+      userIds: updatedHome.users.map((user) => user.user.id),
+      deviceId: newSensorData.device_id,
+      timestamp: newSensorData.timestamp,
+      data: newSensorData.data,
+    });
+
+    if (updatedHome && prevSensorData && newSensorData) {
+      if (device.conditions?.length > 0) {
+        await this.natsClient.emit<IRulesSensorData>('mqtt-core.rules.data', {
+          ruleIds: device.conditions.map((condition) => condition.rule_id),
+          deviceId: newSensorData.device_id,
+          timestamp: newSensorData.timestamp,
+          data: newSensorData.data,
+          prevData: prevSensorData.data,
+        });
+      }
+      await this.globalUserAttributesNotification(
+        device.name,
+        newSensorData,
+        prevSensorData,
+        updatedHome,
+      );
+    }
+  }
+
+  /** Mark a home as connected and emit the connection notifications. */
+  private async markHomeConnected(foundHome: {
+    id: string;
+    unique_id: string;
+    name: string;
+    users: {
+      user_id: string;
+      user: {
+        id: string;
+        channels: NotificationChannel[];
+        telegram_chat_id: string | null;
+        email: string | null;
+        is_active: boolean;
+      };
+    }[];
+  }) {
+    await this.dbService.home.update({
+      where: { id: foundHome.id },
+      data: { connected: true },
+    });
+    await this.cacheService.sRem(
+      getKeyHomeUniqueIdsDisconnected(),
+      foundHome.unique_id,
+    );
+    const wasNotified = await this.cacheService.sIsMember(
+      getKeyHomeNotifiedDisconnections(),
+      foundHome.unique_id,
+    );
+    if (wasNotified) {
+      await this.cacheService.sRem(
+        getKeyHomeNotifiedDisconnections(),
+        foundHome.unique_id,
+      );
+    }
+    await this.natsClient.emit<IHomeConnectedEvent>('mqtt-core.home.connected', {
+      homeId: foundHome.id,
+      userIds: foundHome.users.map((user) => user.user_id),
+      connected: true,
+    });
+    await this.natsClient.emit<IHomeConnectionNotification>(
+      'notification.home-connection',
+      {
+        homeId: foundHome.id,
+        homeName: foundHome.name,
+        connected: true,
+        users: foundHome.users.map((u) => ({
+          id: u.user.id,
+          channels: u.user.channels,
+          telegram_chat_id: u.user.telegram_chat_id,
+          email: u.user.email,
+          is_active: u.user.is_active,
+        })),
+      },
+    );
+  }
+
+  /** True if the organization is below its device quota (false also logs). */
+  private async hasDeviceQuota(
+    organizationId: string,
+    deviceUniqueId: string,
+  ): Promise<boolean> {
+    const organization = await this.dbService.organization.findUnique({
+      where: { id: organizationId },
+      select: { max_devices: true },
+    });
+    if (!organization) {
+      this.logger.error(`Organization not found id=${organizationId}`);
+      return false;
+    }
+    const totalDevices = await this.dbService.device.count({
+      where: { organization_id: organizationId },
+    });
+    if (totalDevices >= organization.max_devices) {
+      this.logger.error(
+        `Max devices reached for organization=${organizationId} (device=${deviceUniqueId})`,
+      );
+      return false;
+    }
+    return true;
   }
 
   async globalUserAttributesNotification(
@@ -499,7 +666,6 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
   ) {
     if (!newSensorData.data || !prevData.data) return;
 
-    // Detectar cambios en los datos del sensor que sean relevantes para notificaciones
     const changes: {
       key: string;
       value: any;
@@ -520,7 +686,6 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
 
     if (changes.length === 0) return;
 
-    // Iterar sobre los usuarios del home
     for (const { user } of home.users) {
       if (
         !user.attributes ||
@@ -533,15 +698,10 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
 
       const userAttrObj = user.attributes as Record<string, any>;
 
-      // Revisar cada atributo del usuario
       for (const [keyAttr, valueAttr] of Object.entries(userAttrObj)) {
-        // Solo procesar si el atributo está activo (true) y es un atributo válido
         if (valueAttr === true && Object.keys(userAttrKeys).includes(keyAttr)) {
-          // Revisar cada cambio detectado
           for (const { key, value } of changes) {
-            // Verificar si el cambio coincide con el atributo del usuario
             if (userAttrKeys[keyAttr as userAttr] === key) {
-              // Verificar si el valor coincide con la condición (True/False)
               const shouldNotify = keyAttr.endsWith('True')
                 ? value === true
                 : value === false;
@@ -624,6 +784,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       select: {
         id: true,
         disabled: true,
+        protocol: true,
         attributes: true,
         home: { select: { unique_id: true } },
       },
@@ -644,15 +805,17 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
-    const exposes = getExposesFromAttributes(device.attributes);
-    const actions = getAvailableActions(exposes);
+    const adapter = getAdapter(device.protocol);
+    const actions = adapter.getAvailableActions(device.attributes);
+    const { command: normalized } = adapter.normalizeCommand(command, actions);
+
     if (actions.length > 0) {
-      const validation = validateCommand(command, actions);
+      const validation = adapter.validateCommand(normalized, actions);
       if (!validation.valid) {
         const result: PublishCommandResult = {
           ok: false,
           code: 'INVALID_COMMAND',
-          error: 'command does not match device exposes',
+          error: 'command does not match device capabilities',
           validationErrors: validation.errors,
         };
         await this.recordCommandExecution({
@@ -692,24 +855,33 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
     fresh.push(now);
     this.commandTimestamps.set(limitKey, fresh);
 
-    const topic = `home/id/${homeUniqueId}/${deviceUniqueId}/set`;
-    const publishResult = await new Promise<PublishCommandResult>((resolve) => {
-      this.mqttClient.publish(
-        topic,
-        JSON.stringify(command),
-        { qos: 1 },
-        (err) => {
-          if (err) {
-            this.logger.error(
-              `MQTT publish failed for ${topic}: ${err.message}`,
-            );
-            resolve({ ok: false, code: 'PUBLISH_FAILED', error: err.message });
-            return;
-          }
-          resolve({ ok: true });
-        },
-      );
-    });
+    const messages = adapter.buildCommandMessages(
+      {
+        homeUniqueId,
+        deviceUniqueId,
+        protocol: device.protocol as DeviceProtocol,
+        attributes: device.attributes,
+      },
+      normalized,
+    );
+
+    if (messages.length === 0) {
+      const result: PublishCommandResult = {
+        ok: false,
+        code: 'INVALID_COMMAND',
+        error: 'command did not map to any device action',
+      };
+      await this.recordCommandExecution({
+        deviceId: device.id,
+        userId,
+        source,
+        command,
+        result,
+      });
+      return result;
+    }
+
+    const publishResult = await this.publishAll(messages);
 
     await this.recordCommandExecution({
       deviceId: device.id,
@@ -721,16 +893,33 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
     return publishResult;
   }
 
+  /** Publish every command message; fails fast on the first broker error. */
+  private async publishAll(
+    messages: { topic: string; payload: string }[],
+  ): Promise<PublishCommandResult> {
+    for (const msg of messages) {
+      const result = await new Promise<PublishCommandResult>((resolve) => {
+        this.mqttClient.publish(msg.topic, msg.payload, { qos: 1 }, (err) => {
+          if (err) {
+            this.logger.error(
+              `MQTT publish failed for ${msg.topic}: ${err.message}`,
+            );
+            resolve({ ok: false, code: 'PUBLISH_FAILED', error: err.message });
+            return;
+          }
+          resolve({ ok: true });
+        });
+      });
+      if (!result.ok) return result;
+    }
+    return { ok: true };
+  }
+
   private async autoRegisterDevice(input: {
     homeUniqueId: string;
     deviceUniqueId: string;
     organizationId: string;
-  }): Promise<{
-    id: string;
-    name: string;
-    disabled: boolean | null;
-    conditions: { rule_id: string }[];
-  } | null> {
+  }): Promise<IngestDevice | null> {
     const { homeUniqueId, deviceUniqueId, organizationId } = input;
 
     const home = await this.dbService.home.findUnique({
@@ -750,24 +939,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       return null;
     }
 
-    const organization = await this.dbService.organization.findUnique({
-      where: { id: organizationId },
-      select: { max_devices: true },
-    });
-    if (!organization) {
-      this.logger.error(
-        `Auto-register skipped: organization not found id=${organizationId} device=${deviceUniqueId}`,
-      );
-      return null;
-    }
-
-    const totalDevices = await this.dbService.device.count({
-      where: { organization_id: organizationId },
-    });
-    if (totalDevices >= organization.max_devices) {
-      this.logger.error(
-        `Auto-register skipped: max devices reached organization=${organizationId} current=${totalDevices} limit=${organization.max_devices} device=${deviceUniqueId}`,
-      );
+    if (!(await this.hasDeviceQuota(organizationId, deviceUniqueId))) {
       return null;
     }
 
@@ -776,6 +948,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         data: {
           unique_id: deviceUniqueId,
           name: deviceUniqueId,
+          protocol: DeviceProtocol.ZIGBEE,
           home_id: home.id,
           organization_id: organizationId,
           disabled: false,
@@ -788,7 +961,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         },
       });
       this.logger.log(
-        `Auto-registered device: id=${created.id} unique_id=${deviceUniqueId} home=${homeUniqueId} organization=${organizationId} (devices=${totalDevices + 1}/${organization.max_devices})`,
+        `Auto-registered device: id=${created.id} unique_id=${deviceUniqueId} home=${homeUniqueId} organization=${organizationId}`,
       );
       this.refreshBridgeDevices(homeUniqueId);
       return created;
@@ -800,11 +973,10 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  // Re-subscribe to the home's retained bridge/devices topic so the broker
-  // re-delivers the latest device list. The existing bridge/devices handler
-  // will then enrich the new device with model/attributes.
+  // Re-subscribe to the home's retained Zigbee bridge/devices topic so the broker
+  // re-delivers the latest device list, enriching the new device with attributes.
   private refreshBridgeDevices(homeUniqueId: string) {
-    const topic = `home/id/${homeUniqueId}/bridge/devices`;
+    const topic = `home/id/${homeUniqueId}/${DeviceProtocol.ZIGBEE}/bridge/devices`;
     this.mqttClient.subscribe(topic, { qos: 1 }, (err) => {
       if (err) {
         this.logger.warn(

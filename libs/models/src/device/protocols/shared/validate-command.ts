@@ -1,38 +1,21 @@
-import { DeviceAction, DeviceExpose } from './exposes.types';
-import { getAvailableActions } from './parse-exposes';
+import {
+  DeviceAction,
+  ValidationError,
+  ValidationResult,
+} from '../types';
 
 /**
- * Convenience: validate against raw exposes by parsing actions internally.
+ * Generic command validation against a device's writable {@link DeviceAction}s.
+ * Shared by every protocol adapter — the constraints (binary/numeric/enum/color)
+ * are expressed on `DeviceAction`, which is protocol-agnostic.
+ *
+ * Pure: no I/O, no DB.
  */
-export function validateCommandAgainstExposes(
-  command: Record<string, unknown>,
-  exposes: DeviceExpose[],
-): ValidationResult {
-  return validateCommand(command, getAvailableActions(exposes));
-}
-
-export interface ValidationError {
-  property: string;
-  code:
-    | 'UNKNOWN_PROPERTY'
-    | 'INVALID_TYPE'
-    | 'OUT_OF_RANGE'
-    | 'INVALID_ENUM'
-    | 'INVALID_BINARY'
-    | 'INVALID_COLOR';
-  message: string;
-}
-
-export type ValidationResult =
-  | { valid: true }
-  | { valid: false; errors: ValidationError[] };
 
 /**
- * Properties zigbee2mqtt accepts but that don't appear in `exposes`.
- * Ranges follow the z2m docs / common firmware conventions.
- *  - transition: seconds, 0..30 typical
- *  - effect: free-form string (device-specific), accepted as-is
- *  - read / write / state_*: meta-controls, accepted as-is
+ * Properties accepted by some firmwares but that don't appear as actions.
+ *  - transition: seconds (0..600)
+ *  - effect / read / write / state_*: meta-controls, accepted as-is
  */
 const SPECIAL_PROPERTIES: Record<
   string,
@@ -62,10 +45,6 @@ const SPECIAL_PROPERTIES: Record<
 
 const SPECIAL_PROPERTY_PREFIXES = ['state_'];
 
-/**
- * Validates a command payload against the device's writable actions.
- * Pure: no I/O, no DB.
- */
 export function validateCommand(
   command: Record<string, unknown>,
   actions: DeviceAction[],

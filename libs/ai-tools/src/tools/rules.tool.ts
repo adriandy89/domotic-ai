@@ -1,9 +1,6 @@
 import { DbService } from '@app/db';
 import {
-  getAvailableActions,
-  getExposesFromAttributes,
-  getReadableAttributes,
-  validateCommand,
+  getAdapter,
 } from '@app/models';
 import { createTool } from '@mastra/core/tools';
 import { Prisma } from 'generated/prisma/client';
@@ -333,7 +330,7 @@ export const createRuleTool = createTool({
           organization_id: organizationId,
           disabled: false,
         },
-        select: { id: true, name: true, attributes: true },
+        select: { id: true, name: true, protocol: true, attributes: true },
       });
       if (!device) {
         conditionErrors.push({
@@ -344,8 +341,9 @@ export const createRuleTool = createTool({
         });
         continue;
       }
-      const exposes = getExposesFromAttributes(device.attributes);
-      const readable = getReadableAttributes(exposes);
+      const readable = getAdapter(device.protocol).getReadableAttributes(
+        device.attributes,
+      );
       const found = readable.find((r) => r.property === c.attribute);
       if (!found) {
         conditionErrors.push({
@@ -381,7 +379,7 @@ export const createRuleTool = createTool({
             organization_id: organizationId,
             disabled: false,
           },
-          select: { id: true, attributes: true },
+          select: { id: true, protocol: true, attributes: true },
         });
         if (!device) {
           resultErrors.push({
@@ -390,9 +388,9 @@ export const createRuleTool = createTool({
           });
           continue;
         }
-        const exposes = getExposesFromAttributes(device.attributes);
-        const availableActions = getAvailableActions(exposes);
-        const validation = validateCommand(
+        const adapter = getAdapter(device.protocol);
+        const availableActions = adapter.getAvailableActions(device.attributes);
+        const validation = adapter.validateCommand(
           { [r.attribute]: r.value },
           availableActions,
         );
