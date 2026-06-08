@@ -1,9 +1,5 @@
 import { DbService } from '@app/db';
-import {
-  DeviceAction,
-  getAvailableActions,
-  getExposesFromAttributes,
-} from '@app/models';
+import { DeviceAction, getAdapter } from '@app/models';
 import { createTool } from '@mastra/core/tools';
 import z from 'zod';
 
@@ -58,6 +54,7 @@ export const deviceFullInfoTool = createTool({
           disabled: true,
           model: true,
           category: true,
+          protocol: true,
           sensorDataLasts: { select: { data: true, timestamp: true } },
           attributes: true,
         },
@@ -65,8 +62,9 @@ export const deviceFullInfoTool = createTool({
 
       if (!device) return { error: 'Device not found' };
 
-      const exposes = getExposesFromAttributes(device.attributes);
-      const availableActions = getAvailableActions(exposes);
+      const availableActions = getAdapter(device.protocol).getAvailableActions(
+        device.attributes,
+      );
       const commandExamples = availableActions.map(describeAction);
 
       return {

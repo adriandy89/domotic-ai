@@ -1,9 +1,7 @@
 import { DbService } from '@app/db';
 import {
   SCHEDULES_PATTERNS,
-  getAvailableActions,
-  getExposesFromAttributes,
-  validateCommand,
+  getAdapter,
 } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { createTool } from '@mastra/core/tools';
@@ -314,7 +312,7 @@ export const createScheduleTool = createTool({
           organization_id: organizationId,
           disabled: false,
         },
-        select: { id: true, name: true, attributes: true },
+        select: { id: true, name: true, protocol: true, attributes: true },
       });
 
       if (!device) {
@@ -327,10 +325,10 @@ export const createScheduleTool = createTool({
         continue;
       }
 
-      const exposes = getExposesFromAttributes(device.attributes);
-      const availableActions = getAvailableActions(exposes);
+      const adapter = getAdapter(device.protocol);
+      const availableActions = adapter.getAvailableActions(device.attributes);
       const command = { [a.attribute]: a.value };
-      const validation = validateCommand(command, availableActions);
+      const validation = adapter.validateCommand(command, availableActions);
       if (!validation.valid) {
         actionErrors.push({
           index: i,

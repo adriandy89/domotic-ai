@@ -1,23 +1,11 @@
+import { DeviceAction, DeviceReadableAttribute } from '../types';
 import {
   ACCESS_PUBLISHED,
   ACCESS_SET,
   COLOR_COMPOSITE_NAMES,
   ColorCompositeName,
-  DeviceAction,
   DeviceExpose,
 } from './exposes.types';
-
-/**
- * A normalized, readable (published) attribute derived from a device's exposes.
- * Used to validate Rule conditions / Result attributes against what the device
- * can actually publish.
- */
-export interface DeviceReadableAttribute {
-  property: string;
-  type: string;
-  unit?: string;
-  values?: (string | number)[];
-}
 
 /**
  * Returns leaf exposes (depth-first), skipping intermediate `composite`/`light`/`switch` wrappers.
@@ -136,9 +124,6 @@ export function getAvailableActions(exposes: DeviceExpose[]): DeviceAction[] {
  * - Walks exposes recursively (composites are unwrapped via `flattenExposes`).
  * - Only leaf exposes whose `access & ACCESS_PUBLISHED` is set are returned.
  * - Properties are deduped by name (first wins).
- *
- * Used by Rule/Schedule validation: a Condition.attribute or notification-event
- * attribute must reference a property the device can actually publish.
  */
 export function getReadableAttributes(
   exposes: DeviceExpose[],

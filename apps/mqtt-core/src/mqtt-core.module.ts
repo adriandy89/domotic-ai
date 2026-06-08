@@ -32,9 +32,11 @@ export class MqttCoreModule implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // ? Subscribe to all devices MQTT topics
-    this.mqttClient.subscribe('home/id/+/bridge/devices', { qos: 1 });
-    this.mqttClient.subscribe('home/id/+/+', { qos: 1 });
+    // One subscription covers every per-home topic: the 4th level is the protocol
+    // segment (zigbee/zwave/wifi/ble) or `discovery` for HA-Discovery configs.
+    //  - home/id/{home}/{protocol}/#  → state + Zigbee bridge/devices
+    //  - home/id/{home}/discovery/#   → Home Assistant discovery configs
+    this.mqttClient.subscribe('home/id/+/+/#', { qos: 1 });
 
     // Override handleMessage to implement proper backpressure with concurrency control
     // This ensures messages are processed with MAX 5 concurrent handlers

@@ -1,14 +1,4 @@
-import { DeviceAction } from './exposes.types';
-
-export interface NormalizeWarning {
-  property: string;
-  message: string;
-}
-
-export interface NormalizeResult {
-  command: Record<string, unknown>;
-  warnings: NormalizeWarning[];
-}
+import { DeviceAction, NormalizeResult, NormalizeWarning } from '../types';
 
 /**
  * Conversions applied:
