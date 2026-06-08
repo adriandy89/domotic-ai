@@ -1,6 +1,7 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
 import {
+  DeviceProtocol,
   getKeyHomeUniqueIdsDisconnected,
   getKeyHomeNotifiedDisconnections,
   getKeyHomeUniqueIdOrgId,
@@ -69,55 +70,86 @@ export class InitService implements OnModuleInit {
       }
 
       for (const home of homes) {
-        const url = `${this.mqttWebApi}/api/client-session?clientId=${home.unique_id}`;
-        try {
-          const response = await firstValueFrom(
-            this.httpService.get(url, {
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${resp?.data?.token}`,
-              },
-            }),
+        const connected = await this.isHomeConnected(
+          home.unique_id,
+          resp.data.token,
+        );
+        if (connected) {
+          this.logger.verbose(`Home ${home.unique_id} is connected`);
+          // Remove from disconnected set if present
+          await this.cacheService.sRem(
+            getKeyHomeUniqueIdsDisconnected(),
+            home.unique_id,
           );
-          const data = response.data;
-          if (data?.connectionState === 'CONNECTED') {
-            this.logger.verbose(`Home ${home.unique_id} is connected`);
-            // Remove from disconnected set if present
+          // Check if this home was previously notified as disconnected
+          const wasNotified = await this.cacheService.sIsMember(
+            getKeyHomeNotifiedDisconnections(),
+            home.unique_id,
+          );
+          if (wasNotified) {
+            await this.notifyConnection(home.unique_id, true);
+            // Remove from notified set
             await this.cacheService.sRem(
-              getKeyHomeUniqueIdsDisconnected(),
-              home.unique_id,
-            );
-            // Check if this home was previously notified as disconnected
-            const wasNotified = await this.cacheService.sIsMember(
               getKeyHomeNotifiedDisconnections(),
               home.unique_id,
             );
-            if (wasNotified) {
-              await this.notifyConnection(home.unique_id, true);
-              // Remove from notified set
-              await this.cacheService.sRem(
-                getKeyHomeNotifiedDisconnections(),
-                home.unique_id,
-              );
-            }
-          } else {
-            this.logger.verbose(`Home ${home.unique_id} is not connected`);
-            await this.handleDisconnection(home.unique_id);
           }
-        } catch (error: any) {
-          if (error.response && error.response.status === 404) {
-            this.logger.verbose(`Home ${home.unique_id} not found`);
-          } else {
-            this.logger.error(
-              `Error checking status for home ${home.unique_id}:`,
-              error.message,
-            );
-          }
+        } else {
+          this.logger.verbose(`Home ${home.unique_id} is not connected`);
           await this.handleDisconnection(home.unique_id);
         }
       }
     } catch (error: any) {
       console.log(error);
+    }
+  }
+
+  /**
+   * A home is connected if ANY of its edge bridges has a live broker session.
+   * Each protocol bridge uses a distinct MQTT client_id (`{uuid}-{protocol}`),
+   * and the bare `{uuid}` is kept as a candidate for backward compatibility with
+   * homes whose zigbee2mqtt still uses the legacy (pre-multi-protocol) client_id.
+   */
+  private async isHomeConnected(
+    uniqueId: string,
+    token: string,
+  ): Promise<boolean> {
+    const candidateClientIds = [
+      uniqueId,
+      ...Object.values(DeviceProtocol).map((p) => `${uniqueId}-${p}`),
+    ];
+    for (const clientId of candidateClientIds) {
+      if (await this.isClientConnected(clientId, token)) return true;
+    }
+    return false;
+  }
+
+  /** True if the broker reports an active CONNECTED session for this client_id. */
+  private async isClientConnected(
+    clientId: string,
+    token: string,
+  ): Promise<boolean> {
+    const url = `${this.mqttWebApi}/api/client-session?clientId=${encodeURIComponent(
+      clientId,
+    )}`;
+    try {
+      const response = await firstValueFrom(
+        this.httpService.get(url, {
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+        }),
+      );
+      return response.data?.connectionState === 'CONNECTED';
+    } catch (error: any) {
+      // 404 = no such session (this bridge isn't connected) — not an error.
+      if (!(error.response && error.response.status === 404)) {
+        this.logger.error(
+          `Error checking session for client ${clientId}: ${error.message}`,
+        );
+      }
+      return false;
     }
   }
 
