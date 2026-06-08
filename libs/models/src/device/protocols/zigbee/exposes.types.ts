@@ -25,27 +25,6 @@ export interface DeviceExpose {
   presets?: { name: string; value: number | string; description?: string }[];
 }
 
-/**
- * A normalized, write-capable action derived from one or more exposes.
- * `color_xy`/`color_hs`/`color_rgb` composites collapse into a single `color` action.
- */
-export interface DeviceAction {
-  property: string;
-  type: string;
-  label?: string;
-  description?: string;
-  unit?: string;
-  valueOn?: boolean | string | number;
-  valueOff?: boolean | string | number;
-  valueToggle?: boolean | string | number;
-  valueMin?: number;
-  valueMax?: number;
-  valueStep?: number;
-  values?: (string | number)[];
-  /** Color-only: which composite formats this device accepts ('xy' | 'hs' | 'rgb'). */
-  colorFormats?: ('xy' | 'hs' | 'rgb')[];
-}
-
 export const ACCESS_PUBLISHED = 0b001;
 export const ACCESS_SET = 0b010;
 export const ACCESS_GET = 0b100;

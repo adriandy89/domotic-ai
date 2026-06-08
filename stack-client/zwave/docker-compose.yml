@@ -1,0 +1,37 @@
+name: zwave
+
+# Official Z-Wave JS UI image (Z-Wave control panel + built-in MQTT gateway).
+# https://github.com/zwave-js/zwave-js-ui  —  image: zwavejs/zwave-js-ui
+#
+# We never fork the image. All Z-Wave → canonical-capability translation lives in
+# the backend HA-Discovery adapter; here we only point the official image at the
+# home's MQTT broker. Configure the MQTT + Home Assistant settings in the UI
+# (port 8091) exactly as described in ./README.md:
+#   - MQTT name (gateway prefix): home/id/{homeUniqueId}/zwave
+#   - MQTT client id:             {homeUniqueId}-zwave
+#   - Home Assistant discovery:   ON, prefix home/id/{homeUniqueId}/discovery
+#   - MQTT host/user/password:    the per-home credentials from the dashboard
+
+services:
+  zwave-js-ui:
+    container_name: zwave-js-ui
+    image: zwavejs/zwave-js-ui:latest
+    restart: always
+    tty: true
+    stop_signal: SIGINT
+    environment:
+      - TZ=Europe/Madrid
+    networks:
+      - default
+    devices:
+      # Map your Z-Wave controller stick (adjust the by-id path to your dongle).
+      - '/dev/serial/by-id/usb-Zwave_controller_FAKE-if00-port0:/dev/zwave'
+    volumes:
+      - ./store:/usr/src/app/store
+    ports:
+      - '8091:8091' # Web UI (configure MQTT + HA discovery here)
+      - '3000:3000' # Z-Wave JS websocket server
+
+networks:
+  default:
+    name: zwave

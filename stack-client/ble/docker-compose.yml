@@ -1,0 +1,34 @@
+name: ble
+
+# Official Theengs Gateway image (BLE → MQTT, with Home Assistant discovery).
+# https://github.com/theengs/gateway  —  image: theengs/gateway
+#
+# Read-only BLE sensors (temperature, humidity, battery, ...). Theengs publishes the
+# standard Home Assistant discovery messages; the backend HA-Discovery adapter consumes
+# them. Nothing custom in the image — only env config pointing at the home's broker.
+#
+# Replace {homeUniqueId}, the broker host and the credentials with the per-home values
+# from the dashboard (Integrations → BLE). Needs host network + DBus for the Bluetooth
+# adapter.
+
+services:
+  theengs-gateway:
+    container_name: theengs-gateway
+    image: theengs/gateway:latest
+    restart: always
+    network_mode: host
+    privileged: true
+    environment:
+      - TZ=Europe/Madrid
+      - MQTT_HOST=<your-mqtt-host>
+      - MQTT_PORT=1883
+      - MQTT_USERNAME=1234-fake-id-long-string
+      - MQTT_PASSWORD=FakePassw0rd
+      # Per-protocol state namespace and per-home HA discovery prefix.
+      - MQTT_PUB_TOPIC=home/id/1234-fake-id-long-string/ble/BTtoMQTT
+      - MQTT_SUB_TOPIC=home/id/1234-fake-id-long-string/ble/+/commands
+      - DISCOVERY=true
+      - DISCOVERY_TOPIC=home/id/1234-fake-id-long-string/discovery
+      - DISCOVERY_DEVICE_NAME=TheengsGateway
+    volumes:
+      - /var/run/dbus:/var/run/dbus

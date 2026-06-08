@@ -1,11 +1,5 @@
 import { DbService } from '@app/db';
-import {
-  NormalizeWarning,
-  getAvailableActions,
-  getExposesFromAttributes,
-  normalizeCommand,
-  validateCommand,
-} from '@app/models';
+import { NormalizeWarning, getAdapter } from '@app/models';
 import { NatsClientService } from '@app/nats-client';
 import { createTool } from '@mastra/core/tools';
 import z from 'zod';
@@ -52,6 +46,7 @@ export async function executeOneCommand(
       id: true,
       unique_id: true,
       name: true,
+      protocol: true,
       attributes: true,
       home: { select: { unique_id: true } },
     },
@@ -64,18 +59,21 @@ export async function executeOneCommand(
     return { success: false, error: 'Device is not assigned to a home' };
   }
 
-  const exposes = getExposesFromAttributes(device.attributes);
-  const actions = getAvailableActions(exposes);
+  const adapter = getAdapter(device.protocol);
+  const actions = adapter.getAvailableActions(device.attributes);
 
   if (actions.length === 0) {
     return {
       success: false,
-      error: 'Device has no controllable actions (no writable exposes).',
+      error: 'Device has no controllable actions.',
     };
   }
 
-  const { command: normalized, warnings } = normalizeCommand(command, actions);
-  const validation = validateCommand(normalized, actions);
+  const { command: normalized, warnings } = adapter.normalizeCommand(
+    command,
+    actions,
+  );
+  const validation = adapter.validateCommand(normalized, actions);
 
   if (!validation.valid) {
     return {

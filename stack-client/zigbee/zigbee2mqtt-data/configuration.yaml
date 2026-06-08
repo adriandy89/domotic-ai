@@ -1,11 +1,13 @@
 version: 4
 mqtt:
-  base_topic: home/id/1234-fake-id-long-string
+  # Per-protocol namespace: home/id/{homeUniqueId}/zigbee
+  base_topic: home/id/1234-fake-id-long-string/zigbee
   server: mqtt://your-mqtt-server.com:1883
   keepalive: 60
   reject_unauthorized: true
   version: 5
-  client_id: 1234-fake-id-long-string
+  # Distinct client_id per protocol (the home username is shared across bridges).
+  client_id: 1234-fake-id-long-string-zigbee
   password: FakePassw0rd
   user: 1234-fake-id-long-string
 serial:
