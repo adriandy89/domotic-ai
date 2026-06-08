@@ -48,10 +48,8 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
-  Info,
 } from 'lucide-react';
 import { api } from '../../lib/api';
-import { generateClientId } from '../../lib/client-id';
 
 interface HomeData {
   id: string;
@@ -145,9 +143,6 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
   const [visibleFields, setVisibleFields] = useState<Record<string, boolean>>(
     {},
   );
-  const [generatedClientId, setGeneratedClientId] = useState<
-    Record<string, string>
-  >({});
   const [sortBy, setSortBy] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc' | null>(null);
 
@@ -811,70 +806,59 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                     </div>
                                   </div>
                                 </div>
-                                <div className="bg-background/50 p-3 rounded-lg border border-border md:col-span-2">
-                                  <div className="flex items-center gap-1">
-                                    <span className="text-xs text-muted-foreground uppercase">
-                                      Client ID
-                                    </span>
-                                    <span
-                                      className="inline-flex"
-                                      title="Cada cliente que se conecta al broker necesita un Client ID único. Si dos usan el mismo, el broker desconecta a uno. Genera uno nuevo para cada dispositivo o conexión."
-                                    >
-                                      <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                                    </span>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground mt-1">
-                                    Único por conexión — genera uno nuevo para
-                                    cada cliente.
-                                  </p>
-                                  <div className="flex items-center justify-between gap-2 mt-2">
-                                    <p className="font-mono text-sm break-all">
-                                      {generatedClientId[home.id] || '—'}
+                                <div className="bg-background/50 p-3 rounded-lg border border-border">
+                                  <span className="text-xs text-muted-foreground uppercase">
+                                    Client ID
+                                  </span>
+                                  <div className="flex items-center justify-between">
+                                    <p className="font-mono text-sm">
+                                      {visibleFields[`client-${home.id}`]
+                                        ? home.mqtt_username || 'N/A'
+                                        : '••••••••'}
                                     </p>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      {generatedClientId[home.id] && (
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-6 w-6"
-                                          onClick={() =>
-                                            copyToClipboard(
-                                              generatedClientId[home.id],
-                                              `client-${home.id}`,
-                                            )
-                                          }
-                                        >
-                                          {copiedField ===
-                                          `client-${home.id}` ? (
-                                            <Check className="h-3 w-3 text-emerald-500" />
-                                          ) : (
-                                            <Copy className="h-3 w-3" />
-                                          )}
-                                        </Button>
+                                    <div className="flex gap-1">
+                                      {home.mqtt_username && (
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              setVisibleFields((prev) => ({
+                                                ...prev,
+                                                [`client-${home.id}`]:
+                                                  !prev[`client-${home.id}`],
+                                              }))
+                                            }
+                                          >
+                                            {visibleFields[
+                                              `client-${home.id}`
+                                            ] ? (
+                                              <EyeOff className="h-3 w-3" />
+                                            ) : (
+                                              <Eye className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              copyToClipboard(
+                                                home.mqtt_username!,
+                                                `client-${home.id}`,
+                                              )
+                                            }
+                                          >
+                                            {copiedField ===
+                                            `client-${home.id}` ? (
+                                              <Check className="h-3 w-3 text-emerald-500" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </>
                                       )}
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                          const id = generateClientId(
-                                            home.name,
-                                            home.mqtt_username ?? undefined,
-                                          );
-                                          setGeneratedClientId((prev) => ({
-                                            ...prev,
-                                            [home.id]: id,
-                                          }));
-                                          copyToClipboard(
-                                            id,
-                                            `client-${home.id}`,
-                                          );
-                                        }}
-                                      >
-                                        <RefreshCw className="h-3 w-3 mr-1" />
-                                        {generatedClientId[home.id]
-                                          ? 'Generar otro'
-                                          : 'Generar y copiar'}
-                                      </Button>
                                     </div>
                                   </div>
                                 </div>
@@ -1096,6 +1080,64 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                           >
                                             {copiedField ===
                                             `mcp-pass-${home.id}` ? (
+                                              <Check className="h-3 w-3 text-emerald-500" />
+                                            ) : (
+                                              <Copy className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                        </>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="bg-background/50 p-3 rounded-lg border border-border">
+                                  <span className="text-xs text-muted-foreground uppercase">
+                                    Client ID
+                                  </span>
+                                  <div className="flex items-center justify-between">
+                                    <p className="font-mono text-sm">
+                                      {visibleFields[`mcp-client-${home.id}`]
+                                        ? home.mcp_username || 'N/A'
+                                        : '••••••••'}
+                                    </p>
+                                    <div className="flex gap-1">
+                                      {home.mcp_username && (
+                                        <>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              setVisibleFields((prev) => ({
+                                                ...prev,
+                                                [`mcp-client-${home.id}`]:
+                                                  !prev[
+                                                    `mcp-client-${home.id}`
+                                                  ],
+                                              }))
+                                            }
+                                          >
+                                            {visibleFields[
+                                              `mcp-client-${home.id}`
+                                            ] ? (
+                                              <EyeOff className="h-3 w-3" />
+                                            ) : (
+                                              <Eye className="h-3 w-3" />
+                                            )}
+                                          </Button>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-6 w-6"
+                                            onClick={() =>
+                                              copyToClipboard(
+                                                home.mcp_username!,
+                                                `mcp-client-${home.id}`,
+                                              )
+                                            }
+                                          >
+                                            {copiedField ===
+                                            `mcp-client-${home.id}` ? (
                                               <Check className="h-3 w-3 text-emerald-500" />
                                             ) : (
                                               <Copy className="h-3 w-3" />
