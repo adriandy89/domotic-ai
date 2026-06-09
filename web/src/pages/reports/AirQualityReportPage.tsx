@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from '../../components/ui/card';
 import { useDevicesStore } from '../../store/useDevicesStore';
+import { hasExpose } from '../../lib/device-capabilities';
 import { useHomesStore } from '../../store/useHomesStore';
 import {
   useReportsStore,
@@ -63,8 +64,7 @@ export default function AirQualityReportPage() {
       Object.values(devices).filter((d) => {
         if (d.disabled) return false;
         if (homeId && d.home_id !== homeId) return false;
-        const exposes = d.attributes?.definition?.exposes ?? [];
-        return hasExpose(exposes, ['co2', 'voc', 'pm25', 'pm10']);
+        return hasExpose(d, ['co2', 'voc', 'pm25', 'pm10']);
       }),
     [devices, homeId],
   );
@@ -203,16 +203,3 @@ export default function AirQualityReportPage() {
   );
 }
 
-interface ExposeShape {
-  name?: string;
-  property?: string;
-  features?: ExposeShape[];
-}
-function hasExpose(exposes: ExposeShape[], names: string[]): boolean {
-  for (const e of exposes) {
-    const id = e.property ?? e.name;
-    if (id && names.includes(id)) return true;
-    if (e.features && hasExpose(e.features, names)) return true;
-  }
-  return false;
-}

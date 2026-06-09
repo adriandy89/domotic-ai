@@ -29,6 +29,10 @@ import {
   CardTitle,
 } from '../components/ui/card';
 import { useDevicesStore } from '../store/useDevicesStore';
+import {
+  getDeviceExposes,
+  flattenExposes,
+} from '../lib/device-capabilities';
 import { useHomesStore } from '../store/useHomesStore';
 import {
   useReportsStore,
@@ -129,23 +133,6 @@ const PROPERTY_FOR_METRIC: Record<ReportMetric, string> = {
   lqi: 'linkquality',
 };
 
-interface ExposeShape {
-  name?: string;
-  property?: string;
-  features?: ExposeShape[];
-}
-function flatten(exposes: ExposeShape[]): ExposeShape[] {
-  const out: ExposeShape[] = [];
-  for (const e of exposes) {
-    if (e.features && e.features.length > 0) {
-      out.push(...flatten(e.features));
-    } else if (e.property || e.name) {
-      out.push(e);
-    }
-  }
-  return out;
-}
-
 export default function DeviceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -163,8 +150,7 @@ export default function DeviceDetailPage() {
   // Detect available tabs from device exposes (or last data, as fallback).
   const availableTabs = useMemo(() => {
     if (!device) return [] as TabSpec[];
-    const exposes = device.attributes?.definition?.exposes ?? [];
-    const flat = flatten(exposes);
+    const flat = flattenExposes(getDeviceExposes(device));
     const presentProps = new Set(
       flat.map((e) => e.property ?? e.name).filter(Boolean) as string[],
     );

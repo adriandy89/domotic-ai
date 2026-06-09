@@ -533,10 +533,6 @@ export class RulesEngineService {
     if (rule.conditions.length === 0) {
       return true;
     }
-    console.log(JSON.stringify(rule));
-    console.log(currentDeviceId);
-    console.log(prevData);
-    console.log(newData);
 
     const currentDeviceConditions = rule.conditions.filter(
       (c) => c.device_id === currentDeviceId,
@@ -607,10 +603,22 @@ export class RulesEngineService {
       return false;
     }
 
-    const targetValue = (condition.data as { value: any })?.value;
+    let targetValue = (condition.data as { value: any })?.value;
     if (targetValue === undefined) {
       this.logger.warn(`Condition ${condition.id} has no target value`);
       return false;
+    }
+
+    // The UI may persist a numeric target as a string (e.g. "10.6"). When the incoming
+    // value is a number, coerce a numeric-looking target so `=`/`>`/`<` compare number
+    // vs number (strict `===` otherwise never matches: 10.6 === "10.6" is false).
+    if (
+      typeof value === 'number' &&
+      typeof targetValue === 'string' &&
+      targetValue.trim() !== '' &&
+      !Number.isNaN(Number(targetValue))
+    ) {
+      targetValue = Number(targetValue);
     }
 
     switch (condition.operation) {

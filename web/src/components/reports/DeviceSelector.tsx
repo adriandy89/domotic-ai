@@ -7,6 +7,7 @@ import {
   SelectValue,
 } from '../ui/select';
 import { useDevicesStore } from '../../store/useDevicesStore';
+import { hasExpose } from '../../lib/device-capabilities';
 
 interface DeviceSelectorProps {
   value: string | null;
@@ -33,14 +34,7 @@ export default function DeviceSelector({
     return Object.values(devices)
       .filter((d) => !d.disabled)
       .filter((d) => (homeId ? d.home_id === homeId : true))
-      .filter((d) => {
-        if (!hasProperty) return true;
-        const exposes = d.attributes?.definition?.exposes ?? [];
-        const flat = flatten(exposes);
-        return flat.some(
-          (e) => e.property === hasProperty || e.name === hasProperty,
-        );
-      })
+      .filter((d) => (hasProperty ? hasExpose(d, [hasProperty]) : true))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [devices, homeId, hasProperty]);
 
@@ -68,21 +62,3 @@ export default function DeviceSelector({
   );
 }
 
-interface FlatExpose {
-  name?: string;
-  property?: string;
-  type?: string;
-  features?: FlatExpose[];
-}
-
-function flatten(exposes: FlatExpose[]): FlatExpose[] {
-  const out: FlatExpose[] = [];
-  for (const e of exposes) {
-    if (e.features && e.features.length > 0) {
-      out.push(...flatten(e.features));
-    } else if (e.property || e.name) {
-      out.push(e);
-    }
-  }
-  return out;
-}

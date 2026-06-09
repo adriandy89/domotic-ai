@@ -14,6 +14,11 @@ import type {
 import { useHomesStore } from '../store/useHomesStore';
 import { useDevicesStore, type DeviceExpose } from '../store/useDevicesStore';
 import {
+  getDeviceExposes as deviceExposes,
+  getPublishableExposes as devicePublishableExposes,
+  flattenExposes,
+} from '../lib/device-capabilities';
+import {
   Card,
   CardContent,
   CardHeader,
@@ -64,36 +69,6 @@ const NOTIFICATION_CHANNELS: { value: NotificationChannel; label: string }[] = [
   { value: 'TELEGRAM', label: 'Telegram' },
   { value: 'WEBHOOK', label: 'Webhook' },
 ];
-
-// Helper to flatten device exposes
-function flattenExposes(exposes: DeviceExpose[]): DeviceExpose[] {
-  const result: DeviceExpose[] = [];
-  for (const expose of exposes) {
-    if (expose.features && expose.features.length > 0) {
-      result.push(...flattenExposes(expose.features));
-    } else if (expose.property || expose.name) {
-      result.push(expose);
-    }
-  }
-  return result;
-}
-
-// Helper to get publishable exposes (access & 0b010)
-function getPublishableExposes(exposes: DeviceExpose[]): DeviceExpose[] {
-  const result: DeviceExpose[] = [];
-  for (const expose of exposes) {
-    if (expose.access && expose.access & 0b010) {
-      result.push(expose);
-    }
-    if (expose.features) {
-      const publishable = expose.features.filter(
-        (f) => f.access && f.access & 0b010,
-      );
-      result.push(...publishable);
-    }
-  }
-  return result;
-}
 
 export default function RuleFormPage() {
   const { id } = useParams<{ id: string }>();
@@ -167,12 +142,11 @@ export default function RuleFormPage() {
     return deviceIds.map((dId) => devices[dId]).filter(Boolean);
   }, [homeId, devicesByHome, devices]);
 
-  // Get device exposes by device ID
+  // Get device exposes by device ID (protocol-agnostic, flattened for the pickers)
   const getDeviceExposes = useCallback(
     (deviceId: string): DeviceExpose[] => {
       const device = devices[deviceId];
-      if (!device?.attributes?.definition?.exposes) return [];
-      return flattenExposes(device.attributes.definition.exposes);
+      return device ? flattenExposes(deviceExposes(device)) : [];
     },
     [devices],
   );
@@ -181,8 +155,7 @@ export default function RuleFormPage() {
   const getPublishableDeviceExposes = useCallback(
     (deviceId: string): DeviceExpose[] => {
       const device = devices[deviceId];
-      if (!device?.attributes?.definition?.exposes) return [];
-      return getPublishableExposes(device.attributes.definition.exposes);
+      return device ? devicePublishableExposes(device) : [];
     },
     [devices],
   );
@@ -667,10 +640,14 @@ export default function RuleFormPage() {
                         min={selectedExpose?.value_min}
                         max={selectedExpose?.value_max}
                         step={selectedExpose?.value_step || 1}
-                        value={String(condition.data?.value || '')}
+                        value={String(condition.data?.value ?? '')}
                         onChange={(e) =>
                           updateCondition(index, 'data', {
-                            value: e.target.value,
+                            value:
+                              selectedExpose?.type === 'numeric' &&
+                              e.target.value !== ''
+                                ? Number(e.target.value)
+                                : e.target.value,
                           })
                         }
                         disabled={!condition.attribute}
@@ -923,10 +900,14 @@ export default function RuleFormPage() {
                               min={selectedExpose?.value_min}
                               max={selectedExpose?.value_max}
                               step={selectedExpose?.value_step || 1}
-                              value={String(result.data?.value || '')}
+                              value={String(result.data?.value ?? '')}
                               onChange={(e) =>
                                 updateResult(index, 'data', {
-                                  value: e.target.value,
+                                  value:
+                                    selectedExpose?.type === 'numeric' &&
+                                    e.target.value !== ''
+                                      ? Number(e.target.value)
+                                      : e.target.value,
                                 })
                               }
                               disabled={!result.attribute}

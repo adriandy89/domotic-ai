@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Cpu } from 'lucide-react';
 import type { Device } from '../../store/useDevicesStore';
+import { isHaDevice } from '../../lib/device-capabilities';
 
 const Z2M_IMAGE_BASE = 'https://www.zigbee2mqtt.io/images/devices/';
 
@@ -10,8 +11,9 @@ function sanitizeModelName(model?: string): string | null {
   return model.replace(/[:\s/]/g, '-');
 }
 
-// Get Z2M device image URL
+// Get Z2M device image URL (zigbee only; HA devices have no z2m model → icon fallback).
 function getDeviceImageUrl(device: Device): string | null {
+  if (isHaDevice(device)) return null;
   const model = device.attributes?.definition?.model;
   const sanitized = sanitizeModelName(model);
   if (!sanitized) return null;

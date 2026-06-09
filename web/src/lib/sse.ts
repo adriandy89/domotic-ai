@@ -19,6 +19,12 @@ export interface HomeStatusPayload {
   connected: boolean;
 }
 
+export interface DeviceAvailabilityPayload {
+  homeId: string;
+  deviceId: string;
+  online: boolean;
+}
+
 export interface UserSensorNotificationPayload {
   homeId: string;
   deviceId: string;
@@ -38,6 +44,7 @@ export interface PingPayload {
 type SSEEventHandler = {
   'sensor.data': (payload: SensorDataPayload) => void;
   'home.status': (payload: HomeStatusPayload) => void;
+  'device.availability': (payload: DeviceAvailabilityPayload) => void;
   'user.sensor-notification': (payload: UserSensorNotificationPayload) => void;
   'user.attributes.updated': (payload: UserAttributesUpdatedPayload) => void;
   ping: (payload: PingPayload) => void;
@@ -111,6 +118,12 @@ class SSEService {
           this.handleHomeStatus(message.payload as HomeStatusPayload);
           break;
 
+        case 'device.availability':
+          this.handleDeviceAvailability(
+            message.payload as DeviceAvailabilityPayload,
+          );
+          break;
+
         case 'user.sensor-notification':
           this.handleUserNotification(
             message.payload as UserSensorNotificationPayload,
@@ -159,6 +172,13 @@ class SSEService {
     useHomesStore.getState().updateHome(payload.homeId, {
       connected: payload.connected,
     });
+  }
+
+  private handleDeviceAvailability(payload: DeviceAvailabilityPayload): void {
+    // Update per-device online/offline status in the store
+    useDevicesStore
+      .getState()
+      .updateDeviceOnline(payload.deviceId, payload.online);
   }
 
   private handleUserNotification(payload: UserSensorNotificationPayload): void {

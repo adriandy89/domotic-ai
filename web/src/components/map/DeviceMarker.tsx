@@ -6,6 +6,7 @@ import DeviceImage from '../device/DeviceImage';
 interface DeviceMarkerProps {
   device: Device;
   data?: Record<string, any> | undefined;
+  /** Accepted for call-site compatibility (HomeMap passes it); not used for status. */
   timestamp?: string;
   onClick: (e: React.MouseEvent) => void;
   onContextMenu: (e: React.MouseEvent) => void;
@@ -16,7 +17,6 @@ interface DeviceMarkerProps {
 export function DeviceMarker({
   device,
   data,
-  timestamp,
   onClick,
   onContextMenu,
   onMouseDown,
@@ -27,19 +27,9 @@ export function DeviceMarker({
   const batteryAlert =
     (!isNaN(data?.battery) && data?.battery < 20) || data?.battery_low === true;
 
-  // Prefer the SSE receipt timestamp — devices like contact sensors only
-  // include `last_seen` in the payload when state changes, so the marker
-  // would otherwise stay "stale" after every heartbeat.
-  const lastSeenSource = timestamp ?? data?.last_seen;
-  let lastSeenAlert = false;
-  if (lastSeenSource) {
-    const lastSeen = new Date(lastSeenSource);
-    const now = new Date();
-    const diff = now.getTime() - lastSeen.getTime();
-    if (diff > 1000 * 60 * 60 * 8) {
-      lastSeenAlert = true;
-    }
-  }
+  // Connection status from the real `online` field (HA availability in real time +
+  // init staleness sweep), not a last_seen heuristic. `undefined` = assume connected.
+  const offline = device.online === false;
 
   // Alert Status Logic (from old frontend)
   // Shows if any critical sensor state is triggered
@@ -92,8 +82,8 @@ export function DeviceMarker({
           </div>
         )}
 
-        {/* Last Seen Alert - Bottom Center */}
-        {lastSeenAlert && (
+        {/* Offline indicator - Bottom Center */}
+        {offline && (
           <div className="absolute bottom-[-15px] left-1/2 transform -translate-x-1/2 bg-red-400 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold animate-bounce">
             <WifiOff size={16} />
           </div>

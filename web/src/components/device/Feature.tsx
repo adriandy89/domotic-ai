@@ -547,6 +547,11 @@ export function Feature({ expose, value, onChange, data }: FeatureProps) {
         />
       );
 
+    // Generic read-only value (e.g. unit-less HA sensors): renders numbers and
+    // strings faithfully via ValueDisplay.
+    case 'value':
+      return <ValueDisplay expose={exposeWithLabel} value={value} />;
+
     // Composite types with sub-features
     // Note: color_xy, color_hs, color_rgb are handled inside CompositeFeature
     case 'switch':

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import type { Protocol } from '../lib/integration-templates';
 
 export interface DeviceExpose {
   name: string;
@@ -36,23 +37,65 @@ export interface DeviceDefinition {
   supports_ota: boolean;
 }
 
+/** One HA-discovery component (raw, abbreviations preserved). */
+export interface HaRawComponent {
+  p?: string; // platform/component
+  device_class?: string;
+  unit_of_measurement?: string;
+  state_class?: string;
+  value_template?: string;
+  command_topic?: string;
+  cmd_t?: string;
+  options?: string[];
+  payload_on?: string | number | boolean;
+  payload_off?: string | number | boolean;
+  min?: number;
+  max?: number;
+  step?: number;
+  name?: string;
+  unique_id?: string;
+  [key: string]: unknown;
+}
+
+/** Raw HA-discovery config persisted by the backend (`attributes.config`). */
+export interface HaRawConfig {
+  '~'?: string;
+  dev?: Record<string, unknown>;
+  o?: Record<string, unknown>;
+  stat_t?: string;
+  availability?: unknown;
+  cmps: Record<string, HaRawComponent>;
+  [key: string]: unknown;
+}
+
+/**
+ * Device attributes. Two coexisting shapes (discriminated by `source`):
+ *  - Zigbee (zigbee2mqtt): `definition.exposes` etc. (legacy fields, all optional).
+ *  - HA-discovery (wifi/zwave/ble): `{ source:'hadiscovery', protocol, config }`.
+ * Always read capabilities through `web/src/lib/device-capabilities.ts`, never directly.
+ */
 export interface DeviceAttributes {
-  type: string;
-  disabled: boolean;
-  model_id: string;
+  // HA-discovery discriminant
+  source?: 'hadiscovery';
+  protocol?: string;
+  config?: HaRawConfig;
+  // Zigbee (optional — absent on HA devices)
+  type?: string;
+  disabled?: boolean;
+  model_id?: string;
   date_code?: string;
-  endpoints: Record<string, unknown>;
-  supported: boolean;
-  definition: DeviceDefinition;
-  ieee_address: string;
-  interviewing: boolean;
-  manufacturer: string;
-  power_source: string;
-  friendly_name: string;
-  interview_state: string;
-  network_address: number;
+  endpoints?: Record<string, unknown>;
+  supported?: boolean;
+  definition?: DeviceDefinition;
+  ieee_address?: string;
+  interviewing?: boolean;
+  manufacturer?: string;
+  power_source?: string;
+  friendly_name?: string;
+  interview_state?: string;
+  network_address?: number;
   software_build_id?: string;
-  interview_completed: boolean;
+  interview_completed?: boolean;
 }
 
 export interface Device {
@@ -61,6 +104,8 @@ export interface Device {
   name: string;
   description: string | null;
   category: string | null;
+  protocol: Protocol;
+  online?: boolean;
   attributes: DeviceAttributes;
   disabled: boolean;
   created_at: string;
@@ -108,6 +153,7 @@ interface DevicesState {
     data: Record<string, unknown>,
     timestamp?: string,
   ) => void;
+  updateDeviceOnline: (deviceId: string, online: boolean) => void;
   removeDevice: (deviceId: string) => void;
   getDeviceById: (deviceId: string) => Device | undefined;
   getDeviceDataById: (deviceId: string) => DeviceData | undefined;
@@ -238,6 +284,19 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
         },
       },
     }));
+  },
+
+  updateDeviceOnline: (deviceId: string, online: boolean) => {
+    set((state) => {
+      const device = state.devices[deviceId];
+      if (!device || device.online === online) return state;
+      return {
+        devices: {
+          ...state.devices,
+          [deviceId]: { ...device, online },
+        },
+      };
+    });
   },
 
   removeDevice: (deviceId: string) => {

@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useHomesStore } from '../store/useHomesStore';
 import { useDevicesStore } from '../store/useDevicesStore';
+import { hasExpose } from '../lib/device-capabilities';
 import { sseService } from '../lib/sse';
 
 export default function DashboardPage() {
@@ -45,16 +46,9 @@ export default function DashboardPage() {
   const securityIssues = Object.values(devices)
     .map((device) => {
       const data = devicesData[device.id]?.data || {};
-      const exposes = device.attributes?.definition?.exposes || [];
-      const hasContact = exposes.some(
-        (e) => e.name === 'contact' || e.property === 'contact',
-      );
-      const hasSmoke = exposes.some(
-        (e) => e.name === 'smoke' || e.property === 'smoke',
-      );
-      const hasWater = exposes.some(
-        (e) => e.name === 'water_leak' || e.property === 'water_leak',
-      );
+      const hasContact = hasExpose(device, ['contact']);
+      const hasSmoke = hasExpose(device, ['smoke']);
+      const hasWater = hasExpose(device, ['water_leak']);
 
       if (hasContact && data.contact === false)
         return {

@@ -1,11 +1,19 @@
 import { useMemo, useCallback } from 'react';
 import { Home, Wifi, WifiOff, Search } from 'lucide-react';
 import { useHomesStore } from '../store/useHomesStore';
-import { useDevicesStore } from '../store/useDevicesStore';
+import { useDevicesStore, type Device } from '../store/useDevicesStore';
 import { api } from '../lib/api';
 import DeviceCard from '../components/device/DeviceCard';
 import { Card, CardContent } from '../components/ui/card';
 import { cn } from '../lib/utils';
+import { getDeviceExposes } from '../lib/device-capabilities';
+
+// Count of user-facing (non-diagnostic) properties — used to order the grid.
+function countMainExposes(device: Device): number {
+  return getDeviceExposes(device).filter(
+    (e) => e.category !== 'diagnostic' && e.name !== 'linkquality',
+  ).length;
+}
 
 export default function DevicesPage() {
   const { homes, homeIds } = useHomesStore();
@@ -159,21 +167,7 @@ export default function DevicesPage() {
           {/* Devices grid */}
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {homeDevices
-              .sort((a, b) => {
-                const aExposes =
-                  a.attributes?.definition?.exposes?.filter(
-                    (expose) =>
-                      expose.category !== 'diagnostic' &&
-                      expose.name !== 'linkquality',
-                  ) || [];
-                const bExposes =
-                  b.attributes?.definition?.exposes?.filter(
-                    (expose) =>
-                      expose.category !== 'diagnostic' &&
-                      expose.name !== 'linkquality',
-                  ) || [];
-                return aExposes.length - bExposes.length;
-              })
+              .sort((a, b) => countMainExposes(a) - countMainExposes(b))
               .map((device) => (
                 <DeviceCard
                   key={device.id}

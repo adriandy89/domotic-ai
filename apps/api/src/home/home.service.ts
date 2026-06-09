@@ -407,6 +407,8 @@ export class HomeService {
             name: true,
             description: true,
             category: true,
+            protocol: true,
+            online: true,
             attributes: true,
             disabled: true,
             created_at: true,

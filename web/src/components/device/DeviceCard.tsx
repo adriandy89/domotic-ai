@@ -2,17 +2,8 @@ import { useMemo, useCallback, useState } from 'react';
 import {
   Battery,
   Wifi,
-  Thermometer,
-  Droplets,
   Power,
-  Lightbulb,
   AlertTriangle,
-  Zap,
-  Eye,
-  DoorOpen,
-  Flame,
-  Volume2,
-  Cpu,
   Trash2,
   ChevronDown,
   ChevronUp,
@@ -29,6 +20,12 @@ import DeviceImage from './DeviceImage';
 import LearnIRModal from './LearnIRModal';
 import CommandSelector from './CommandSelector';
 import type { Device, DeviceData } from '../../store/useDevicesStore';
+import {
+  getDeviceExposes,
+  getDeviceFooterMeta,
+  getDeviceIcon,
+  getDeviceMeta,
+} from '../../lib/device-capabilities';
 
 interface DeviceCardProps {
   device: Device;
@@ -38,43 +35,12 @@ interface DeviceCardProps {
   onRemove?: (deviceId: string) => void;
 }
 
-// Get icon for device type based on exposes
-function getDeviceIcon(device: Device) {
-  const exposes = device.attributes?.definition?.exposes || [];
-  const exposeNames = exposes.map((e) => e.name || e.property);
-
-  if (exposeNames.includes('state') || exposeNames.includes('switch'))
-    return Lightbulb;
-  if (exposeNames.includes('temperature')) return Thermometer;
-  if (exposeNames.includes('humidity')) return Droplets;
-  if (exposeNames.includes('contact')) return DoorOpen;
-  if (exposeNames.includes('occupancy') || exposeNames.includes('presence'))
-    return Eye;
-  if (exposeNames.includes('smoke')) return Flame;
-  if (exposeNames.includes('water_leak')) return Droplets;
-  if (exposeNames.includes('alarm')) return Volume2;
-  if (exposeNames.includes('power') || exposeNames.includes('energy'))
-    return Zap;
-
-  return Cpu;
-}
-
 // Get battery status color
 function getBatteryColor(battery?: number): string {
   if (battery === undefined) return 'text-muted-foreground';
   if (battery <= 10) return 'text-red-500';
   if (battery <= 30) return 'text-amber-500';
   return 'text-emerald-500';
-}
-
-// Get link quality status
-function getLqiStatus(lqi?: number): { color: string; label: string } {
-  if (lqi === undefined)
-    return { color: 'text-muted-foreground', label: 'N/A' };
-  if (lqi >= 150) return { color: 'text-emerald-500', label: 'Excellent' };
-  if (lqi >= 80) return { color: 'text-cyan-500', label: 'Good' };
-  if (lqi >= 40) return { color: 'text-amber-500', label: 'Fair' };
-  return { color: 'text-red-500', label: 'Poor' };
 }
 
 // Format last seen timestamp
@@ -115,7 +81,8 @@ export default function DeviceCard({
 
   const data = deviceData?.data || {};
   const lastUpdateTimestamp = deviceData?.timestamp;
-  const exposes = device.attributes?.definition?.exposes || [];
+  // Protocol-agnostic capabilities (zigbee exposes pass through; HA derived from config).
+  const exposes = useMemo(() => getDeviceExposes(device), [device]);
 
   // Separate main exposes from diagnostic (diagnostic shown in footer)
   const mainExposes = useMemo(() => {
@@ -132,20 +99,13 @@ export default function DeviceCard({
     );
   }, [exposes]);
 
-  const battery = data.battery as number | undefined;
-  const linkquality = data.linkquality as number | undefined;
   // Prefer the SSE/last-data timestamp — `data.last_seen` is reported by the
   // device and is omitted from many heartbeats, so it lags behind reality.
   const lastSeen =
     lastUpdateTimestamp ?? (data.last_seen as string | number | undefined);
-  const lqiStatus = getLqiStatus(linkquality);
 
-  const powerSource = device.attributes?.power_source || 'Unknown';
-  const vendor = device.attributes?.definition?.vendor || 'Unknown';
-  const model = device.attributes?.definition?.model || device.model;
-  const description =
-    device.attributes?.definition?.description || device.description;
-  const deviceType = device.attributes?.type || 'Device';
+  const footer = getDeviceFooterMeta(device, data);
+  const { vendor, model, description } = getDeviceMeta(device);
 
   // Handle feature change
   const handleChange = useCallback(
@@ -192,8 +152,17 @@ export default function DeviceCard({
                   />
                 </div>
               ) : (
-                <div className="font-semibold text-foreground truncate block">
-                  {device.name || device.unique_id}
+                <div className="font-semibold text-foreground truncate flex items-center gap-1.5">
+                  {footer.online !== undefined && (
+                    <span
+                      className={cn(
+                        'h-2 w-2 rounded-full shrink-0',
+                        footer.online ? 'bg-emerald-500' : 'bg-muted-foreground/40',
+                      )}
+                      title={footer.online ? 'Online' : 'Offline'}
+                    />
+                  )}
+                  <span className="truncate">{device.name || device.unique_id}</span>
                 </div>
               )}
               <p className="text-xs text-muted-foreground truncate">
@@ -357,35 +326,33 @@ export default function DeviceCard({
         <div className="mt-auto px-3 py-2 bg-background/20 border-t border-border/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {/* Link Quality */}
+              {/* Link / signal quality (linkquality for zigbee, wifi_rssi for HA) */}
               <div
-                className={cn('flex items-center gap-1', lqiStatus.color)}
-                title={`Link Quality: ${lqiStatus.label}`}
+                className={cn('flex items-center gap-1', footer.signal.color)}
+                title={`Signal: ${footer.signal.label}`}
               >
                 <Wifi className="h-3.5 w-3.5" />
-                <span className="text-xs font-medium">
-                  {linkquality ?? 'N/A'}
-                </span>
+                <span className="text-xs font-medium">{footer.signal.value}</span>
               </div>
 
               {/* Battery (if applicable) */}
-              {powerSource.toLowerCase().includes('battery') && (
+              {footer.hasBattery && (
                 <div
                   className={cn(
                     'flex items-center gap-1',
-                    getBatteryColor(battery),
+                    getBatteryColor(footer.battery),
                   )}
                   title="Battery"
                 >
                   <Battery className="h-3.5 w-3.5" />
                   <span className="text-xs font-medium">
-                    {battery !== undefined ? `${battery}%` : 'N/A'}
+                    {footer.battery !== undefined ? `${footer.battery}%` : 'N/A'}
                   </span>
                 </div>
               )}
 
               {/* Power source indicator for mains */}
-              {powerSource.toLowerCase().includes('mains') && (
+              {footer.isMains && (
                 <div
                   className="flex items-center gap-1 text-cyan-500"
                   title="AC Powered"
@@ -398,7 +365,7 @@ export default function DeviceCard({
 
             {/* Device type badge */}
             <span className="text-xs px-2 py-0.5 bg-muted/50 rounded text-muted-foreground">
-              {deviceType}
+              {footer.typeLabel}
             </span>
           </div>
 

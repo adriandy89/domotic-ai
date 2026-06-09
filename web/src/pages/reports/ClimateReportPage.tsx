@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from '../../components/ui/card';
 import { useDevicesStore } from '../../store/useDevicesStore';
+import { hasExpose } from '../../lib/device-capabilities';
 import { useHomesStore } from '../../store/useHomesStore';
 import {
   useReportsStore,
@@ -37,10 +38,7 @@ export default function ClimateReportPage() {
       Object.values(devices).filter((d) => {
         if (d.disabled) return false;
         if (homeId && d.home_id !== homeId) return false;
-        return hasExpose(d.attributes?.definition?.exposes ?? [], [
-          'temperature',
-          'humidity',
-        ]);
+        return hasExpose(d, ['temperature', 'humidity']);
       }),
     [devices, homeId],
   );
@@ -215,16 +213,3 @@ export default function ClimateReportPage() {
   );
 }
 
-interface ExposeShape {
-  name?: string;
-  property?: string;
-  features?: ExposeShape[];
-}
-function hasExpose(exposes: ExposeShape[], names: string[]): boolean {
-  for (const e of exposes) {
-    const id = e.property ?? e.name;
-    if (id && names.includes(id)) return true;
-    if (e.features && hasExpose(e.features, names)) return true;
-  }
-  return false;
-}

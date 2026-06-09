@@ -18,6 +18,7 @@ import type {
 } from '../store/useSchedulesStore';
 import { useHomesStore } from '../store/useHomesStore';
 import { useDevicesStore, type DeviceExpose } from '../store/useDevicesStore';
+import { getPublishableExposes } from '../lib/device-capabilities';
 import {
   Card,
   CardContent,
@@ -69,20 +70,6 @@ const NOTIFICATION_CHANNELS: { value: NotificationChannel; label: string }[] = [
 ];
 
 const NOTIFICATION_ATTRIBUTE = '__notification__';
-
-function getPublishableExposes(exposes: DeviceExpose[]): DeviceExpose[] {
-  const result: DeviceExpose[] = [];
-  for (const expose of exposes) {
-    if (expose.access && expose.access & 0b010) result.push(expose);
-    if (expose.features) {
-      const publishable = expose.features.filter(
-        (f) => f.access && f.access & 0b010,
-      );
-      result.push(...publishable);
-    }
-  }
-  return result;
-}
 
 // Helper to convert Date <-> "YYYY-MM-DDTHH:mm" format used by the input
 function toLocalInputValue(iso?: string | null): string {
@@ -176,8 +163,7 @@ export default function ScheduleFormPage() {
   const getPublishableDeviceExposes = useCallback(
     (deviceId: string): DeviceExpose[] => {
       const device = devices[deviceId];
-      if (!device?.attributes?.definition?.exposes) return [];
-      return getPublishableExposes(device.attributes.definition.exposes);
+      return device ? getPublishableExposes(device) : [];
     },
     [devices],
   );

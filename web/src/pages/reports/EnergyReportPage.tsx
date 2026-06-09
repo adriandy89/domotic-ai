@@ -17,6 +17,7 @@ import {
   CardTitle,
 } from '../../components/ui/card';
 import { useDevicesStore } from '../../store/useDevicesStore';
+import { hasExpose } from '../../lib/device-capabilities';
 import { useHomesStore } from '../../store/useHomesStore';
 import {
   useReportsStore,
@@ -44,8 +45,7 @@ export default function EnergyReportPage() {
     return Object.values(devices).filter((d) => {
       if (d.disabled) return false;
       if (homeId && d.home_id !== homeId) return false;
-      const exposes = d.attributes?.definition?.exposes ?? [];
-      return hasExpose(exposes, ['power', 'energy']);
+      return hasExpose(d, ['power', 'energy']);
     });
   }, [devices, homeId]);
 
@@ -112,7 +112,7 @@ export default function EnergyReportPage() {
       .filter((id) => {
         const d = devices[id];
         if (!d || d.disabled) return false;
-        return hasExpose(d.attributes?.definition?.exposes ?? [], ['energy']);
+        return hasExpose(d, ['energy']);
       })
       .slice(0, 20);
     if (ids.length === 0) {
@@ -336,17 +336,3 @@ export default function EnergyReportPage() {
   );
 }
 
-interface ExposeShape {
-  name?: string;
-  property?: string;
-  features?: ExposeShape[];
-}
-
-function hasExpose(exposes: ExposeShape[], names: string[]): boolean {
-  for (const e of exposes) {
-    const id = e.property ?? e.name;
-    if (id && names.includes(id)) return true;
-    if (e.features && hasExpose(e.features, names)) return true;
-  }
-  return false;
-}
