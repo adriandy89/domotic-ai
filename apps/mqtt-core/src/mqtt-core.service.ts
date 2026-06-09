@@ -7,6 +7,8 @@ import {
   getKeyHomeUniqueIdOrgId,
   getKeyHomeUniqueIdsDisconnected,
   HaDeviceAttributes,
+  synthesizeEntities,
+  isHaProtocol,
   IHomeConnectedEvent,
   IHomeConnectionNotification,
   IRulesSensorData,
@@ -345,6 +347,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         homeUniqueId,
         deviceUniqueId,
         organizationId: homeOrgId,
+        protocol: DeviceProtocol.ZIGBEE,
       }));
 
     if (!device?.id) return;
@@ -384,6 +387,16 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
     const discovered = adapter.parseDiscovery({ topicParts: rest, payload });
     if (!discovered) return;
 
+    // The protocol MUST come from the route (inferred from the entity topics) —
+    // never defaulted. If it couldn't be inferred, do nothing but warn.
+    const protocol = discovered.protocol;
+    if (!protocol) {
+      this.logger.warn(
+        `HA discovery ignored: protocol not inferable from entity topics — uniqueId=${discovered.uniqueId} home=${homeUniqueId}`,
+      );
+      return;
+    }
+
     const home = await this.dbService.home.findUnique({
       where: { unique_id: homeUniqueId, disabled: false },
       select: { id: true, organization_id: true },
@@ -392,8 +405,6 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       this.logger.error(`HA discovery: home not found = ${homeUniqueId}`);
       return;
     }
-
-    const protocol = discovered.protocol ?? DeviceProtocol.WIFI;
     const existing = await this.dbService.device.findUnique({
       where: {
         unique_id_organization_id: {
@@ -463,7 +474,21 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
     bufferMsg: Buffer,
   ) {
     const entry = this.haStateIndex.get(topic);
-    if (!entry) return; // not (yet) discovered — ignore
+    if (!entry) {
+      // No per-entity discovery for this topic. If it's the canonical aggregate
+      // shape `home/id/{uuid}/{protocol}/{deviceId}/state`, auto-register from the
+      // payload (like Zigbee); otherwise ignore.
+      const parts = topic.split('/');
+      if (parts.length === 6 && parts[5] === 'state') {
+        return this.handleHaAggregateState(
+          homeUniqueId,
+          parts[3],
+          parts[4],
+          bufferMsg,
+        );
+      }
+      return;
+    }
 
     const raw = bufferMsg.toString().replace(/\u0000/g, '');
     let value: unknown;
@@ -489,6 +514,122 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       { [entry.property]: value },
       homeUniqueId,
     );
+  }
+
+  // ── HA aggregate state (single JSON payload, no per-entity discovery) ───────
+  /**
+   * Handles an HA-protocol device that publishes its whole state as one JSON object
+   * on `home/id/{uuid}/{protocol}/{deviceId}/state`. Mirrors {@link handleZigbeeState}:
+   * resolve-or-auto-register the device, then ingest the full payload. A later
+   * HA-Discovery `config` enriches the same device via {@link handleHaDiscovery}.
+   */
+  private async handleHaAggregateState(
+    homeUniqueId: string,
+    protocol: string,
+    deviceUniqueId: string,
+    bufferMsg: Buffer,
+  ) {
+    // The protocol MUST come from the topic route — never defaulted. If the route
+    // segment isn't a known HA protocol, do nothing but warn.
+    if (!isHaProtocol(protocol)) {
+      this.logger.warn(
+        `Aggregate state ignored: unknown protocol "${protocol}" — home=${homeUniqueId} device=${deviceUniqueId}`,
+      );
+      return;
+    }
+
+    let message: unknown;
+    try {
+      message = JSON.parse(
+        bufferMsg.toString().replace(new RegExp(String.fromCharCode(0), 'g'), ''),
+      );
+    } catch (err) {
+      this.logger.error(
+        `Failed to parse aggregate state for device=${deviceUniqueId} home=${homeUniqueId}: ${err}`,
+      );
+      return;
+    }
+    if (!message || typeof message !== 'object') {
+      this.logger.error(
+        `Invalid aggregate state (not an object) for device=${deviceUniqueId} home=${homeUniqueId}`,
+      );
+      return;
+    }
+
+    const organizationId = await this.resolveHomeOrgId(homeUniqueId);
+    if (!organizationId) {
+      this.logger.error(`Not Found Organization ID for home = ${homeUniqueId}`);
+      return;
+    }
+
+    const stateTopic = `home/id/${homeUniqueId}/${protocol}/${deviceUniqueId}/state`;
+
+    const existingDevice = await this.dbService.device.findUnique({
+      where: {
+        unique_id_organization_id: {
+          organization_id: organizationId,
+          unique_id: deviceUniqueId,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        disabled: true,
+        protocol: true,
+        attributes: true,
+        conditions: { select: { rule_id: true } },
+      },
+    });
+
+    // Self-heal: a device created earlier with the wrong protocol (e.g. the DB
+    // default) is corrected from the route here, and its attributes backfilled.
+    if (existingDevice && existingDevice.protocol !== protocol) {
+      const needsAttrs =
+        (existingDevice.attributes as HaDeviceAttributes | null)?.source !==
+        'hadiscovery';
+      await this.dbService.device.update({
+        where: { id: existingDevice.id },
+        data: {
+          protocol,
+          ...(needsAttrs && {
+            attributes: {
+              source: 'hadiscovery',
+              protocol,
+              device: { identifiers: deviceUniqueId, name: deviceUniqueId },
+              entities: synthesizeEntities(
+                deviceUniqueId,
+                stateTopic,
+                message as Record<string, unknown>,
+              ),
+            } as unknown as Prisma.InputJsonValue,
+          }),
+        },
+      });
+      this.logger.log(
+        `Reconciled protocol for device=${deviceUniqueId} home=${homeUniqueId}: ${existingDevice.protocol} -> ${protocol}`,
+      );
+    }
+
+    const device =
+      existingDevice ??
+      (await this.autoRegisterDevice({
+        homeUniqueId,
+        deviceUniqueId,
+        organizationId,
+        protocol,
+        stateTopic,
+        statePayload: message as Record<string, unknown>,
+      }));
+
+    if (!device?.id) return;
+    if (device.disabled) {
+      this.logger.warn(
+        `Device = ${deviceUniqueId} for home = ${homeUniqueId} is disabled`,
+      );
+      return;
+    }
+
+    await this.ingestSensorData(device, message as object, homeUniqueId);
   }
 
   // ── Shared state ingestion (protocol-agnostic) ─────────────────────────────
@@ -915,12 +1056,49 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
     return { ok: true };
   }
 
+  /**
+   * Resolve a home's organization id. Cache fast-path (telemetry is frequent); on a
+   * cache miss fall back to the DB and re-warm the cache. Returns null if no such
+   * enabled home exists. Prevents dropping data when the cache is cold/flushed.
+   */
+  private async resolveHomeOrgId(homeUniqueId: string): Promise<string | null> {
+    const cached = await this.cacheService.get<string>(
+      getKeyHomeUniqueIdOrgId(homeUniqueId),
+    );
+    if (cached) return cached;
+
+    const home = await this.dbService.home.findUnique({
+      where: { unique_id: homeUniqueId, disabled: false },
+      select: { organization_id: true },
+    });
+    if (!home) return null;
+
+    await this.cacheService.set(
+      getKeyHomeUniqueIdOrgId(homeUniqueId),
+      home.organization_id,
+    );
+    return home.organization_id;
+  }
+
   private async autoRegisterDevice(input: {
     homeUniqueId: string;
     deviceUniqueId: string;
     organizationId: string;
+    /** REQUIRED — always taken from the topic route; never defaulted. */
+    protocol: string;
+    /** For HA aggregate-state devices: the canonical state topic + first payload, used to
+     *  synthesize read-only sensor entities so the device exposes readable attributes. */
+    stateTopic?: string;
+    statePayload?: Record<string, unknown>;
   }): Promise<IngestDevice | null> {
-    const { homeUniqueId, deviceUniqueId, organizationId } = input;
+    const {
+      homeUniqueId,
+      deviceUniqueId,
+      organizationId,
+      protocol,
+      stateTopic,
+      statePayload,
+    } = input;
 
     const home = await this.dbService.home.findUnique({
       where: { unique_id: homeUniqueId, disabled: false },
@@ -943,15 +1121,37 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       return null;
     }
 
+    // HA-protocol devices persist canonical `source:'hadiscovery'` attributes (with
+    // synthesized read-only entities) so getReadableAttributes/getAvailableActions work
+    // and a later discovery config can merge cleanly. Zigbee leaves attributes for the
+    // bridge/devices refresh to fill in.
+    const isHaProtocol = protocol !== DeviceProtocol.ZIGBEE;
+    const attributes: HaDeviceAttributes | undefined =
+      isHaProtocol && stateTopic
+        ? {
+            source: 'hadiscovery',
+            protocol,
+            device: { identifiers: deviceUniqueId, name: deviceUniqueId },
+            entities: synthesizeEntities(
+              deviceUniqueId,
+              stateTopic,
+              statePayload ?? {},
+            ),
+          }
+        : undefined;
+
     try {
       const created = await this.dbService.device.create({
         data: {
           unique_id: deviceUniqueId,
           name: deviceUniqueId,
-          protocol: DeviceProtocol.ZIGBEE,
+          protocol,
           home_id: home.id,
           organization_id: organizationId,
           disabled: false,
+          ...(attributes && {
+            attributes: attributes as unknown as Prisma.InputJsonValue,
+          }),
         },
         select: {
           id: true,
@@ -961,9 +1161,14 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         },
       });
       this.logger.log(
-        `Auto-registered device: id=${created.id} unique_id=${deviceUniqueId} home=${homeUniqueId} organization=${organizationId}`,
+        `Auto-registered device: id=${created.id} unique_id=${deviceUniqueId} protocol=${protocol} home=${homeUniqueId} organization=${organizationId}`,
       );
-      this.refreshBridgeDevices(homeUniqueId);
+      if (isHaProtocol) {
+        // Pull any retained discovery configs to enrich this device.
+        this.refreshHaDiscovery(homeUniqueId);
+      } else {
+        this.refreshBridgeDevices(homeUniqueId);
+      }
       return created;
     } catch (err) {
       this.logger.error(
@@ -981,6 +1186,20 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       if (err) {
         this.logger.warn(
           `Failed to re-subscribe ${topic} for metadata refresh: ${err.message}`,
+        );
+      }
+    });
+  }
+
+  // Re-subscribe to the home's retained HA-Discovery config topics so the broker
+  // re-delivers them, enriching an aggregate-state auto-registered device with the
+  // proper entity metadata (units, command topics, names) when a bridge published them.
+  private refreshHaDiscovery(homeUniqueId: string) {
+    const topic = `home/id/${homeUniqueId}/discovery/#`;
+    this.mqttClient.subscribe(topic, { qos: 1 }, (err) => {
+      if (err) {
+        this.logger.warn(
+          `Failed to re-subscribe ${topic} for discovery refresh: ${err.message}`,
         );
       }
     });

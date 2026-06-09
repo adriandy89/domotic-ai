@@ -20,6 +20,11 @@ const HA_PROTOCOLS = new Set<string>([
   DeviceProtocol.BLE,
 ]);
 
+/** True when `p` is a protocol handled by the HA-Discovery adapter (zwave/wifi/ble). */
+export function isHaProtocol(p: string): boolean {
+  return HA_PROTOCOLS.has(p);
+}
+
 /** Components whose main entity maps to a binary on/off action. */
 const BINARY_COMPONENTS = new Set(['switch', 'light', 'fan']);
 
@@ -47,7 +52,9 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
 
     const attributes: HaDeviceAttributes = {
       source: 'hadiscovery',
-      protocol: protocol ?? DeviceProtocol.WIFI,
+      // Inferred strictly from the entity topics; never defaulted. mqtt-core drops
+      // the discovery when this is undefined.
+      protocol,
       device: {
         identifiers: deviceIdentifier,
         name: deviceMeta.name,
@@ -74,10 +81,21 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
     const existing = existingAttributes as HaDeviceAttributes | undefined;
     if (!existing || existing.source !== 'hadiscovery') return incoming;
 
+    // Authoritative discovery entities supersede any synthesized (aggregate-state)
+    // entity for the same property, so the merge doesn't leave stale duplicates.
+    const incomingProps = new Set(
+      Object.values(incoming.entities ?? {}).map((e) => e.property),
+    );
+    const kept = Object.fromEntries(
+      Object.entries(existing.entities ?? {}).filter(
+        ([, e]) => !incomingProps.has(e.property),
+      ),
+    );
+
     return {
       ...existing,
       device: { ...existing.device, ...incoming.device },
-      entities: { ...existing.entities, ...incoming.entities },
+      entities: { ...kept, ...incoming.entities },
     } satisfies HaDeviceAttributes;
   }
 
@@ -217,6 +235,44 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
 
     return messages;
   }
+}
+
+/**
+ * Keys present in an aggregate state payload that describe the message itself
+ * rather than a readable measurement — excluded from synthesized entities.
+ */
+const AGGREGATE_META_KEYS = new Set(['device', 'ts', 'timestamp']);
+
+/**
+ * Build read-only HA entities from one aggregate JSON state payload, for a device
+ * that publishes everything on a single `…/{deviceId}/state` topic without ever
+ * sending HA-Discovery configs. Each scalar key becomes a read-only `sensor`
+ * (or `binary_sensor` for on/off values) so the device exposes readable attributes
+ * immediately; a later discovery `config` enriches/overrides these via
+ * {@link HaDiscoveryAdapter.mergeDiscovery}. Nested objects/arrays and meta keys are skipped.
+ */
+export function synthesizeEntities(
+  deviceId: string,
+  stateTopic: string,
+  payload: Record<string, unknown>,
+): Record<string, HaEntity> {
+  const entities: Record<string, HaEntity> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (AGGREGATE_META_KEYS.has(key)) continue;
+    if (value === null || typeof value === 'object') continue; // scalars only
+
+    const isBinary =
+      typeof value === 'boolean' ||
+      (typeof value === 'string' && /^(on|off|true|false)$/i.test(value));
+    const uniqueId = `${deviceId}_${key}`;
+    entities[uniqueId] = {
+      component: isBinary ? 'binary_sensor' : 'sensor',
+      property: key,
+      uniqueId,
+      stateTopic,
+    };
+  }
+  return entities;
 }
 
 function readEntities(attributes: unknown): HaEntity[] {

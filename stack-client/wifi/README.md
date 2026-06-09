@@ -29,8 +29,33 @@ mqtt:
 ```
 
 Flash the device. On boot it publishes retained discovery configs under
-`home/id/{homeUniqueId}/discovery/...`; the backend auto-registers it (disabled by default —
-enable it in the dashboard). Switches/lights become controllable; sensors are read-only.
+`home/id/{homeUniqueId}/discovery/...`; the backend registers it with full metadata.
+Switches/lights become controllable; sensors are read-only.
 
 > The MQTT broker ACL for the home (`home/id/{homeUniqueId}/.*`) already covers both the
 > `wifi` and `discovery` namespaces — no credential changes needed.
+
+## Without HA discovery (aggregate state) — discovery is optional
+
+Custom firmware that can't emit HA discovery can still be onboarded automatically. Publish
+the whole device state as **one JSON object** on the canonical aggregate-state topic:
+
+```
+home/id/{homeUniqueId}/wifi/{deviceId}/state
+```
+
+```jsonc
+// e.g. topic: home/id/1234-fake-id-long-string/wifi/gas-b2a7e255/state
+{ "device": "gas-b2a7e255", "ts": 1780998847, "co_ppm": 9.6, "ch4_ppm": 32.3 }
+```
+
+On the first such message the backend **auto-registers** the device (protocol `wifi`,
+enabled, `unique_id = {deviceId}`) and exposes every scalar key as a read-only sensor
+(`device`/`ts`/`timestamp` are treated as metadata, not sensors). Booleans and `on`/`off`
+strings become binary sensors.
+
+**Reconciliation contract:** if the device *also* sends HA discovery later, use the **same
+`{deviceId}`** as the discovery `device.identifiers` / object id. The discovery config then
+*enriches* the existing device (real names, units, command topics) instead of creating a
+duplicate. So: send only `/state` to be seen immediately, add discovery whenever you want
+control and richer metadata — both paths converge on one device.

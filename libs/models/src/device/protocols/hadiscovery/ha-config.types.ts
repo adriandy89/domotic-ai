@@ -45,7 +45,8 @@ export interface HaEntity {
 /** The persisted `Device.attributes` for an HA-Discovery device. */
 export interface HaDeviceAttributes {
   source: 'hadiscovery';
-  protocol: string;
+  /** Resolved strictly from the topic route; absent when it couldn't be inferred. */
+  protocol?: string;
   device: {
     identifiers: string;
     name?: string;
