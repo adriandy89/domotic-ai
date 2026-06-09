@@ -30,6 +30,7 @@ export class DeviceService {
     category: true,
     protocol: true,
     disabled: true,
+    online: true,
     created_at: true,
     updated_at: true,
     home_id: true,

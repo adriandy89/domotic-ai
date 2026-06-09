@@ -14,6 +14,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { filter, interval, map, merge, Observable, Subject } from 'rxjs';
 import { AuthenticatedGuard, GetUserInfo } from '../auth';
 import type {
+  IDeviceAvailability,
   IHomeConnectedEvent,
   ISensorData,
   IUserSensorNotification,
@@ -90,6 +91,14 @@ export class SSEController implements OnModuleDestroy {
               const homeStatus = message.payload as IHomeConnectedEvent;
               // Check if user is in the userIds array
               hasPermission = homeStatus.userIds?.includes(user.id) ?? false;
+              break;
+
+            case 'device.availability':
+              const deviceAvailability =
+                message.payload as IDeviceAvailability;
+              // Check if user is in the userIds array
+              hasPermission =
+                deviceAvailability.userIds?.includes(user.id) ?? false;
               break;
 
             case 'user.sensor-notification':
@@ -177,6 +186,17 @@ export class SSEController implements OnModuleDestroy {
     );
     this.messageSubject.next({
       topic: 'home.status',
+      payload,
+    });
+  }
+
+  @EventPattern('mqtt-core.device.availability')
+  async handleDeviceAvailability(@Payload() payload: IDeviceAvailability) {
+    this.logger.log(
+      `Received mqtt-core.device.availability: ${JSON.stringify(payload)}`,
+    );
+    this.messageSubject.next({
+      topic: 'device.availability',
       payload,
     });
   }

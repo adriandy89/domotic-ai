@@ -10,8 +10,13 @@ import {
   ValidationResult,
 } from '../types';
 import { validateCommand } from '../shared/validate-command';
-import { HaDeviceAttributes, HaEntity } from './ha-config.types';
-import { parseHaEntity } from './parse-ha-config';
+import { HaDeviceAttributes, HaEntity, HaRawConfig } from './ha-config.types';
+import {
+  deriveDeviceMeta,
+  deriveEntities,
+  HA_META_KEYS,
+  toCanonicalConfig,
+} from './parse-ha-config';
 
 /** Protocols that share the HA-Discovery contract. */
 const HA_PROTOCOLS = new Set<string>([
@@ -40,34 +45,31 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
   readonly protocol = 'hadiscovery';
 
   /**
-   * Parse one discovery message into a single-entity device. mqtt-core merges
-   * successive messages for the same physical device via {@link mergeDiscovery}.
+   * Parse one discovery message into a device, storing the **complete raw config** in
+   * `attributes` (like the Zigbee adapter stores the bridge object). Capabilities are
+   * derived at read time. mqtt-core merges successive messages via {@link mergeDiscovery}.
    */
   parseDiscovery(raw: unknown): DiscoveredDevice | null {
-    const parsed = parseHaEntity(raw as never);
-    if (!parsed) return null;
+    const config = toCanonicalConfig(raw as never);
+    if (!config) return null;
 
-    const { deviceIdentifier, deviceMeta, entity } = parsed;
-    const protocol = inferProtocol(entity);
+    const protocol = inferProtocol(config);
+    const meta = deriveDeviceMeta(config);
+    const identifier =
+      meta.identifiers || deriveEntities(config)[0]?.uniqueId || 'unknown';
 
     const attributes: HaDeviceAttributes = {
       source: 'hadiscovery',
       // Inferred strictly from the entity topics; never defaulted. mqtt-core drops
       // the discovery when this is undefined.
       protocol,
-      device: {
-        identifiers: deviceIdentifier,
-        name: deviceMeta.name,
-        model: deviceMeta.model,
-        manufacturer: deviceMeta.manufacturer,
-      },
-      entities: { [entity.uniqueId]: entity },
+      config,
     };
 
     return {
-      uniqueId: deviceIdentifier,
-      name: deviceMeta.name || entity.name || deviceIdentifier,
-      model: deviceMeta.model,
+      uniqueId: identifier,
+      name: meta.name || identifier,
+      model: meta.model,
       attributes,
       protocol,
     };
@@ -79,23 +81,23 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
   ): unknown {
     const incoming = discovered.attributes as HaDeviceAttributes;
     const existing = existingAttributes as HaDeviceAttributes | undefined;
-    if (!existing || existing.source !== 'hadiscovery') return incoming;
+    if (!existing || existing.source !== 'hadiscovery' || !existing.config) {
+      return incoming;
+    }
 
-    // Authoritative discovery entities supersede any synthesized (aggregate-state)
-    // entity for the same property, so the merge doesn't leave stale duplicates.
-    const incomingProps = new Set(
-      Object.values(incoming.entities ?? {}).map((e) => e.property),
-    );
-    const kept = Object.fromEntries(
-      Object.entries(existing.entities ?? {}).filter(
-        ([, e]) => !incomingProps.has(e.property),
-      ),
-    );
+    // Deep-merge the raw config: components merge by object id (authoritative discovery
+    // supersedes synthesized aggregate-state entries), and incoming top-level keys
+    // (`~`/`dev`/`stat_t`/`availability`/`payload_*`/`o`) overlay the existing ones.
+    const merged: HaRawConfig = {
+      ...existing.config,
+      ...incoming.config,
+      cmps: { ...existing.config.cmps, ...incoming.config.cmps },
+    };
 
     return {
-      ...existing,
-      device: { ...existing.device, ...incoming.device },
-      entities: { ...kept, ...incoming.entities },
+      source: 'hadiscovery',
+      protocol: incoming.protocol ?? existing.protocol,
+      config: merged,
     } satisfies HaDeviceAttributes;
   }
 
@@ -161,6 +163,9 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
 
     for (const entity of entities) {
       if (!entity.stateTopic) continue;
+      // Metadata keys (ts/timestamp/device) stay in the stored config but are not
+      // surfaced as readable sensors.
+      if (HA_META_KEYS.has(entity.property)) continue;
       const type =
         entity.component === 'binary_sensor'
           ? 'binary'
@@ -238,57 +243,56 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
 }
 
 /**
- * Keys present in an aggregate state payload that describe the message itself
- * rather than a readable measurement — excluded from synthesized entities.
- */
-const AGGREGATE_META_KEYS = new Set(['device', 'ts', 'timestamp']);
-
-/**
- * Build read-only HA entities from one aggregate JSON state payload, for a device
- * that publishes everything on a single `…/{deviceId}/state` topic without ever
- * sending HA-Discovery configs. Each scalar key becomes a read-only `sensor`
- * (or `binary_sensor` for on/off values) so the device exposes readable attributes
- * immediately; a later discovery `config` enriches/overrides these via
+ * Build a synthetic raw config from one aggregate JSON state payload, for a device that
+ * publishes everything on a single `…/{deviceId}/state` topic without ever sending
+ * HA-Discovery configs. Each scalar key becomes a read-only `sensor` (or `binary_sensor`
+ * for on/off values) component sharing that state topic, so the device exposes readable
+ * attributes immediately; a later discovery `config` enriches/overrides these via
  * {@link HaDiscoveryAdapter.mergeDiscovery}. Nested objects/arrays and meta keys are skipped.
  */
-export function synthesizeEntities(
+export function synthesizeConfig(
   deviceId: string,
   stateTopic: string,
   payload: Record<string, unknown>,
-): Record<string, HaEntity> {
-  const entities: Record<string, HaEntity> = {};
+): HaRawConfig {
+  const cmps: Record<string, Record<string, unknown>> = {};
   for (const [key, value] of Object.entries(payload)) {
-    if (AGGREGATE_META_KEYS.has(key)) continue;
+    if (HA_META_KEYS.has(key)) continue;
     if (value === null || typeof value === 'object') continue; // scalars only
 
     const isBinary =
       typeof value === 'boolean' ||
       (typeof value === 'string' && /^(on|off|true|false)$/i.test(value));
-    const uniqueId = `${deviceId}_${key}`;
-    entities[uniqueId] = {
-      component: isBinary ? 'binary_sensor' : 'sensor',
-      property: key,
-      uniqueId,
-      stateTopic,
+    cmps[key] = {
+      p: isBinary ? 'binary_sensor' : 'sensor',
+      state_topic: stateTopic,
+      value_template: `{{value_json.${key}}}`,
+      unique_id: `${deviceId}_${key}`,
     };
   }
-  return entities;
+  return { dev: { ids: [deviceId], name: deviceId }, cmps };
 }
 
 function readEntities(attributes: unknown): HaEntity[] {
   const attrs = attributes as HaDeviceAttributes | undefined;
-  if (!attrs || attrs.source !== 'hadiscovery' || !attrs.entities) return [];
-  return Object.values(attrs.entities);
+  if (!attrs || attrs.source !== 'hadiscovery' || !attrs.config) return [];
+  return deriveEntities(attrs.config);
 }
 
-/** Infer zwave|wifi|ble from `home/id/{uuid}/{protocol}/...` in the entity topics. */
-function inferProtocol(entity: HaEntity): string | undefined {
-  const topic = entity.commandTopic || entity.stateTopic;
-  if (!topic) return undefined;
-  const parts = topic.split('/');
-  // ['home','id',uuid,<protocol>,...]
-  const candidate = parts[3];
-  return HA_PROTOCOLS.has(candidate) ? candidate : undefined;
+/**
+ * Infer zwave|wifi|ble from `home/id/{uuid}/{protocol}/...` in the (resolved) entity
+ * topics derived from the config. Returns the first protocol that resolves.
+ */
+function inferProtocol(config: HaRawConfig): string | undefined {
+  for (const entity of deriveEntities(config)) {
+    const topic = entity.commandTopic || entity.stateTopic;
+    if (!topic) continue;
+    const parts = topic.split('/');
+    // ['home','id',uuid,<protocol>,...]
+    const candidate = parts[3];
+    if (HA_PROTOCOLS.has(candidate)) return candidate;
+  }
+  return undefined;
 }
 
 function toPayload(value: unknown): string {

@@ -119,6 +119,7 @@ model Device {
   icon             String?                 @db.VarChar(512)
   attributes       Json?                   @db.JsonB
   disabled         Boolean?                @default(false)
+  online           Boolean?                @default(true)
   created_at       DateTime                @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
   updated_at       DateTime?               @updatedAt @db.Timestamptz(6)
   organization_id  String

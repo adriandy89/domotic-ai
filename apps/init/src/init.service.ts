@@ -5,6 +5,9 @@ import {
   getKeyHomeUniqueIdsDisconnected,
   getKeyHomeNotifiedDisconnections,
   getKeyHomeUniqueIdOrgId,
+  deriveAvailability,
+  HaDeviceAttributes,
+  IDeviceAvailability,
   IHomeConnectedEvent,
   IHomeConnectionNotification,
 } from '@app/models';
@@ -24,6 +27,8 @@ export class InitService implements OnModuleInit {
   mqttWebApi: string;
   mqttWebUser: string;
   mqttWebPassword: string;
+  /** Mark a device offline after this many hours without any reported state. */
+  deviceOfflineAfterHours: number;
 
   // ? execute every 1 minute = check the mqtt client id status in api, cron job
   @Cron('0 */1 * * * *')
@@ -105,6 +110,75 @@ export class InitService implements OnModuleInit {
   }
 
   /**
+   * Hourly staleness sweep: mark devices offline when they haven't reported any
+   * state for longer than {@link deviceOfflineAfterHours}. This is the fallback for
+   * devices that don't publish an MQTT availability topic (most Zigbee sensors that
+   * only report data). Devices whose discovery config declares availability (see
+   * `deriveAvailability`) are owned by the real-time path in mqtt-core and skipped here.
+   *
+   * The sweep only ever flips devices to offline; a fresh state message revives them
+   * to online in mqtt-core's ingest path. Both transitions emit
+   * `mqtt-core.device.availability` so the dashboard updates over SSE.
+   *
+   * Note: a global threshold is a coarse signal — purely event-driven sensors (door
+   * contacts, PIR) can be genuinely online yet silent for long stretches, so keep the
+   * threshold generous (`DEVICE_OFFLINE_AFTER_HOURS`, default 24).
+   */
+  @Cron('0 0 * * * *')
+  async checkDeviceStaleness() {
+    try {
+      const cutoff = new Date(
+        Date.now() - this.deviceOfflineAfterHours * 60 * 60 * 1000,
+      );
+
+      const staleDevices = await this.dbService.device.findMany({
+        where: {
+          online: true,
+          disabled: false,
+          sensorDataLasts: { some: { timestamp: { lt: cutoff } } },
+        },
+        select: {
+          id: true,
+          unique_id: true,
+          attributes: true,
+          home: {
+            select: { id: true, users: { select: { user_id: true } } },
+          },
+        },
+      });
+
+      for (const device of staleDevices) {
+        if (!device.home) continue;
+        // Devices with an availability contract are driven by mqtt-core in real time.
+        const attrs = device.attributes as HaDeviceAttributes | null;
+        if (attrs?.source === 'hadiscovery' && deriveAvailability(attrs.config)) {
+          continue;
+        }
+
+        await this.dbService.device.update({
+          where: { id: device.id },
+          data: { online: false },
+        });
+        await this.natsClient.emit<IDeviceAvailability>(
+          'mqtt-core.device.availability',
+          {
+            homeId: device.home.id,
+            userIds: device.home.users.map((u) => u.user_id),
+            deviceId: device.id,
+            online: false,
+          },
+        );
+        this.logger.debug(
+          `Device ${device.unique_id} marked offline (no state for >${this.deviceOfflineAfterHours}h)`,
+        );
+      }
+    } catch (error: any) {
+      console.log(error);
+      this.logger.error('Error in device staleness sweep');
+    }
+  }
+
+  /**
    * A home is connected if ANY of its edge bridges has a live broker session.
    * Each protocol bridge uses a distinct MQTT client_id (`{uuid}-{protocol}`),
    * and the bare `{uuid}` is kept as a candidate for backward compatibility with
@@ -168,6 +242,10 @@ export class InitService implements OnModuleInit {
     this.mqttWebPassword = this.configService.get<string>(
       'MQTT_SERVER_WEB_PASS',
       '',
+    );
+    this.deviceOfflineAfterHours = this.configService.get<number>(
+      'DEVICE_OFFLINE_AFTER_HOURS',
+      24,
     );
   }
 

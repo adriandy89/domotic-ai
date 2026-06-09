@@ -7,8 +7,11 @@ import {
   getKeyHomeUniqueIdOrgId,
   getKeyHomeUniqueIdsDisconnected,
   HaDeviceAttributes,
-  synthesizeEntities,
+  synthesizeConfig,
+  deriveEntities,
+  deriveAvailability,
   isHaProtocol,
+  IDeviceAvailability,
   IHomeConnectedEvent,
   IHomeConnectionNotification,
   IRulesSensorData,
@@ -42,6 +45,8 @@ interface IngestDevice {
   id: string;
   name: string;
   disabled: boolean | null;
+  /** Current availability; a fresh message flips a stale `false` back to online. */
+  online: boolean | null;
   conditions: { rule_id: string }[];
 }
 
@@ -150,6 +155,23 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       }
 
       const protocol = seg3;
+
+      // Device availability for any protocol:
+      //   home/id/{home}/{protocol}/{deviceId}/availability
+      // (`bridge` is the zigbee2mqtt bridge, never a device.)
+      if (
+        parts.length === 6 &&
+        parts[5] === 'availability' &&
+        parts[4] !== 'bridge'
+      ) {
+        return this.handleDeviceAvailability(
+          homeUniqueId,
+          protocol,
+          parts[4],
+          bufferMsg,
+        );
+      }
+
       const isBridgeDevices =
         parts[4] === 'bridge' && parts[5] === 'devices' && parts.length === 6;
       if (isBridgeDevices) {
@@ -337,6 +359,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         id: true,
         name: true,
         disabled: true,
+        online: true,
         conditions: { select: { rule_id: true } },
       },
     });
@@ -415,17 +438,21 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       select: { id: true, attributes: true },
     });
 
-    let deviceId: string;
-    if (existing) {
-      const attributes = adapter.mergeDiscovery
-        ? adapter.mergeDiscovery(existing.attributes, discovered)
+    const mergeWith = (attrs: unknown) =>
+      adapter.mergeDiscovery
+        ? adapter.mergeDiscovery(attrs, discovered)
         : discovered.attributes;
+
+    let deviceId: string;
+    let finalAttributes: unknown;
+    if (existing) {
+      finalAttributes = mergeWith(existing.attributes);
       await this.dbService.device.update({
         where: { id: existing.id },
         data: {
           model: discovered.model,
           protocol,
-          attributes: attributes as Prisma.InputJsonValue,
+          attributes: finalAttributes as Prisma.InputJsonValue,
         },
       });
       deviceId = existing.id;
@@ -434,37 +461,186 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         !(await this.hasDeviceQuota(home.organization_id, discovered.uniqueId))
       )
         return;
-      const created = await this.dbService.device.create({
-        data: {
-          unique_id: discovered.uniqueId,
-          name: discovered.name,
-          model: discovered.model,
-          protocol,
-          attributes: discovered.attributes as Prisma.InputJsonValue,
-          home_id: home.id,
-          organization_id: home.organization_id,
-          disabled: true,
-        },
-        select: { id: true },
-      });
-      deviceId = created.id;
+      try {
+        // WiFi native firmware is plug&play (enabled immediately); zwave/ble are
+        // bridge-discovered and stay disabled until enabled in the dashboard.
+        const created = await this.dbService.device.create({
+          data: {
+            unique_id: discovered.uniqueId,
+            name: discovered.name,
+            model: discovered.model,
+            protocol,
+            attributes: discovered.attributes as Prisma.InputJsonValue,
+            home_id: home.id,
+            organization_id: home.organization_id,
+            disabled: protocol !== DeviceProtocol.WIFI,
+          },
+          select: { id: true },
+        });
+        deviceId = created.id;
+        finalAttributes = discovered.attributes;
+      } catch (err) {
+        // Lost the create race with the aggregate-state path (retained config + state
+        // arrive together): re-fetch and merge instead of erroring.
+        if ((err as { code?: string })?.code !== 'P2002') throw err;
+        const now = await this.dbService.device.findUnique({
+          where: {
+            unique_id_organization_id: {
+              organization_id: home.organization_id,
+              unique_id: discovered.uniqueId,
+            },
+          },
+          select: { id: true, attributes: true },
+        });
+        if (!now) return;
+        finalAttributes = mergeWith(now.attributes);
+        await this.dbService.device.update({
+          where: { id: now.id },
+          data: {
+            model: discovered.model,
+            protocol,
+            attributes: finalAttributes as Prisma.InputJsonValue,
+          },
+        });
+        deviceId = now.id;
+      }
     }
 
-    this.indexHaStateTopics(deviceId, discovered.attributes);
+    this.indexHaStateTopics(deviceId, finalAttributes);
   }
 
-  /** Register every entity's state_topic so its state messages resolve to this device. */
+  /**
+   * Register each entity's state_topic so its state messages resolve to this device.
+   * Only topics owned by a *single* entity are indexed (classic per-entity discovery):
+   * the raw payload maps 1:1 to that property. A topic shared by ≥2 entities is a
+   * device-based config whose components share one JSON `~/state`; it is left
+   * unindexed so {@link handleHaAggregateState} ingests the whole object and maps
+   * every field, instead of stuffing the full JSON under a single property.
+   */
   private indexHaStateTopics(deviceId: string, attributes: unknown) {
     const attrs = attributes as HaDeviceAttributes | undefined;
-    if (!attrs || attrs.source !== 'hadiscovery' || !attrs.entities) return;
-    for (const entity of Object.values(attrs.entities)) {
+    if (!attrs || attrs.source !== 'hadiscovery' || !attrs.config) return;
+    const entities = deriveEntities(attrs.config);
+
+    const ownerCount = new Map<string, number>();
+    for (const entity of entities) {
       if (entity.stateTopic) {
+        ownerCount.set(
+          entity.stateTopic,
+          (ownerCount.get(entity.stateTopic) ?? 0) + 1,
+        );
+      }
+    }
+
+    for (const entity of entities) {
+      if (!entity.stateTopic) continue;
+      if (ownerCount.get(entity.stateTopic) === 1) {
         this.haStateIndex.set(entity.stateTopic, {
           deviceId,
           property: entity.property,
         });
+      } else {
+        // Shared topic → aggregate ingestion; drop any stale single-owner entry.
+        this.haStateIndex.delete(entity.stateTopic);
       }
     }
+  }
+
+  // ── Device availability (online/offline) ────────────────────────────────────
+  /**
+   * Handle a retained availability message on
+   * `home/id/{uuid}/{protocol}/{deviceId}/availability`. Interprets the payload via
+   * the device's stored availability contract (`{"state":"online"}`, or a plain
+   * `online`/`offline` string), flips `Device.online` and emits
+   * `mqtt-core.device.availability` only when the state actually changes.
+   */
+  private async handleDeviceAvailability(
+    homeUniqueId: string,
+    protocol: string,
+    deviceUniqueId: string,
+    bufferMsg: Buffer,
+  ) {
+    const raw = bufferMsg.toString().replace(/\u0000/g, '').trim();
+    if (!raw) return; // cleared/retained-null
+
+    const organizationId = await this.resolveHomeOrgId(homeUniqueId);
+    if (!organizationId) {
+      this.logger.error(`Not Found Organization ID for home = ${homeUniqueId}`);
+      return;
+    }
+
+    const device = await this.dbService.device.findUnique({
+      where: {
+        unique_id_organization_id: {
+          organization_id: organizationId,
+          unique_id: deviceUniqueId,
+        },
+      },
+      select: {
+        id: true,
+        online: true,
+        attributes: true,
+        home: { select: { id: true, users: { select: { user_id: true } } } },
+      },
+    });
+    // Availability can arrive before the device is registered (retained ordering);
+    // a later state/discovery message creates it and future updates apply.
+    if (!device?.home) return;
+
+    const online = this.interpretAvailability(raw, device.attributes);
+    if (online === undefined) {
+      this.logger.warn(
+        `Unrecognized availability payload "${raw}" for device=${deviceUniqueId} home=${homeUniqueId} protocol=${protocol}`,
+      );
+      return;
+    }
+    if (device.online === online) return; // no change
+
+    await this.dbService.device.update({
+      where: { id: device.id },
+      data: { online },
+    });
+
+    await this.natsClient.emit<IDeviceAvailability>(
+      'mqtt-core.device.availability',
+      {
+        homeId: device.home.id,
+        userIds: device.home.users.map((u) => u.user_id),
+        deviceId: device.id,
+        online,
+      },
+    );
+  }
+
+  /**
+   * Map a raw availability payload to online/offline using the device's stored
+   * availability contract. Returns `undefined` when the token matches neither the
+   * online nor the offline payload.
+   */
+  private interpretAvailability(
+    raw: string,
+    attributes: unknown,
+  ): boolean | undefined {
+    const config = (attributes as HaDeviceAttributes | null)?.config;
+    const avail = deriveAvailability(config);
+    const payloadOnline = avail?.payloadOnline ?? 'online';
+    const payloadOffline = avail?.payloadOffline ?? 'offline';
+
+    let token = raw;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') {
+        token = String((parsed as Record<string, unknown>)[avail?.field ?? 'state']);
+      } else {
+        token = String(parsed);
+      }
+    } catch {
+      token = raw; // plain string payload (e.g. "online")
+    }
+
+    if (token === payloadOnline) return true;
+    if (token === payloadOffline) return false;
+    return undefined;
   }
 
   // ── HA state ───────────────────────────────────────────────────────────────
@@ -504,6 +680,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         id: true,
         name: true,
         disabled: true,
+        online: true,
         conditions: { select: { rule_id: true } },
       },
     });
@@ -575,6 +752,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         id: true,
         name: true,
         disabled: true,
+        online: true,
         protocol: true,
         attributes: true,
         conditions: { select: { rule_id: true } },
@@ -595,8 +773,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
             attributes: {
               source: 'hadiscovery',
               protocol,
-              device: { identifiers: deviceUniqueId, name: deviceUniqueId },
-              entities: synthesizeEntities(
+              config: synthesizeConfig(
                 deviceUniqueId,
                 stateTopic,
                 message as Record<string, unknown>,
@@ -685,6 +862,25 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       timestamp: newSensorData.timestamp,
       data: newSensorData.data,
     });
+
+    // A fresh state message means the device is alive: revive it if a previous
+    // availability/staleness check had flipped it offline. Only on the transition,
+    // so the hot path stays a single read + no write when already online.
+    if (device.online === false) {
+      await this.dbService.device.update({
+        where: { id: device.id },
+        data: { online: true },
+      });
+      await this.natsClient.emit<IDeviceAvailability>(
+        'mqtt-core.device.availability',
+        {
+          homeId: updatedHome.id,
+          userIds: updatedHome.users.map((user) => user.user.id),
+          deviceId: device.id,
+          online: true,
+        },
+      );
+    }
 
     if (updatedHome && prevSensorData && newSensorData) {
       if (device.conditions?.length > 0) {
@@ -1121,9 +1317,9 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       return null;
     }
 
-    // HA-protocol devices persist canonical `source:'hadiscovery'` attributes (with
-    // synthesized read-only entities) so getReadableAttributes/getAvailableActions work
-    // and a later discovery config can merge cleanly. Zigbee leaves attributes for the
+    // HA-protocol devices persist canonical `source:'hadiscovery'` attributes (with a
+    // synthesized raw config) so getReadableAttributes/getAvailableActions work and a
+    // later discovery config can merge cleanly. Zigbee leaves attributes for the
     // bridge/devices refresh to fill in.
     const isHaProtocol = protocol !== DeviceProtocol.ZIGBEE;
     const attributes: HaDeviceAttributes | undefined =
@@ -1131,8 +1327,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         ? {
             source: 'hadiscovery',
             protocol,
-            device: { identifiers: deviceUniqueId, name: deviceUniqueId },
-            entities: synthesizeEntities(
+            config: synthesizeConfig(
               deviceUniqueId,
               stateTopic,
               statePayload ?? {},
@@ -1157,6 +1352,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
           id: true,
           name: true,
           disabled: true,
+          online: true,
           conditions: { select: { rule_id: true } },
         },
       });

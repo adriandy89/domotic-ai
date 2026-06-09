@@ -51,7 +51,7 @@ export function IntegrationsPanel({
       </h4>
       <p className="text-xs text-muted-foreground mb-4">
         Misma credencial MQTT para todos los protocolos. Copia la configuración y
-        pégala en el bridge oficial correspondiente.
+        pégala en el bridge oficial o el firmware del dispositivo según corresponda.
       </p>
 
       <div className="flex flex-wrap gap-2 mb-4">
