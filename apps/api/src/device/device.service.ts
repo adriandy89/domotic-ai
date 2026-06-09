@@ -28,6 +28,7 @@ export class DeviceService {
     name: true,
     description: true,
     category: true,
+    protocol: true,
     disabled: true,
     created_at: true,
     updated_at: true,
@@ -323,18 +324,20 @@ export class DeviceService {
   }
 
   async findAll(optionsDto: DevicePageOptionsDto, organization_id: string) {
-    const { search, take, page, orderBy, sortOrder } = optionsDto;
+    const { search, take, page, orderBy, sortOrder, home_id, protocol } =
+      optionsDto;
     const skip = (page - 1) * take;
 
-    const where: Prisma.DeviceWhereInput = search
-      ? {
-          OR: [
-            { unique_id: { contains: search, mode: 'insensitive' } },
-            { name: { contains: search, mode: 'insensitive' } },
-          ],
-        }
-      : {};
+    const where: Prisma.DeviceWhereInput = {};
+    if (search) {
+      where.OR = [
+        { unique_id: { contains: search, mode: 'insensitive' } },
+        { name: { contains: search, mode: 'insensitive' } },
+      ];
+    }
     where.organization_id = organization_id;
+    if (home_id) where.home_id = home_id;
+    if (protocol) where.protocol = protocol;
 
     const [itemCount, devices] = await this.dbService.$transaction([
       this.dbService.device.count({ where }),
@@ -351,9 +354,12 @@ export class DeviceService {
           },
         },
         where,
-        orderBy: orderBy
-          ? { [orderBy]: sortOrder }
-          : { home: { name: <Prisma.SortOrder>sortOrder } },
+        orderBy:
+          orderBy === 'home'
+            ? { home: { name: <Prisma.SortOrder>sortOrder } }
+            : orderBy
+              ? { [orderBy]: sortOrder }
+              : { home: { name: <Prisma.SortOrder>sortOrder } },
       }),
     ]);
     const userPaginatedMeta = new DevicePageMetaDto({

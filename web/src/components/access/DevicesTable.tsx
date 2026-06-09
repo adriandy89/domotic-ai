@@ -22,6 +22,14 @@ import {
 } from '../ui/dialog';
 import { DropdownMenu, DropdownMenuItem } from '../ui/dropdown-menu';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../ui/select';
+import { PROTOCOL_CATALOG } from '../../lib/integration-templates';
+import {
   Cpu,
   Plus,
   Search,
@@ -48,6 +56,7 @@ interface DeviceData {
   name: string;
   unique_id: string;
   category: string | null;
+  protocol: string;
   description: string | null;
   model: string | null;
   disabled: boolean;
@@ -99,6 +108,8 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
   };
 
   const [search, setSearch] = useState('');
+  const [homeFilter, setHomeFilter] = useState('');
+  const [protocolFilter, setProtocolFilter] = useState('');
   const [meta, setMeta] = useState({
     page: 1,
     take: 10,
@@ -134,6 +145,9 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
     try {
       let url = `/devices?page=${page}&take=${take}`;
       if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (homeFilter) url += `&home_id=${encodeURIComponent(homeFilter)}`;
+      if (protocolFilter)
+        url += `&protocol=${encodeURIComponent(protocolFilter)}`;
       if (sortBy && sortOrder) {
         url += `&orderBy=${sortBy}&sortOrder=${sortOrder}`;
       }
@@ -146,7 +160,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
     } finally {
       setLoading(false);
     }
-  }, [page, take, search, sortBy, sortOrder]);
+  }, [page, take, search, homeFilter, protocolFilter, sortBy, sortOrder]);
 
   useEffect(() => {
     fetchDevices();
@@ -307,6 +321,9 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
     return new Date(date).toLocaleString();
   };
 
+  const protocolLabel = (p: string) =>
+    PROTOCOL_CATALOG.find((x) => x.protocol === p)?.label ?? p;
+
   return (
     <Card className="bg-card/40 border-border">
       <CardHeader className="pb-4">
@@ -337,6 +354,66 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
               Add Device
             </Button>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 mt-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Home</span>
+            <Select
+              value={homeFilter}
+              onValueChange={(v) => {
+                setHomeFilter(v === 'all' ? '' : v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All homes" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All homes</SelectItem>
+                {homeIds.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {homes[id]?.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Type</span>
+            <Select
+              value={protocolFilter}
+              onValueChange={(v) => {
+                setProtocolFilter(v === 'all' ? '' : v);
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="w-35">
+                <SelectValue placeholder="All types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                {PROTOCOL_CATALOG.map((p) => (
+                  <SelectItem key={p.protocol} value={p.protocol}>
+                    {p.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {(homeFilter || protocolFilter) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setHomeFilter('');
+                setProtocolFilter('');
+                setPage(1);
+              }}
+            >
+              Clear filters
+            </Button>
+          )}
         </div>
 
         {selectedIds.length > 0 && (
@@ -446,7 +523,60 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                       )}
                     </div>
                   </TableHead>
-                  <TableHead>Home</TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'protocol') {
+                        setSortBy('protocol');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Type
+                      {sortBy === 'protocol' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
+                  <TableHead
+                    className="cursor-pointer select-none"
+                    onClick={() => {
+                      if (sortBy !== 'home') {
+                        setSortBy('home');
+                        setSortOrder('asc');
+                      } else if (sortOrder === 'asc') {
+                        setSortOrder('desc');
+                      } else {
+                        setSortBy(null);
+                        setSortOrder(null);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-1">
+                      Home
+                      {sortBy === 'home' ? (
+                        sortOrder === 'asc' ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )
+                      ) : (
+                        <ArrowUpDown className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </div>
+                  </TableHead>
                   <TableHead
                     className="cursor-pointer select-none"
                     onClick={() => {
@@ -536,6 +666,11 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                       <TableCell className="text-muted-foreground">
                         {device.category || '-'}
                       </TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {device.protocol ? protocolLabel(device.protocol) : '-'}
+                        </Badge>
+                      </TableCell>
                       <TableCell className="text-muted-foreground">
                         {device.home?.name || '-'}
                       </TableCell>
@@ -582,7 +717,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
 
                     {expandedIds.includes(device.id) && (
                       <TableRow key={`${device.id}-expanded`}>
-                        <TableCell colSpan={8} className="bg-muted/30 p-0">
+                        <TableCell colSpan={9} className="bg-muted/30 p-0">
                           <div className="p-4 space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>

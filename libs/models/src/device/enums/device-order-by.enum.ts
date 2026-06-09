@@ -4,6 +4,7 @@ export const DeviceOrderBy = {
   name: 'name',
   model: 'model',
   category: 'category',
+  protocol: 'protocol',
   description: 'contact',
   icon: 'icon',
   disabled: 'disabled',

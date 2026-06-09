@@ -17,4 +17,14 @@ export class DevicePageOptionsDto extends PageOptionsDto {
   @IsNotEmpty()
   @IsOptional()
   readonly search: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  readonly home_id?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  readonly protocol?: string;
 }

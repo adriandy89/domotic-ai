@@ -17,6 +17,9 @@ export class DeviceDto {
   readonly category?: string;
 
   @ApiProperty()
+  readonly protocol?: string;
+
+  @ApiProperty()
   readonly description?: string;
 
   @ApiProperty()
