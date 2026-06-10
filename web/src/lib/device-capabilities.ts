@@ -131,8 +131,10 @@ function haComponentToExpose(
         ...base,
         type: 'binary',
         access: FeatureAccessMode.STATE,
-        value_on: (cp.payload_on as string | boolean) ?? true,
-        value_off: (cp.payload_off as string | boolean) ?? false,
+        // For WiFi devices without explicit payloads, default to string ON/OFF
+        // instead of boolean true/false (HA firmware sends "ON"/"OFF" for state values)
+        value_on: (cp.payload_on as string | boolean) ?? 'ON',
+        value_off: (cp.payload_off as string | boolean) ?? 'OFF',
       };
     case 'switch':
     case 'light':
@@ -203,7 +205,8 @@ export function getDeviceExposes(device: Device): DeviceExpose[] {
 export function flattenExposes(exposes: DeviceExpose[]): DeviceExpose[] {
   const out: DeviceExpose[] = [];
   for (const e of exposes) {
-    if (e.features && e.features.length > 0) out.push(...flattenExposes(e.features));
+    if (e.features && e.features.length > 0)
+      out.push(...flattenExposes(e.features));
     else out.push(e);
   }
   return out;
@@ -236,7 +239,10 @@ export function hasExpose(device: Device, names: string[]): boolean {
 /** Pick a card icon from the device's exposes/property names (protocol-agnostic). */
 export function getDeviceIcon(device: Device): LucideIcon {
   const names = new Set(
-    flattenExposes(getDeviceExposes(device)).flatMap((e) => [e.name, e.property]),
+    flattenExposes(getDeviceExposes(device)).flatMap((e) => [
+      e.name,
+      e.property,
+    ]),
   );
   const has = (...keys: string[]) => keys.some((k) => names.has(k));
 
@@ -246,9 +252,19 @@ export function getDeviceIcon(device: Device): LucideIcon {
   if (has('contact')) return DoorOpen;
   if (has('occupancy', 'presence')) return Eye;
   if (has('smoke')) return Flame;
-  if (has('alarm') || [...names].some((n) => n?.includes('noise') || n?.includes('sound')))
+  if (
+    has('alarm') ||
+    [...names].some((n) => n?.includes('noise') || n?.includes('sound'))
+  )
     return Volume2;
-  if ([...names].some((n) => n?.includes('co_ppm') || n?.includes('gas') || n?.includes('air_quality')))
+  if (
+    [...names].some(
+      (n) =>
+        n?.includes('co_ppm') ||
+        n?.includes('gas') ||
+        n?.includes('air_quality'),
+    )
+  )
     return Wind;
   if (has('power', 'energy')) return Zap;
   if ([...names].some((n) => n?.endsWith('_ppm') || n?.includes('pressure')))
@@ -273,7 +289,8 @@ export function getDeviceMeta(device: Device): {
   return {
     vendor: device.attributes?.definition?.vendor || 'Unknown',
     model: device.attributes?.definition?.model || device.model,
-    description: device.attributes?.definition?.description || device.description,
+    description:
+      device.attributes?.definition?.description || device.description,
   };
 }
 
@@ -293,7 +310,8 @@ export interface DeviceFooterMeta {
 function lqiToSignal(lqi?: number): DeviceFooterMeta['signal'] {
   if (lqi === undefined)
     return { label: 'N/A', color: 'text-muted-foreground', value: 'N/A' };
-  if (lqi >= 150) return { label: 'Excellent', color: 'text-emerald-500', value: lqi };
+  if (lqi >= 150)
+    return { label: 'Excellent', color: 'text-emerald-500', value: lqi };
   if (lqi >= 80) return { label: 'Good', color: 'text-cyan-500', value: lqi };
   if (lqi >= 40) return { label: 'Fair', color: 'text-amber-500', value: lqi };
   return { label: 'Poor', color: 'text-red-500', value: lqi };
@@ -303,9 +321,16 @@ function rssiToSignal(rssi?: number): DeviceFooterMeta['signal'] {
   if (rssi === undefined)
     return { label: 'N/A', color: 'text-muted-foreground', value: 'N/A' };
   // WiFi RSSI (dBm): closer to 0 is better.
-  if (rssi >= -60) return { label: 'Excellent', color: 'text-emerald-500', value: `${rssi}dBm` };
-  if (rssi >= -70) return { label: 'Good', color: 'text-cyan-500', value: `${rssi}dBm` };
-  if (rssi >= -80) return { label: 'Fair', color: 'text-amber-500', value: `${rssi}dBm` };
+  if (rssi >= -60)
+    return {
+      label: 'Excellent',
+      color: 'text-emerald-500',
+      value: `${rssi}dBm`,
+    };
+  if (rssi >= -70)
+    return { label: 'Good', color: 'text-cyan-500', value: `${rssi}dBm` };
+  if (rssi >= -80)
+    return { label: 'Fair', color: 'text-amber-500', value: `${rssi}dBm` };
   return { label: 'Poor', color: 'text-red-500', value: `${rssi}dBm` };
 }
 
