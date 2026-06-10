@@ -23,6 +23,7 @@ import DevicesHealthReportPage from './pages/reports/DevicesHealthReportPage';
 import AutomationsReportPage from './pages/reports/AutomationsReportPage';
 import AiUsageReportPage from './pages/reports/AiUsageReportPage';
 import AirQualityReportPage from './pages/reports/AirQualityReportPage';
+import CustomReportPage from './pages/reports/CustomReportPage';
 import ProtectedRoute from './ProtectedRoute';
 
 // Public Route wrapper to redirect authenticated users to dashboard
@@ -95,6 +96,7 @@ function App() {
                 path="/reports/air-quality"
                 element={<AirQualityReportPage />}
               />
+              <Route path="/reports/custom" element={<CustomReportPage />} />
             </Route>
             <Route path="/rules" element={<RulesPage />} />
             <Route path="/rules/new" element={<RuleFormPage />} />

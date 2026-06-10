@@ -5,6 +5,7 @@ import {
   CalendarClock,
   HeartPulse,
   ShieldCheck,
+  SlidersHorizontal,
   Thermometer,
   Wind,
   Zap,
@@ -19,6 +20,7 @@ const TABS = [
   { to: '/reports/automations', label: 'Automations', icon: CalendarClock },
   { to: '/reports/ai-usage', label: 'AI usage', icon: Bot },
   { to: '/reports/air-quality', label: 'Air quality', icon: Wind },
+  { to: '/reports/custom', label: 'Custom', icon: SlidersHorizontal },
 ];
 
 export default function ReportsLayout() {
