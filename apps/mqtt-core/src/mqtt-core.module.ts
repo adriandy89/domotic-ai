@@ -7,6 +7,13 @@ import { CacheModule } from '@app/cache';
 import { NatsClientModule } from '@app/nats-client';
 import { DbModule } from '@app/db';
 import { MqttCoreController } from './mqtt-core.controller';
+import { DeviceAvailabilityService } from './services/device-availability.service';
+import { DeviceCommandService } from './services/device-command.service';
+import { DeviceRegistryService } from './services/device-registry.service';
+import { HaIngestionService } from './services/ha-ingestion.service';
+import { HomeRegistryService } from './services/home-registry.service';
+import { SensorIngestionService } from './services/sensor-ingestion.service';
+import { ZigbeeIngestionService } from './services/zigbee-ingestion.service';
 
 @Module({
   imports: [
@@ -19,7 +26,16 @@ import { MqttCoreController } from './mqtt-core.controller';
     DbModule,
   ],
   controllers: [MqttCoreController],
-  providers: [MqttCoreService],
+  providers: [
+    MqttCoreService,
+    HomeRegistryService,
+    DeviceRegistryService,
+    SensorIngestionService,
+    DeviceAvailabilityService,
+    ZigbeeIngestionService,
+    HaIngestionService,
+    DeviceCommandService,
+  ],
 })
 export class MqttCoreModule implements OnModuleInit {
   private processingCount = 0;

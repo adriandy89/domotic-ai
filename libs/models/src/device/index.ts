@@ -3,3 +3,4 @@ export * from './dtos';
 export * from './enums';
 export * from './interfaces';
 export * from './protocols';
+export * from './state-events';

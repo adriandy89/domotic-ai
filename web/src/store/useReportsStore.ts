@@ -53,6 +53,21 @@ export interface AggregateResponse {
   metrics: Record<string, number | null>;
 }
 
+/** One device state transition (logbook): relay OFF→ON, trigger change… */
+export interface StateEvent {
+  timestamp: string;
+  property: string;
+  prev_value: string | null;
+  value: string;
+}
+
+export interface StateEventsResponse {
+  device_id: string;
+  from: string;
+  to: string;
+  events: StateEvent[];
+}
+
 /** Series for ANY numeric payload field (sensor_field_hourly/daily backed). */
 export interface FieldSeriesResponse {
   device_id: string;
@@ -77,6 +92,7 @@ const CACHE_MAX = 50;
 interface ReportsState {
   series: Map<string, CacheEntry<SeriesResponse>>;
   fieldSeries: Map<string, CacheEntry<FieldSeriesResponse>>;
+  stateEvents: Map<string, CacheEntry<StateEventsResponse>>;
   aggregate: Map<string, CacheEntry<AggregateResponse>>;
   loading: boolean;
   error: string | null;
@@ -96,6 +112,13 @@ interface ReportsState {
     to: Date;
     bucket?: ReportBucket;
   }) => Promise<FieldSeriesResponse | null>;
+
+  fetchStateEvents: (params: {
+    device_id: string;
+    from: Date;
+    to: Date;
+    field?: string;
+  }) => Promise<StateEventsResponse | null>;
 
   fetchMultiSeries: (params: {
     device_ids: string[];
@@ -223,6 +246,7 @@ function evict<T>(map: Map<string, CacheEntry<T>>) {
 export const useReportsStore = create<ReportsState>((set, get) => ({
   series: new Map(),
   fieldSeries: new Map(),
+  stateEvents: new Map(),
   aggregate: new Map(),
   loading: false,
   error: null,
@@ -299,6 +323,44 @@ export const useReportsStore = create<ReportsState>((set, get) => ({
       const message =
         (e as { response?: { data?: { message?: string } } })?.response?.data
           ?.message || 'Failed to fetch field series';
+      set({ error: message, loading: false });
+      return null;
+    }
+  },
+
+  fetchStateEvents: async ({ device_id, from, to, field }) => {
+    const cacheKey = key([
+      'stateevents',
+      device_id,
+      from.toISOString(),
+      to.toISOString(),
+      field ?? '*',
+    ]);
+    const cached = get().stateEvents.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.data;
+
+    set({ loading: true, error: null });
+    try {
+      const { data } = await api.get<StateEventsResponse>(
+        '/reports/state-events',
+        {
+          params: {
+            device_id,
+            from: from.toISOString(),
+            to: to.toISOString(),
+            ...(field && { field }),
+          },
+        },
+      );
+      const next = new Map(get().stateEvents);
+      next.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+      evict(next);
+      set({ stateEvents: next, loading: false });
+      return data;
+    } catch (e: unknown) {
+      const message =
+        (e as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || 'Failed to fetch state events';
       set({ error: message, loading: false });
       return null;
     }
@@ -474,5 +536,10 @@ export const useReportsStore = create<ReportsState>((set, get) => ({
   },
 
   invalidate: () =>
-    set({ series: new Map(), fieldSeries: new Map(), aggregate: new Map() }),
+    set({
+      series: new Map(),
+      fieldSeries: new Map(),
+      stateEvents: new Map(),
+      aggregate: new Map(),
+    }),
 }));

@@ -7,6 +7,7 @@ import {
   Cpu,
   Download,
   Gauge,
+  History,
   Home,
   Loader2,
   ShieldAlert,
@@ -30,16 +31,14 @@ import {
   CardTitle,
 } from '../components/ui/card';
 import { useDevicesStore } from '../store/useDevicesStore';
-import {
-  getDeviceExposes,
-  flattenExposes,
-} from '../lib/device-capabilities';
+import { getDeviceExposes, flattenExposes } from '../lib/device-capabilities';
 import { useHomesStore } from '../store/useHomesStore';
 import {
   useReportsStore,
   type FieldSeriesResponse,
   type ReportMetric,
   type SeriesResponse,
+  type StateEvent,
 } from '../store/useReportsStore';
 import { formatWithUnit } from '../lib/format';
 import { cn } from '../lib/utils';
@@ -48,7 +47,12 @@ interface TabSpec {
   id: string;
   label: string;
   icon: React.ElementType;
-  metrics: { metric: ReportMetric; label: string; unit?: string; color?: string }[];
+  metrics: {
+    metric: ReportMetric;
+    label: string;
+    unit?: string;
+    color?: string;
+  }[];
 }
 
 const ALL_TABS: TabSpec[] = [
@@ -57,10 +61,20 @@ const ALL_TABS: TabSpec[] = [
     label: 'Climate',
     icon: Thermometer,
     metrics: [
-      { metric: 'temperature', label: 'Temperature', unit: '°C', color: '#f59e0b' },
+      {
+        metric: 'temperature',
+        label: 'Temperature',
+        unit: '°C',
+        color: '#f59e0b',
+      },
       { metric: 'humidity', label: 'Humidity', unit: '%', color: '#22d3ee' },
       { metric: 'pressure', label: 'Pressure', unit: 'hPa', color: '#3b82f6' },
-      { metric: 'illuminance', label: 'Illuminance', unit: 'lx', color: '#fbbf24' },
+      {
+        metric: 'illuminance',
+        label: 'Illuminance',
+        unit: 'lx',
+        color: '#fbbf24',
+      },
     ],
   },
   {
@@ -150,17 +164,38 @@ const PROPERTY_FOR_METRIC: Record<ReportMetric, string> = {
 /** Properties already served by the fixed report metrics above. */
 const COVERED_PROPERTIES = new Set(Object.values(PROPERTY_FOR_METRIC));
 
+const NUMERIC_TEXT = /^-?\d+(\.\d+)?$/;
+
+/** Badge tint for a logbook state value (ON/true green, OFF/false muted). */
+function stateBadgeClass(value: string): string {
+  const v = value.toLowerCase();
+  if (v === 'on' || v === 'true') return 'bg-emerald-500/15 text-emerald-500';
+  if (v === 'off' || v === 'false') return 'bg-muted text-muted-foreground';
+  return 'bg-primary/10 text-primary';
+}
+
 export default function DeviceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { devices, devicesData } = useDevicesStore();
+  const { devices } = useDevicesStore();
+  // Use selector to avoid re-renders when other devices' data updates via SSE
+  const last = useDevicesStore((state) =>
+    id ? state.devicesData[id]?.data : undefined,
+  );
+  const lastTimestamp = useDevicesStore((state) =>
+    id ? state.devicesData[id]?.timestamp : undefined,
+  );
   const { homes } = useHomesStore();
-  const { fetchSeries, exportCsv, fetchAggregate, fetchFieldSeries } =
-    useReportsStore();
+  const {
+    fetchSeries,
+    exportCsv,
+    fetchAggregate,
+    fetchFieldSeries,
+    fetchStateEvents,
+  } = useReportsStore();
 
   const device = id ? devices[id] : null;
   const home = device ? homes[device.home_id] : null;
-  const last = device ? devicesData[device.id]?.data : undefined;
 
   const [range, setRange] = useState<RangeValue>(presetRange('7d'));
   const [activeTab, setActiveTab] = useState<string | null>(null);
@@ -196,7 +231,11 @@ export default function DeviceDetailPage() {
       const prop = e.property ?? e.name;
       if (!prop || seen.has(prop)) return false;
       if (COVERED_PROPERTIES.has(prop)) return false;
-      if (e.device_class === 'timestamp' || prop === 'ts' || prop === 'timestamp')
+      if (
+        e.device_class === 'timestamp' ||
+        prop === 'ts' ||
+        prop === 'timestamp'
+      )
         return false;
       const numeric =
         e.type === 'numeric' ||
@@ -207,16 +246,47 @@ export default function DeviceDetailPage() {
     });
   }, [device, last]);
 
-  const allTabs = useMemo(
-    () =>
-      fieldExposes.length > 0
-        ? [
-            ...availableTabs,
-            { id: 'measurements', label: 'Measurements', icon: Gauge, metrics: [] },
-          ]
-        : availableTabs,
-    [availableTabs, fieldExposes],
-  );
+  // Exposes whose state belongs in the logbook (non-numeric scalar states):
+  // binary/enum components, or value/text whose last value is a non-numeric
+  // string (e.g. the relay's `trigger`). Drives the History tab visibility.
+  const loggableExposes = useMemo(() => {
+    if (!device) return [];
+    const seen = new Set<string>();
+    return flattenExposes(getDeviceExposes(device)).filter((e) => {
+      const prop = e.property ?? e.name;
+      if (!prop || seen.has(prop)) return false;
+      if (
+        e.device_class === 'timestamp' ||
+        prop === 'ts' ||
+        prop === 'timestamp'
+      )
+        return false;
+      const lastValue = last?.[prop];
+      const loggable =
+        e.type === 'binary' ||
+        e.type === 'enum' ||
+        (typeof lastValue === 'string' && !NUMERIC_TEXT.test(lastValue.trim()));
+      if (!loggable) return false;
+      seen.add(prop);
+      return true;
+    });
+  }, [device, last]);
+
+  const allTabs = useMemo(() => {
+    const tabs = [...availableTabs];
+    if (fieldExposes.length > 0) {
+      tabs.push({
+        id: 'measurements',
+        label: 'Measurements',
+        icon: Gauge,
+        metrics: [],
+      });
+    }
+    if (loggableExposes.length > 0) {
+      tabs.push({ id: 'history', label: 'History', icon: History, metrics: [] });
+    }
+    return tabs;
+  }, [availableTabs, fieldExposes, loggableExposes]);
 
   useEffect(() => {
     if (!activeTab && allTabs.length > 0) {
@@ -230,10 +300,13 @@ export default function DeviceDetailPage() {
   const [seriesByMetric, setSeriesByMetric] = useState<
     Record<string, SeriesResponse | null>
   >({});
+  const [isLoadingSeriesByMetric, setIsLoadingSeriesByMetric] =
+    useState<boolean>(false);
 
   useEffect(() => {
     if (!device || !tab) return;
     setSeriesByMetric({});
+    setIsLoadingSeriesByMetric(true);
     const bucket = bucketForRange(range);
     Promise.all(
       tab.metrics.map(async (m) => {
@@ -250,6 +323,7 @@ export default function DeviceDetailPage() {
       const next: Record<string, SeriesResponse | null> = {};
       for (const [k, v] of entries) next[k] = v;
       setSeriesByMetric(next);
+      setIsLoadingSeriesByMetric(false);
     });
   }, [device, tab, range, fetchSeries]);
 
@@ -257,11 +331,14 @@ export default function DeviceDetailPage() {
   const [seriesByField, setSeriesByField] = useState<
     Record<string, FieldSeriesResponse | null>
   >({});
+  const [isLoadingSeriesByField, setIsLoadingSeriesByField] =
+    useState<boolean>(false);
 
   useEffect(() => {
     if (!device || activeTab !== 'measurements' || fieldExposes.length === 0)
       return;
     setSeriesByField({});
+    setIsLoadingSeriesByField(true);
     const bucket = bucketForRange(range);
     Promise.all(
       fieldExposes.map(async (e) => {
@@ -279,8 +356,51 @@ export default function DeviceDetailPage() {
       const next: Record<string, FieldSeriesResponse | null> = {};
       for (const [k, v] of entries) next[k] = v;
       setSeriesByField(next);
+      setIsLoadingSeriesByField(false);
     });
   }, [device, activeTab, range, fieldExposes, fetchFieldSeries]);
+
+  // State-change logbook for the History tab.
+  const [stateEvents, setStateEvents] = useState<StateEvent[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState<boolean>(false);
+  const [eventFilter, setEventFilter] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!device || activeTab !== 'history') return;
+    setIsLoadingEvents(true);
+    fetchStateEvents({
+      device_id: device.id,
+      from: range.from,
+      to: range.to,
+    }).then((res) => {
+      setStateEvents(res?.events ?? []);
+      setIsLoadingEvents(false);
+    });
+  }, [device, activeTab, range, fetchStateEvents]);
+
+  // Events filtered by the selected property chip, grouped by calendar day
+  // (events arrive newest first from the API).
+  const eventsByDay = useMemo(() => {
+    const groups: { day: string; events: StateEvent[] }[] = [];
+    for (const ev of stateEvents) {
+      if (eventFilter && ev.property !== eventFilter) continue;
+      const day = new Date(ev.timestamp).toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+      const lastGroup = groups[groups.length - 1];
+      if (lastGroup && lastGroup.day === day) lastGroup.events.push(ev);
+      else groups.push({ day, events: [ev] });
+    }
+    return groups;
+  }, [stateEvents, eventFilter]);
+
+  const eventProperties = useMemo(
+    () => [...new Set(stateEvents.map((e) => e.property))],
+    [stateEvents],
+  );
 
   // Aggregate for header KPIs.
   const [aggregate, setAggregate] = useState<Record<
@@ -306,7 +426,6 @@ export default function DeviceDetailPage() {
 
   const battery = (last?.battery as number | undefined) ?? null;
   const lqi = (last?.linkquality as number | undefined) ?? null;
-  const lastTimestamp = device ? devicesData[device.id]?.timestamp : undefined;
 
   return (
     <div className="space-y-6">
@@ -450,6 +569,7 @@ export default function DeviceDetailPage() {
                     yUnit={m.unit}
                     height={220}
                     type="area"
+                    isLoading={isLoadingSeriesByMetric}
                   />
                 </CardContent>
               </Card>
@@ -489,12 +609,116 @@ export default function DeviceDetailPage() {
                     yUnit={unit}
                     height={220}
                     type="area"
+                    isLoading={isLoadingSeriesByField}
                   />
                 </CardContent>
               </Card>
             );
           })}
         </div>
+      )}
+
+      {activeTab === 'history' && (
+        <Card className="bg-card/40 border-border">
+          <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <History className="w-4 h-4" />
+              State history
+            </CardTitle>
+            {eventProperties.length > 1 && (
+              <div className="flex flex-wrap gap-1">
+                <button
+                  onClick={() => setEventFilter(null)}
+                  className={cn(
+                    'px-2 py-0.5 rounded-full text-xs border transition-colors',
+                    eventFilter === null
+                      ? 'border-primary text-foreground'
+                      : 'border-border text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  All
+                </button>
+                {eventProperties.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setEventFilter(eventFilter === p ? null : p)}
+                    className={cn(
+                      'px-2 py-0.5 rounded-full text-xs border transition-colors',
+                      eventFilter === p
+                        ? 'border-primary text-foreground'
+                        : 'border-border text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            {isLoadingEvents ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="w-5 h-5 animate-spin text-primary" />
+              </div>
+            ) : eventsByDay.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">
+                No state changes in this range
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {eventsByDay.map((group) => (
+                  <div key={group.day}>
+                    <p className="text-xs font-medium text-muted-foreground border-b border-border pb-1 mb-1">
+                      {group.day}
+                    </p>
+                    <div className="divide-y divide-border/50">
+                      {group.events.map((ev, i) => (
+                        <div
+                          key={`${ev.timestamp}-${ev.property}-${i}`}
+                          className="flex items-center gap-3 py-1.5 text-sm"
+                        >
+                          <span className="text-xs text-muted-foreground tabular-nums w-16 shrink-0">
+                            {new Date(ev.timestamp).toLocaleTimeString([], {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                            })}
+                          </span>
+                          <span className="font-medium w-28 truncate shrink-0">
+                            {ev.property}
+                          </span>
+                          {ev.prev_value != null && (
+                            <>
+                              <span
+                                className={cn(
+                                  'px-2 py-0.5 rounded-full text-xs',
+                                  stateBadgeClass(ev.prev_value),
+                                )}
+                              >
+                                {ev.prev_value}
+                              </span>
+                              <span className="text-muted-foreground text-xs">
+                                →
+                              </span>
+                            </>
+                          )}
+                          <span
+                            className={cn(
+                              'px-2 py-0.5 rounded-full text-xs',
+                              stateBadgeClass(ev.value),
+                            )}
+                          >
+                            {ev.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       )}
     </div>
   );

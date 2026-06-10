@@ -10,6 +10,7 @@ import {
   ReportMultiSeriesResponseDto,
   ReportSeriesPointDto,
   ReportSeriesResponseDto,
+  ReportStateEventsResponseDto,
 } from '@app/models';
 import {
   ForbiddenException,
@@ -322,6 +323,53 @@ export class ReportsService {
       to: params.to.toISOString(),
       points,
       ...meta,
+    };
+    await this.cacheService.set(cacheKey, response, CACHE_TTL_S);
+    return response;
+  }
+
+  // ---------------------------------------------------------------------------
+  //  State events — device logbook (relay ON/OFF, trigger, contact…).
+  //  Backed by device_state_events, written at ingestion on actual changes.
+  // ---------------------------------------------------------------------------
+  async getStateEvents(
+    userId: string,
+    params: {
+      device_id: string;
+      from: Date;
+      to: Date;
+      field?: string;
+      limit?: number;
+    },
+  ): Promise<ReportStateEventsResponseDto> {
+    await this.assertDeviceAccess(params.device_id, userId);
+
+    const cacheKey = this.cacheKey('stateevents', params);
+    const cached =
+      await this.cacheService.get<ReportStateEventsResponseDto>(cacheKey);
+    if (cached) return cached;
+
+    const rows = await this.dbService.deviceStateEvent.findMany({
+      where: {
+        device_id: params.device_id,
+        timestamp: { gte: params.from, lt: params.to },
+        ...(params.field && { property: params.field }),
+      },
+      orderBy: { timestamp: 'desc' },
+      take: params.limit ?? 500,
+      select: { timestamp: true, property: true, prev_value: true, value: true },
+    });
+
+    const response: ReportStateEventsResponseDto = {
+      device_id: params.device_id,
+      from: params.from.toISOString(),
+      to: params.to.toISOString(),
+      events: rows.map((r) => ({
+        timestamp: r.timestamp.toISOString(),
+        property: r.property,
+        prev_value: r.prev_value,
+        value: r.value,
+      })),
     };
     await this.cacheService.set(cacheKey, response, CACHE_TTL_S);
     return response;

@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { Loader2 } from 'lucide-react';
 import { formatWithUnit } from '../../lib/format';
 import {
   AXIS_TICK,
@@ -45,6 +46,7 @@ interface TimeSeriesChartProps {
   yUnit?: string;
   referenceLines?: { value: number; label?: string; color?: string }[];
   emptyLabel?: string;
+  isLoading?: boolean;
 }
 
 const DEFAULT_X_FORMAT = (iso: string) => {
@@ -62,7 +64,19 @@ export default function TimeSeriesChart({
   yUnit,
   referenceLines = [],
   emptyLabel = 'No data for this range',
+  isLoading = false,
 }: TimeSeriesChartProps) {
+  if (isLoading) {
+    return (
+      <div
+        className="flex items-center justify-center text-muted-foreground"
+        style={{ height }}
+      >
+        <Loader2 className="w-5 h-5 animate-spin" />
+      </div>
+    );
+  }
+
   if (!data || data.length === 0) {
     return (
       <div
@@ -99,14 +113,15 @@ export default function TimeSeriesChart({
           itemStyle={TOOLTIP_ITEM_STYLE}
           cursor={TOOLTIP_CURSOR_STYLE}
           wrapperStyle={{ outline: 'none' }}
-          labelFormatter={(label) =>
-            format(new Date(String(label)), 'PPpp')
-          }
+          labelFormatter={(label) => format(new Date(String(label)), 'PPpp')}
           formatter={(value, name) => {
             const def = series.find((s) => s.key === String(name));
             const num = typeof value === 'number' ? value : Number(value);
             return [
-              formatWithUnit(Number.isFinite(num) ? num : null, def?.unit ?? yUnit),
+              formatWithUnit(
+                Number.isFinite(num) ? num : null,
+                def?.unit ?? yUnit,
+              ),
               def?.label ?? String(name),
             ];
           }}

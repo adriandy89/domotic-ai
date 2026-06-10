@@ -8,6 +8,8 @@ import {
   ReportMultiSeriesResponseDto,
   ReportSeriesQueryDto,
   ReportSeriesResponseDto,
+  ReportStateEventsQueryDto,
+  ReportStateEventsResponseDto,
 } from '@app/models';
 import type { SessionUser } from '@app/models';
 import {
@@ -54,6 +56,16 @@ export class ReportsController {
     @GetUserInfo() user: SessionUser,
   ): Promise<ReportFieldSeriesResponseDto> {
     return this.reportsService.getFieldSeries(user.id, q);
+  }
+
+  @Get('state-events')
+  @Permissions([Role.USER, Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async getStateEvents(
+    @Query() q: ReportStateEventsQueryDto,
+    @GetUserInfo() user: SessionUser,
+  ): Promise<ReportStateEventsResponseDto> {
+    return this.reportsService.getStateEvents(user.id, q);
   }
 
   @Get('multi-series')
