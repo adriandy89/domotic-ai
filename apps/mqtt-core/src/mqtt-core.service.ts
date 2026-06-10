@@ -10,6 +10,8 @@ import {
   synthesizeConfig,
   deriveEntities,
   deriveAvailability,
+  applyValueTemplate,
+  transformAggregateState,
   isHaProtocol,
   IDeviceAvailability,
   IHomeConnectedEvent,
@@ -105,8 +107,11 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
    */
   private readonly haStateIndex = new Map<
     string,
-    { deviceId: string; property: string }
+    { deviceId: string; property: string; valueTemplate?: string }
   >();
+
+  /** Devices/properties already warned about an unapplied value_template. */
+  private readonly templateFallbackWarned = new Set<string>();
 
   constructor(
     private readonly cacheService: CacheService,
@@ -342,9 +347,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       getKeyHomeUniqueIdOrgId(homeUniqueId),
     );
     if (!homeOrgId) {
-      this.logger.error(
-        `Not Found Organization ID for home = ${homeUniqueId}`,
-      );
+      this.logger.error(`Not Found Organization ID for home = ${homeUniqueId}`);
       return;
     }
 
@@ -538,6 +541,7 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         this.haStateIndex.set(entity.stateTopic, {
           deviceId,
           property: entity.property,
+          valueTemplate: entity.valueTemplate,
         });
       } else {
         // Shared topic → aggregate ingestion; drop any stale single-owner entry.
@@ -560,7 +564,10 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
     deviceUniqueId: string,
     bufferMsg: Buffer,
   ) {
-    const raw = bufferMsg.toString().replace(/\u0000/g, '').trim();
+    const raw = bufferMsg
+      .toString()
+      .replace(/\u0000/g, '')
+      .trim();
     if (!raw) return; // cleared/retained-null
 
     const organizationId = await this.resolveHomeOrgId(homeUniqueId);
@@ -630,7 +637,9 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
     try {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
-        token = String((parsed as Record<string, unknown>)[avail?.field ?? 'state']);
+        token = String(
+          (parsed as Record<string, unknown>)[avail?.field ?? 'state'],
+        );
       } else {
         token = String(parsed);
       }
@@ -668,10 +677,21 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
 
     const raw = bufferMsg.toString().replace(/\u0000/g, '');
     let value: unknown;
+    let valueJson: unknown;
     try {
-      value = JSON.parse(raw);
+      valueJson = JSON.parse(raw);
+      value = valueJson;
     } catch {
       value = raw; // plain string state (e.g. "ON")
+    }
+
+    // Decode through the entity's value_template (HA semantics: the rendered
+    // result is the state). Falls back to the raw value, never throws.
+    if (entry.valueTemplate) {
+      value = applyValueTemplate(entry.valueTemplate, {
+        value: raw,
+        value_json: valueJson,
+      });
     }
 
     const device = await this.dbService.device.findUnique({
@@ -715,11 +735,12 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    const raw = bufferMsg
+      .toString()
+      .replace(new RegExp(String.fromCharCode(0), 'g'), '');
     let message: unknown;
     try {
-      message = JSON.parse(
-        bufferMsg.toString().replace(new RegExp(String.fromCharCode(0), 'g'), ''),
-      );
+      message = JSON.parse(raw);
     } catch (err) {
       this.logger.error(
         `Failed to parse aggregate state for device=${deviceUniqueId} home=${homeUniqueId}: ${err}`,
@@ -806,7 +827,50 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    await this.ingestSensorData(device, message as object, homeUniqueId);
+    // Decode the payload through the device's discovery value_templates (HA
+    // semantics: each component's state is the rendered template) before
+    // ingesting. Auto-registered/synthesized configs declare identity templates,
+    // so devices without a real discovery config pass through unchanged.
+    let outMessage = message as Record<string, unknown>;
+    const attrs = existingDevice?.attributes as HaDeviceAttributes | null;
+    if (attrs?.source === 'hadiscovery' && attrs.config) {
+      try {
+        outMessage = transformAggregateState(
+          outMessage,
+          deriveEntities(attrs.config),
+          stateTopic,
+          raw,
+          (property, template) =>
+            this.warnTemplateFallbackOnce(device.id, property, template),
+        );
+      } catch (err) {
+        this.logger.warn(
+          `HA state transform failed for device=${deviceUniqueId} home=${homeUniqueId}: ${err}`,
+        );
+        outMessage = message as Record<string, unknown>;
+      }
+    }
+
+    await this.ingestSensorData(device, outMessage, homeUniqueId);
+  }
+
+  /** Warn once per device/property when a value_template can't be honored. */
+  private warnTemplateFallbackOnce(
+    deviceId: string,
+    property: string,
+    template: string,
+  ) {
+    const key = `${deviceId}:${property}`;
+    if (this.templateFallbackWarned.has(key)) {
+      this.logger.debug(
+        `value_template fallback (repeat) device=${deviceId} property=${property}`,
+      );
+      return;
+    }
+    this.templateFallbackWarned.add(key);
+    this.logger.warn(
+      `value_template not applied for device=${deviceId} property=${property}; storing raw value (${template})`,
+    );
   }
 
   // ── Shared state ingestion (protocol-agnostic) ─────────────────────────────
@@ -935,11 +999,14 @@ export class MqttCoreService implements OnModuleInit, OnModuleDestroy {
         foundHome.unique_id,
       );
     }
-    await this.natsClient.emit<IHomeConnectedEvent>('mqtt-core.home.connected', {
-      homeId: foundHome.id,
-      userIds: foundHome.users.map((user) => user.user_id),
-      connected: true,
-    });
+    await this.natsClient.emit<IHomeConnectedEvent>(
+      'mqtt-core.home.connected',
+      {
+        homeId: foundHome.id,
+        userIds: foundHome.users.map((user) => user.user_id),
+        connected: true,
+      },
+    );
     await this.natsClient.emit<IHomeConnectionNotification>(
       'notification.home-connection',
       {

@@ -104,8 +104,16 @@ describe('deriveEntities / deriveAvailability — read-time derivation', () => {
   });
 
   it('keeps property = object id even with an expression template', () => {
-    const band = entities.find((e) => e.uniqueId === 'sensor-62f11110_band_bass')!;
+    const band = entities.find(
+      (e) => e.uniqueId === 'sensor-62f11110_band_bass',
+    )!;
     expect(band.property).toBe('band_bass');
+  });
+
+  it('carries the raw value_template / command_template strings', () => {
+    const band = entities.find((e) => e.property === 'band_bass')!;
+    expect(band.valueTemplate).toBe('{{(value_json.band_bass*100)|round(1)}}');
+    expect(band.commandTemplate).toBeUndefined();
   });
 
   it('derives the device meta and the resolved availability topic', () => {
@@ -143,6 +151,13 @@ describe('HaDiscoveryAdapter — stores raw config, derives capabilities', () =>
     expect(props).not.toContain('ts');
     expect(adapter.getAvailableActions(attrs)).toHaveLength(0);
   });
+
+  it('carries state_class / device_class into readable attributes', () => {
+    const readable = adapter.getReadableAttributes(attrs);
+    const noise = readable.find((r) => r.property === 'noise_db')!;
+    expect(noise.stateClass).toBe('measurement');
+    expect(noise.deviceClass).toBe('sound_pressure');
+  });
 });
 
 describe('per-entity classic — wrapped into cmps without loss', () => {
@@ -177,6 +192,44 @@ describe('per-entity classic — wrapped into cmps without loss', () => {
     expect(entity.commandTopic).toBe(`home/id/${HOME}/zwave/node12/set`);
     expect(entity.payloadOn).toBe('ON');
     expect(adapter.getAvailableActions(discovered.attributes)).toHaveLength(1);
+  });
+});
+
+describe('getAvailableActions — only command_template blocks commands', () => {
+  const adapter = new HaDiscoveryAdapter();
+  const attrsFor = (
+    component: Record<string, unknown>,
+  ): HaDeviceAttributes => ({
+    source: 'hadiscovery',
+    protocol: 'wifi',
+    config: toCanonicalConfig({
+      topicParts: ['device', 'plug1', 'config'],
+      payload: {
+        '~': `home/id/${HOME}/wifi/plug1`,
+        dev: { ids: ['plug1'], name: 'Plug' },
+        cmps: { relay: component },
+      },
+    })!,
+  });
+
+  it('a value_template (incoming-only) does not block the action', () => {
+    const attrs = attrsFor({
+      p: 'switch',
+      stat_t: '~/state',
+      cmd_t: '~/set',
+      value_template: '{{value_json.relay}}',
+    });
+    expect(adapter.getAvailableActions(attrs)).toHaveLength(1);
+  });
+
+  it('a command_template (outgoing encoding we cannot render) blocks it', () => {
+    const attrs = attrsFor({
+      p: 'switch',
+      stat_t: '~/state',
+      cmd_t: '~/set',
+      command_template: '{"relay": {{ value }} }',
+    });
+    expect(adapter.getAvailableActions(attrs)).toHaveLength(0);
   });
 });
 

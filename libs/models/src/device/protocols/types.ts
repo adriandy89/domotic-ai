@@ -46,6 +46,13 @@ export interface DeviceReadableAttribute {
   type: string;
   unit?: string;
   values?: (string | number)[];
+  /**
+   * HA `state_class` when the protocol declares it ('measurement', 'total',
+   * 'total_increasing', …) — marks the attribute as a numeric statistic source.
+   */
+  stateClass?: string;
+  /** HA `device_class` when declared ('temperature', 'sound_pressure', …). */
+  deviceClass?: string;
 }
 
 export interface NormalizeWarning {

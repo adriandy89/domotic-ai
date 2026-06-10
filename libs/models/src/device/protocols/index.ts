@@ -13,4 +13,6 @@ export * from './zigbee/zigbee.adapter';
 // Home Assistant MQTT Discovery (Z-Wave / WiFi / BLE).
 export * from './hadiscovery/ha-config.types';
 export * from './hadiscovery/parse-ha-config';
+export * from './hadiscovery/evaluate-value-template';
+export * from './hadiscovery/transform-ha-state';
 export * from './hadiscovery/hadiscovery.adapter';

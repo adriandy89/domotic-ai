@@ -176,6 +176,40 @@ model SensorDataLast {
   @@map("sensor_data_last")
 }
 
+/// Generic per-field statistics (HA-recorder style): avg/min/max per
+/// (device, field, hour) for every numeric field of every protocol.
+/// Populated by the `refresh_sensor_field_stats` TimescaleDB job — never
+/// written by the app. No FK on purpose, mirroring the sensor_hourly /
+/// sensor_daily continuous aggregates.
+model SensorFieldHourly {
+  device_id    String
+  bucket       DateTime @db.Timestamptz(6)
+  field        String
+  value_avg    Float?
+  value_min    Float?
+  value_max    Float?
+  sample_count BigInt   @default(0)
+
+  @@id([device_id, bucket, field], map: "pk_sensor_field_hourly")
+  @@index([device_id, field, bucket(sort: Desc)], map: "idx_sensor_field_hourly_device_field_bucket")
+  @@map("sensor_field_hourly")
+}
+
+/// Daily rollup with the same shape as SensorFieldHourly; kept forever.
+model SensorFieldDaily {
+  device_id    String
+  bucket       DateTime @db.Timestamptz(6)
+  field        String
+  value_avg    Float?
+  value_min    Float?
+  value_max    Float?
+  sample_count BigInt   @default(0)
+
+  @@id([device_id, bucket, field], map: "pk_sensor_field_daily")
+  @@index([device_id, field, bucket(sort: Desc)], map: "idx_sensor_field_daily_device_field_bucket")
+  @@map("sensor_field_daily")
+}
+
 model UserHome {
   user_id String
   user    User   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)

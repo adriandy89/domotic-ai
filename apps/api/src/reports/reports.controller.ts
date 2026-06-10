@@ -2,6 +2,8 @@ import {
   ReportAggregateQueryDto,
   ReportAggregateResponseDto,
   ReportExportQueryDto,
+  ReportFieldSeriesQueryDto,
+  ReportFieldSeriesResponseDto,
   ReportMultiSeriesQueryDto,
   ReportMultiSeriesResponseDto,
   ReportSeriesQueryDto,
@@ -42,6 +44,16 @@ export class ReportsController {
     @GetUserInfo() user: SessionUser,
   ): Promise<ReportSeriesResponseDto> {
     return this.reportsService.getSeries(user.id, q);
+  }
+
+  @Get('field-series')
+  @Permissions([Role.USER, Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async getFieldSeries(
+    @Query() q: ReportFieldSeriesQueryDto,
+    @GetUserInfo() user: SessionUser,
+  ): Promise<ReportFieldSeriesResponseDto> {
+    return this.reportsService.getFieldSeries(user.id, q);
   }
 
   @Get('multi-series')
@@ -104,11 +116,10 @@ export class ReportsController {
     @Query('to') to: string,
     @GetUserInfo() user: SessionUser,
   ) {
-    return this.reportsService.getAiUsageReport(
-      user.id,
-      user.organization_id,
-      { from: new Date(from), to: new Date(to) },
-    );
+    return this.reportsService.getAiUsageReport(user.id, user.organization_id, {
+      from: new Date(from),
+      to: new Date(to),
+    });
   }
 
   @Post('monthly-email')

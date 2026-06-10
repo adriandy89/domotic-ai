@@ -39,6 +39,14 @@ export const FeatureAccessMode = {
 /** Metadata keys that are not user-facing measurements (mirrors backend HA_META_KEYS). */
 const META_KEYS = new Set(['device', 'ts', 'timestamp']);
 
+/** HA state_class values whose state is numeric (HA recorder statistics set). */
+const NUMERIC_STATE_CLASSES = new Set([
+  'measurement',
+  'measurement_angle',
+  'total',
+  'total_increasing',
+]);
+
 /** Component-level abbreviation → full key (subset; backend uses the same map). */
 const ABBR: Record<string, string> = {
   p: 'platform',
@@ -88,6 +96,7 @@ function haComponentToExpose(
   const platform = (cp.platform as string) ?? 'sensor';
   const unit = cp.unit_of_measurement as string | undefined;
   const deviceClass = cp.device_class as string | undefined;
+  const stateClass = cp.state_class as string | undefined;
   const writable =
     cp.command_topic !== undefined ||
     ['switch', 'light', 'fan', 'lock', 'number', 'select', 'cover'].includes(
@@ -111,6 +120,8 @@ function haComponentToExpose(
     type: 'text',
     access,
     unit,
+    ...(stateClass && { state_class: stateClass }),
+    ...(deviceClass && { device_class: deviceClass }),
     ...(isDiagnostic && { category: 'diagnostic' }),
   };
 
@@ -155,10 +166,17 @@ function haComponentToExpose(
       };
     case 'sensor':
     default:
-      // With a unit → numeric (shows "11.7ppm"). Without a unit the value may be a
-      // number (air_quality_raw) or a string (sound_class), so use the generic
+      // A numeric state_class (HA recorder semantics) or a unit → numeric
+      // (shows "11.7ppm"). Otherwise the value may be a number
+      // (air_quality_raw) or a string (sound_class), so use the generic
       // `value` display which renders either faithfully.
-      return { ...base, type: unit ? 'numeric' : 'value' };
+      return {
+        ...base,
+        type:
+          unit || (stateClass && NUMERIC_STATE_CLASSES.has(stateClass))
+            ? 'numeric'
+            : 'value',
+      };
   }
 }
 

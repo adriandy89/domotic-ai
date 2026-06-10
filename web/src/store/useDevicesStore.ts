@@ -10,6 +10,10 @@ export interface DeviceExpose {
   property: string;
   unit?: string;
   category?: string;
+  /** HA state_class ('measurement', 'total', …) — numeric statistic source. */
+  state_class?: string;
+  /** HA device_class ('temperature', 'sound_pressure', …). */
+  device_class?: string;
   value_on?: boolean | string;
   value_off?: boolean | string;
   value_max?: number;

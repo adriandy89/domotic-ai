@@ -6,6 +6,7 @@ import {
   Battery,
   Cpu,
   Download,
+  Gauge,
   Home,
   Loader2,
   ShieldAlert,
@@ -36,6 +37,7 @@ import {
 import { useHomesStore } from '../store/useHomesStore';
 import {
   useReportsStore,
+  type FieldSeriesResponse,
   type ReportMetric,
   type SeriesResponse,
 } from '../store/useReportsStore';
@@ -107,6 +109,18 @@ const ALL_TABS: TabSpec[] = [
   },
 ];
 
+/** Series colors for the dynamic Measurements charts. */
+const MEASUREMENT_COLORS = [
+  '#22d3ee',
+  '#f59e0b',
+  '#10b981',
+  '#a855f7',
+  '#ef4444',
+  '#3b82f6',
+  '#eab308',
+  '#14b8a6',
+];
+
 const PROPERTY_FOR_METRIC: Record<ReportMetric, string> = {
   temperature: 'temperature',
   humidity: 'humidity',
@@ -133,12 +147,16 @@ const PROPERTY_FOR_METRIC: Record<ReportMetric, string> = {
   lqi: 'linkquality',
 };
 
+/** Properties already served by the fixed report metrics above. */
+const COVERED_PROPERTIES = new Set(Object.values(PROPERTY_FOR_METRIC));
+
 export default function DeviceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { devices, devicesData } = useDevicesStore();
   const { homes } = useHomesStore();
-  const { fetchSeries, exportCsv, fetchAggregate } = useReportsStore();
+  const { fetchSeries, exportCsv, fetchAggregate, fetchFieldSeries } =
+    useReportsStore();
 
   const device = id ? devices[id] : null;
   const home = device ? homes[device.home_id] : null;
@@ -168,13 +186,45 @@ export default function DeviceDetailPage() {
     }));
   }, [device, last]);
 
-  useEffect(() => {
-    if (!activeTab && availableTabs.length > 0) {
-      setActiveTab(availableTabs[0].id);
-    }
-  }, [activeTab, availableTabs]);
+  // Numeric exposes (state_class measurement / unit, or a numeric last value)
+  // not covered by the fixed report metrics → charted from the generic
+  // per-field statistics (sensor_field_hourly/daily) under a Measurements tab.
+  const fieldExposes = useMemo(() => {
+    if (!device) return [];
+    const seen = new Set<string>();
+    return flattenExposes(getDeviceExposes(device)).filter((e) => {
+      const prop = e.property ?? e.name;
+      if (!prop || seen.has(prop)) return false;
+      if (COVERED_PROPERTIES.has(prop)) return false;
+      if (e.device_class === 'timestamp' || prop === 'ts' || prop === 'timestamp')
+        return false;
+      const numeric =
+        e.type === 'numeric' ||
+        (e.type === 'value' && typeof last?.[prop] === 'number');
+      if (!numeric) return false;
+      seen.add(prop);
+      return true;
+    });
+  }, [device, last]);
 
-  const tab = availableTabs.find((t) => t.id === activeTab);
+  const allTabs = useMemo(
+    () =>
+      fieldExposes.length > 0
+        ? [
+            ...availableTabs,
+            { id: 'measurements', label: 'Measurements', icon: Gauge, metrics: [] },
+          ]
+        : availableTabs,
+    [availableTabs, fieldExposes],
+  );
+
+  useEffect(() => {
+    if (!activeTab && allTabs.length > 0) {
+      setActiveTab(allTabs[0].id);
+    }
+  }, [activeTab, allTabs]);
+
+  const tab = allTabs.find((t) => t.id === activeTab);
 
   // Series for each metric in the active tab.
   const [seriesByMetric, setSeriesByMetric] = useState<
@@ -202,6 +252,35 @@ export default function DeviceDetailPage() {
       setSeriesByMetric(next);
     });
   }, [device, tab, range, fetchSeries]);
+
+  // Series for each generic numeric field in the Measurements tab.
+  const [seriesByField, setSeriesByField] = useState<
+    Record<string, FieldSeriesResponse | null>
+  >({});
+
+  useEffect(() => {
+    if (!device || activeTab !== 'measurements' || fieldExposes.length === 0)
+      return;
+    setSeriesByField({});
+    const bucket = bucketForRange(range);
+    Promise.all(
+      fieldExposes.map(async (e) => {
+        const field = (e.property ?? e.name) as string;
+        const s = await fetchFieldSeries({
+          device_id: device.id,
+          field,
+          from: range.from,
+          to: range.to,
+          bucket,
+        });
+        return [field, s] as const;
+      }),
+    ).then((entries) => {
+      const next: Record<string, FieldSeriesResponse | null> = {};
+      for (const [k, v] of entries) next[k] = v;
+      setSeriesByField(next);
+    });
+  }, [device, activeTab, range, fieldExposes, fetchFieldSeries]);
 
   // Aggregate for header KPIs.
   const [aggregate, setAggregate] = useState<Record<
@@ -292,12 +371,12 @@ export default function DeviceDetailPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1 border-b border-border w-full sm:w-auto">
-          {availableTabs.length === 0 ? (
+          {allTabs.length === 0 ? (
             <span className="text-sm text-muted-foreground py-2">
               No measurable exposes for this device
             </span>
           ) : (
-            availableTabs.map((t) => {
+            allTabs.map((t) => {
               const Icon = t.icon;
               const isActive = t.id === activeTab;
               return (
@@ -321,7 +400,7 @@ export default function DeviceDetailPage() {
         <RangeSelector value={range} onChange={setRange} />
       </div>
 
-      {tab && (
+      {tab && tab.metrics.length > 0 && (
         <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
           {tab.metrics.map((m) => {
             const s = seriesByMetric[m.metric];
@@ -369,6 +448,45 @@ export default function DeviceDetailPage() {
                       },
                     ]}
                     yUnit={m.unit}
+                    height={220}
+                    type="area"
+                  />
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {activeTab === 'measurements' && (
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
+          {fieldExposes.map((e, i) => {
+            const field = (e.property ?? e.name) as string;
+            const s = seriesByField[field];
+            const unit = e.unit ?? s?.unit ?? undefined;
+            const color = MEASUREMENT_COLORS[i % MEASUREMENT_COLORS.length];
+            return (
+              <Card key={field} className="bg-card/40 border-border">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="text-base">
+                    {e.label || field}
+                    {unit && (
+                      <span className="text-xs text-muted-foreground ml-2">
+                        ({unit})
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <TimeSeriesChart
+                    data={(s?.points ?? []).map((p) => ({
+                      bucket: p.bucket,
+                      [field]: p.value,
+                    }))}
+                    series={[
+                      { key: field, label: e.label || field, unit, color },
+                    ]}
+                    yUnit={unit}
                     height={220}
                     type="area"
                   />

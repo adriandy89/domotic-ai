@@ -1,8 +1,11 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
 import {
+  getAdapter,
+  isKnownProtocol,
   ReportAggregateResponseDto,
   ReportBucket,
+  ReportFieldSeriesResponseDto,
   ReportMetric,
   ReportMultiSeriesResponseDto,
   ReportSeriesPointDto,
@@ -171,6 +174,11 @@ interface AggregateRow {
 const CACHE_TTL_S = 60;
 const HOURLY_TABLE = 'sensor_hourly';
 const DAILY_TABLE = 'sensor_daily';
+// Generic per-field statistics (any numeric payload field, any protocol),
+// populated by the refresh_sensor_field_stats TimescaleDB job.
+const FIELD_HOURLY_TABLE = 'sensor_field_hourly';
+const FIELD_DAILY_TABLE = 'sensor_field_daily';
+const NUMERIC_VALUE_RE = `^-?[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$`;
 
 @Injectable()
 export class ReportsService {
@@ -223,7 +231,8 @@ export class ReportsService {
     if (!spec) throw new NotFoundException(`Unknown metric: ${params.metric}`);
 
     const cacheKey = this.cacheKey('series', params, bucket);
-    const cached = await this.cacheService.get<ReportSeriesResponseDto>(cacheKey);
+    const cached =
+      await this.cacheService.get<ReportSeriesResponseDto>(cacheKey);
     if (cached) return cached;
 
     const rows = await this.queryBuckets(spec, bucket, params);
@@ -273,6 +282,52 @@ export class ReportsService {
   }
 
   // ---------------------------------------------------------------------------
+  //  Field series — one device, ANY numeric payload field, time-bucketed.
+  //  Backed by sensor_field_hourly/daily, so fields outside the fixed
+  //  ReportMetric set (e.g. an HA sound sensor's leq_db) are chartable too.
+  // ---------------------------------------------------------------------------
+  async getFieldSeries(
+    userId: string,
+    params: {
+      device_id: string;
+      field: string;
+      from: Date;
+      to: Date;
+      bucket?: ReportBucket;
+    },
+  ): Promise<ReportFieldSeriesResponseDto> {
+    await this.assertDeviceAccess(params.device_id, userId);
+    const bucket = params.bucket ?? 'hour';
+
+    const cacheKey = this.cacheKey('fieldseries', params, bucket);
+    const cached =
+      await this.cacheService.get<ReportFieldSeriesResponseDto>(cacheKey);
+    if (cached) return cached;
+
+    const rows = await this.queryFieldBuckets(bucket, params);
+    const points: ReportSeriesPointDto[] = rows.map((r) => ({
+      bucket: r.bucket.toISOString(),
+      value: this.numberOrNull(r.value),
+      min: this.numberOrNull(r.min_value),
+      max: this.numberOrNull(r.max_value),
+      count: r.sample_count != null ? Number(r.sample_count) : null,
+    }));
+
+    const meta = await this.fieldMetadata(params.device_id, params.field);
+    const response: ReportFieldSeriesResponseDto = {
+      device_id: params.device_id,
+      field: params.field,
+      bucket,
+      from: params.from.toISOString(),
+      to: params.to.toISOString(),
+      points,
+      ...meta,
+    };
+    await this.cacheService.set(cacheKey, response, CACHE_TTL_S);
+    return response;
+  }
+
+  // ---------------------------------------------------------------------------
   //  Aggregate — totals/averages for the period (one device, all metrics).
   // ---------------------------------------------------------------------------
   async getAggregate(
@@ -281,7 +336,8 @@ export class ReportsService {
   ): Promise<ReportAggregateResponseDto> {
     await this.assertDeviceAccess(params.device_id, userId);
     const cacheKey = this.cacheKey('agg', params);
-    const cached = await this.cacheService.get<ReportAggregateResponseDto>(cacheKey);
+    const cached =
+      await this.cacheService.get<ReportAggregateResponseDto>(cacheKey);
     if (cached) return cached;
 
     // Pick the cheapest table for the range.
@@ -531,7 +587,11 @@ export class ReportsService {
     organizationId: string,
     range: { from: Date; to: Date },
   ): Promise<{
-    rule_executions_daily: { day: string; conditions_met: number; executed: number }[];
+    rule_executions_daily: {
+      day: string;
+      conditions_met: number;
+      executed: number;
+    }[];
     rule_top: { rule_id: string; name: string; executions: number }[];
     commands_by_source_daily: {
       day: string;
@@ -555,7 +615,11 @@ export class ReportsService {
     void userId;
     const cacheKey = `reports:auto:${organizationId}:${range.from.toISOString()}:${range.to.toISOString()}`;
     const cached = await this.cacheService.get<{
-      rule_executions_daily: { day: string; conditions_met: number; executed: number }[];
+      rule_executions_daily: {
+        day: string;
+        conditions_met: number;
+        executed: number;
+      }[];
       rule_top: { rule_id: string; name: string; executions: number }[];
       commands_by_source_daily: {
         day: string;
@@ -1024,6 +1088,86 @@ export class ReportsService {
       params.from,
       params.to,
     );
+  }
+
+  private async queryFieldBuckets(
+    bucket: ReportBucket,
+    params: { device_id: string; field: string; from: Date; to: Date },
+  ): Promise<AggregateRow[]> {
+    if (bucket === 'raw') {
+      // Read straight from `sensor_data`, numeric-looking values only (the
+      // same guard the refresh job applies). `field` is DTO-validated to
+      // /^[a-zA-Z0-9_]+$/ so inlining it in the JSONB path is safe.
+      return await this.dbService.$queryRawUnsafe<AggregateRow[]>(
+        `
+        SELECT
+          timestamp AS bucket,
+          (data->>'${params.field}')::float AS value,
+          NULL::float AS min_value,
+          NULL::float AS max_value,
+          NULL::int   AS sample_count
+        FROM sensor_data
+        WHERE device_id = $1
+          AND timestamp >= $2 AND timestamp < $3
+          AND data->>'${params.field}' ~ '${NUMERIC_VALUE_RE}'
+        ORDER BY timestamp ASC
+        LIMIT 5000
+        `,
+        params.device_id,
+        params.from,
+        params.to,
+      );
+    }
+
+    const table = bucket === 'day' ? FIELD_DAILY_TABLE : FIELD_HOURLY_TABLE;
+    return await this.dbService.$queryRawUnsafe<AggregateRow[]>(
+      `
+      SELECT
+        bucket AS bucket,
+        value_avg AS value,
+        value_min AS min_value,
+        value_max AS max_value,
+        sample_count
+      FROM ${table}
+      WHERE device_id = $1
+        AND field = $2
+        AND bucket >= $3 AND bucket < $4
+      ORDER BY bucket ASC
+      `,
+      params.device_id,
+      params.field,
+      params.from,
+      params.to,
+    );
+  }
+
+  /** unit / device_class / state_class from the device's readable attributes. */
+  private async fieldMetadata(
+    deviceId: string,
+    field: string,
+  ): Promise<{
+    unit: string | null;
+    deviceClass: string | null;
+    stateClass: string | null;
+  }> {
+    const empty = { unit: null, deviceClass: null, stateClass: null };
+    try {
+      const device = await this.dbService.device.findUnique({
+        where: { id: deviceId },
+        select: { protocol: true, attributes: true },
+      });
+      if (!device?.protocol || !isKnownProtocol(device.protocol)) return empty;
+      const attr = getAdapter(device.protocol)
+        .getReadableAttributes(device.attributes)
+        .find((a) => a.property === field);
+      return {
+        unit: attr?.unit ?? null,
+        deviceClass: attr?.deviceClass ?? null,
+        stateClass: attr?.stateClass ?? null,
+      };
+    } catch {
+      return empty;
+    }
   }
 
   private numberOrNull(v: unknown): number | null {

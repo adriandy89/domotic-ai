@@ -87,7 +87,11 @@ export interface HaEntity {
   options?: string[];
   /** HA `state_class` (e.g. 'measurement'); carried for downstream consumers. */
   stateClass?: string;
-  /** Present when the entity needs templating we don't evaluate → treated read-only. */
+  /** Raw HA value_template (incoming state decoding), when declared. */
+  valueTemplate?: string;
+  /** Raw HA command_template (outgoing command encoding), when declared. */
+  commandTemplate?: string;
+  /** Derived: a value_template or command_template is present. */
   hasTemplate?: boolean;
 }
 

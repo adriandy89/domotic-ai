@@ -106,8 +106,10 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
     const actions: DeviceAction[] = [];
 
     for (const entity of entities) {
-      // Read-only or un-evaluatable entities expose no actions.
-      if (!entity.commandTopic || entity.hasTemplate) continue;
+      // No command topic → read-only. A command_template means the outgoing
+      // payload needs templating we can't render; a value_template only affects
+      // incoming state decoding and doesn't block commands (HA semantics).
+      if (!entity.commandTopic || entity.commandTemplate) continue;
 
       if (BINARY_COMPONENTS.has(entity.component)) {
         actions.push({
@@ -177,6 +179,8 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
         type,
         unit: entity.unit,
         values: entity.options,
+        stateClass: entity.stateClass,
+        deviceClass: entity.deviceClass,
       });
     }
 
@@ -194,7 +198,8 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
       const value = out[key];
       if (typeof value !== 'string') continue;
       const lower = value.toLowerCase();
-      if (lower === 'on' && action.valueOn !== undefined) out[key] = action.valueOn;
+      if (lower === 'on' && action.valueOn !== undefined)
+        out[key] = action.valueOn;
       else if (lower === 'off' && action.valueOff !== undefined)
         out[key] = action.valueOff;
       else if (lower === 'toggle' && action.valueToggle !== undefined)

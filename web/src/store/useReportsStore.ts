@@ -53,6 +53,19 @@ export interface AggregateResponse {
   metrics: Record<string, number | null>;
 }
 
+/** Series for ANY numeric payload field (sensor_field_hourly/daily backed). */
+export interface FieldSeriesResponse {
+  device_id: string;
+  field: string;
+  bucket: ReportBucket;
+  from: string;
+  to: string;
+  points: SeriesPoint[];
+  unit?: string | null;
+  deviceClass?: string | null;
+  stateClass?: string | null;
+}
+
 interface CacheEntry<T> {
   data: T;
   expiresAt: number;
@@ -63,6 +76,7 @@ const CACHE_MAX = 50;
 
 interface ReportsState {
   series: Map<string, CacheEntry<SeriesResponse>>;
+  fieldSeries: Map<string, CacheEntry<FieldSeriesResponse>>;
   aggregate: Map<string, CacheEntry<AggregateResponse>>;
   loading: boolean;
   error: string | null;
@@ -74,6 +88,14 @@ interface ReportsState {
     to: Date;
     bucket?: ReportBucket;
   }) => Promise<SeriesResponse | null>;
+
+  fetchFieldSeries: (params: {
+    device_id: string;
+    field: string;
+    from: Date;
+    to: Date;
+    bucket?: ReportBucket;
+  }) => Promise<FieldSeriesResponse | null>;
 
   fetchMultiSeries: (params: {
     device_ids: string[];
@@ -200,6 +222,7 @@ function evict<T>(map: Map<string, CacheEntry<T>>) {
 
 export const useReportsStore = create<ReportsState>((set, get) => ({
   series: new Map(),
+  fieldSeries: new Map(),
   aggregate: new Map(),
   loading: false,
   error: null,
@@ -236,6 +259,46 @@ export const useReportsStore = create<ReportsState>((set, get) => ({
       const message =
         (e as { response?: { data?: { message?: string } } })?.response?.data
           ?.message || 'Failed to fetch series';
+      set({ error: message, loading: false });
+      return null;
+    }
+  },
+
+  fetchFieldSeries: async ({ device_id, field, from, to, bucket = 'hour' }) => {
+    const cacheKey = key([
+      'fieldseries',
+      device_id,
+      field,
+      from.toISOString(),
+      to.toISOString(),
+      bucket,
+    ]);
+    const cached = get().fieldSeries.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.data;
+
+    set({ loading: true, error: null });
+    try {
+      const { data } = await api.get<FieldSeriesResponse>(
+        '/reports/field-series',
+        {
+          params: {
+            device_id,
+            field,
+            from: from.toISOString(),
+            to: to.toISOString(),
+            bucket,
+          },
+        },
+      );
+      const next = new Map(get().fieldSeries);
+      next.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+      evict(next);
+      set({ fieldSeries: next, loading: false });
+      return data;
+    } catch (e: unknown) {
+      const message =
+        (e as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || 'Failed to fetch field series';
       set({ error: message, loading: false });
       return null;
     }
@@ -410,5 +473,6 @@ export const useReportsStore = create<ReportsState>((set, get) => ({
     }
   },
 
-  invalidate: () => set({ series: new Map(), aggregate: new Map() }),
+  invalidate: () =>
+    set({ series: new Map(), fieldSeries: new Map(), aggregate: new Map() }),
 }));

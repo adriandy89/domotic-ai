@@ -4,6 +4,7 @@ import {
   HaEntity,
   HaRawConfig,
 } from './ha-config.types';
+import { valueJsonField } from './evaluate-value-template';
 
 /**
  * Home Assistant MQTT Discovery abbreviated → full key map (subset we consume).
@@ -94,13 +95,6 @@ function resolveTopic(value: unknown, base?: string): string | undefined {
   return value;
 }
 
-/** Extract the first `value_json.<field>` referenced by a value_template. */
-function valueJsonField(template: unknown): string | undefined {
-  if (typeof template !== 'string') return undefined;
-  const m = template.match(/value_json\.([a-zA-Z0-9_]+)/);
-  return m ? m[1] : undefined;
-}
-
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
 }
@@ -142,7 +136,7 @@ export function toCanonicalConfig(input: HaDiscoveryInput): HaRawConfig | null {
     if (!rawComponents || typeof rawComponents !== 'object') return null;
     const cmps = pruneEmpty(rawComponents as Record<string, unknown>);
     if (Object.keys(cmps).length === 0) return null;
-    const { components: _drop, ...rest } = payload as Record<string, unknown>;
+    const { components: _drop, ...rest } = payload;
     return { ...(rest as object), cmps } as HaRawConfig;
   }
 
@@ -188,7 +182,7 @@ export function deriveEntities(config: HaRawConfig | undefined): HaEntity[] {
 
   for (const [objectId, rawComp] of Object.entries(config.cmps)) {
     if (!rawComp || typeof rawComp !== 'object') continue;
-    const cp = expand(rawComp as Record<string, unknown>, COMPONENT_ABBREVIATIONS);
+    const cp = expand(rawComp, COMPONENT_ABBREVIATIONS);
     if (Object.keys(cp).length === 0) continue;
 
     const component = asString(cp.platform) ?? 'sensor';
@@ -197,6 +191,8 @@ export function deriveEntities(config: HaRawConfig | undefined): HaEntity[] {
       cp.command_topic ?? root.command_topic,
       base,
     );
+    const valueTemplate = asString(cp.value_template);
+    const commandTemplate = asString(cp.command_template);
     const hasTemplate =
       cp.value_template !== undefined || cp.command_template !== undefined;
 
@@ -215,13 +211,17 @@ export function deriveEntities(config: HaRawConfig | undefined): HaEntity[] {
       brightnessCommandTopic: resolveTopic(cp.brightness_command_topic, base),
       brightnessStateTopic: resolveTopic(cp.brightness_state_topic, base),
       brightnessScale:
-        typeof cp.brightness_scale === 'number' ? cp.brightness_scale : undefined,
+        typeof cp.brightness_scale === 'number'
+          ? cp.brightness_scale
+          : undefined,
       min: typeof cp.min === 'number' ? cp.min : undefined,
       max: typeof cp.max === 'number' ? cp.max : undefined,
       step: typeof cp.step === 'number' ? cp.step : undefined,
       options: Array.isArray(cp.options)
         ? (cp.options as unknown[]).map(String)
         : undefined,
+      valueTemplate,
+      commandTemplate,
       hasTemplate: hasTemplate || undefined,
     });
   }
