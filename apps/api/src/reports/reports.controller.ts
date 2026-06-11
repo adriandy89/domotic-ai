@@ -1,6 +1,8 @@
 import {
   ReportAggregateQueryDto,
   ReportAggregateResponseDto,
+  ReportCostSeriesQueryDto,
+  ReportCostSeriesResponseDto,
   ReportExportQueryDto,
   ReportFieldSeriesQueryDto,
   ReportFieldSeriesResponseDto,
@@ -76,6 +78,16 @@ export class ReportsController {
     @GetUserInfo() user: SessionUser,
   ): Promise<ReportMultiSeriesResponseDto> {
     return this.reportsService.getMultiSeries(user.id, q);
+  }
+
+  @Get('cost-series')
+  @Permissions([Role.USER, Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async getCostSeries(
+    @Query() q: ReportCostSeriesQueryDto,
+    @GetUserInfo() user: SessionUser,
+  ): Promise<ReportCostSeriesResponseDto> {
+    return this.reportsService.getCostSeries(user.id, q);
   }
 
   @Get('aggregate')

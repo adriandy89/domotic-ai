@@ -27,6 +27,7 @@ import {
 } from '../components/ui/select';
 import { Separator } from '../components/ui/separator';
 import { Switch } from '../components/ui/switch';
+import HomeTariffCard from '../components/settings/HomeTariffCard';
 import McpEndpointCard from '../components/settings/McpEndpointCard';
 import XiaozhiIntegrationCard from '../components/settings/XiaozhiIntegrationCard';
 import { api } from '../lib/api';
@@ -419,6 +420,8 @@ export default function SettingsPage() {
       </Card>
 
       {/* HERE */}
+
+      <HomeTariffCard />
 
       <McpEndpointCard />
 

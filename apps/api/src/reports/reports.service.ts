@@ -1,16 +1,20 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
 import {
+  CostBucket,
   getAdapter,
   isKnownProtocol,
+  CostSeriesTotalsDto,
   ReportAggregateResponseDto,
   ReportBucket,
+  ReportCostSeriesResponseDto,
   ReportFieldSeriesResponseDto,
   ReportMetric,
   ReportMultiSeriesResponseDto,
   ReportSeriesPointDto,
   ReportSeriesResponseDto,
   ReportStateEventsResponseDto,
+  TariffMode,
 } from '@app/models';
 import {
   ForbiddenException,
@@ -18,6 +22,8 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { PricingService } from '../pricing/pricing.service';
+import { HourlyEnergyRow, rollupCostSeries } from './cost-rollup.util';
 
 interface MetricSpec {
   /** Column name in the continuous aggregate to read for the time-series. */
@@ -188,6 +194,7 @@ export class ReportsService {
   constructor(
     private readonly dbService: DbService,
     private readonly cacheService: CacheService,
+    private readonly pricingService: PricingService,
   ) {}
 
   // ---------------------------------------------------------------------------
@@ -445,6 +452,139 @@ export class ReportsService {
     };
     await this.cacheService.set(cacheKey, response, CACHE_TTL_S);
     return response;
+  }
+
+  // ---------------------------------------------------------------------------
+  //  Energy cost — hourly consumption × the home's tariff (fixed/TOU/dynamic).
+  //  Always priced at hourly resolution; `bucket` only changes the rollup.
+  // ---------------------------------------------------------------------------
+  async getCostSeries(
+    userId: string,
+    params: { device_id: string; from: Date; to: Date; bucket?: CostBucket },
+  ): Promise<ReportCostSeriesResponseDto> {
+    const device = await this.assertDeviceAccess(params.device_id, userId);
+    if (!device.home_id) {
+      throw new NotFoundException('Device is not assigned to a home');
+    }
+    const bucket = params.bucket ?? 'day';
+    const cacheKey = this.cacheKey('cost', params, bucket);
+    const cached =
+      await this.cacheService.get<ReportCostSeriesResponseDto>(cacheKey);
+    if (cached) return cached;
+
+    const home = await this.pricingHome(device.home_id);
+    const rows = await this.dbService.$queryRawUnsafe<
+      Array<{ bucket: Date; energy: unknown }>
+    >(
+      `
+      SELECT bucket, (energy_max - energy_min) AS energy
+      FROM ${HOURLY_TABLE}
+      WHERE device_id = $1
+        AND bucket >= $2 AND bucket < $3
+        AND energy_max IS NOT NULL
+      ORDER BY bucket ASC
+      `,
+      params.device_id,
+      params.from,
+      params.to,
+    );
+
+    const { points, totals, currency, mode } = await this.priceHourlyRows(
+      home,
+      rows,
+      params.from,
+      params.to,
+      bucket,
+    );
+
+    const response: ReportCostSeriesResponseDto = {
+      device_id: params.device_id,
+      bucket,
+      from: params.from.toISOString(),
+      to: params.to.toISOString(),
+      mode,
+      currency,
+      points,
+      totals,
+    };
+    await this.cacheService.set(cacheKey, response, CACHE_TTL_S);
+    return response;
+  }
+
+  /**
+   * Home-level cost totals (all enabled devices) for the monthly email. No
+   * user guard: callers are internal (cron) and already scoped to the home.
+   */
+  async getHomeCostSummary(
+    homeId: string,
+    from: Date,
+    to: Date,
+  ): Promise<{ totals: CostSeriesTotalsDto; currency: string; mode: TariffMode }> {
+    const home = await this.pricingHome(homeId);
+    const rows = await this.dbService.$queryRawUnsafe<
+      Array<{ bucket: Date; energy: unknown }>
+    >(
+      `
+      SELECT sh.bucket AS bucket, sum(sh.energy_max - sh.energy_min) AS energy
+      FROM ${HOURLY_TABLE} sh
+      JOIN devices d ON d.id = sh.device_id
+      WHERE d.home_id = $1
+        AND d.disabled IS NOT TRUE
+        AND sh.bucket >= $2 AND sh.bucket < $3
+        AND sh.energy_max IS NOT NULL
+      GROUP BY sh.bucket
+      ORDER BY sh.bucket ASC
+      `,
+      homeId,
+      from,
+      to,
+    );
+    const { totals, currency, mode } = await this.priceHourlyRows(
+      home,
+      rows,
+      from,
+      to,
+      'day',
+    );
+    return { totals, currency, mode };
+  }
+
+  private async pricingHome(homeId: string) {
+    const home = await this.dbService.home.findUnique({
+      where: { id: homeId },
+      select: {
+        id: true,
+        tariff_type: true,
+        tariff_config: true,
+        kwh_price: true,
+        currency: true,
+      },
+    });
+    if (!home) throw new NotFoundException('Home not found');
+    return home;
+  }
+
+  private async priceHourlyRows(
+    home: Awaited<ReturnType<ReportsService['pricingHome']>>,
+    rows: Array<{ bucket: Date; energy: unknown }>,
+    from: Date,
+    to: Date,
+    bucket: CostBucket,
+  ) {
+    const energyRows: HourlyEnergyRow[] = rows
+      .map((r) => ({
+        bucket: new Date(r.bucket),
+        energy: Math.max(0, Number(r.energy ?? 0)),
+      }))
+      .filter((r) => Number.isFinite(r.energy));
+    const prices = await this.pricingService.getHourlyPrices(home, from, to);
+    const { points, totals } = rollupCostSeries(energyRows, prices, bucket);
+    return {
+      points,
+      totals,
+      currency: prices.currency,
+      mode: home.tariff_type.toLowerCase() as TariffMode,
+    };
   }
 
   // ---------------------------------------------------------------------------

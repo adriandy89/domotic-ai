@@ -9,6 +9,7 @@ import {
   BarChartCmp,
 } from '../../components/charts';
 import DeviceSelector from '../../components/reports/DeviceSelector';
+import PriceCurveCard from '../../components/reports/PriceCurveCard';
 import { Button } from '../../components/ui/button';
 import {
   Card,
@@ -23,6 +24,10 @@ import {
   useReportsStore,
   type SeriesResponse,
 } from '../../store/useReportsStore';
+import {
+  usePricingStore,
+  type CostSeries,
+} from '../../store/usePricingStore';
 import {
   formatCurrency,
   formatNumber,
@@ -49,8 +54,12 @@ export default function EnergyReportPage() {
     });
   }, [devices, homeId]);
 
+  const { fetchCostSeries } = usePricingStore();
+
   const [powerSeries, setPowerSeries] = useState<SeriesResponse | null>(null);
   const [energySeries, setEnergySeries] = useState<SeriesResponse | null>(null);
+  const [costSeries, setCostSeries] = useState<CostSeries | null>(null);
+  const [previousCostTotal, setPreviousCostTotal] = useState<number | null>(null);
   const [aggregate, setAggregate] = useState<Record<
     string,
     number | null
@@ -104,7 +113,22 @@ export default function EnergyReportPage() {
       from: prevFrom,
       to: prevTo,
     }).then((agg) => setPreviousAggregate(agg?.metrics ?? null));
-  }, [deviceId, range, bucket, fetchSeries, fetchAggregate]);
+
+    // Tariff-aware cost (fixed / TOU / dynamic market prices).
+    const costBucket = bucket === 'day' ? 'day' : 'hour';
+    fetchCostSeries({
+      device_id: deviceId,
+      from: range.from,
+      to: range.to,
+      bucket: costBucket,
+    }).then(setCostSeries);
+    fetchCostSeries({
+      device_id: deviceId,
+      from: prevFrom,
+      to: prevTo,
+      bucket: costBucket,
+    }).then((prev) => setPreviousCostTotal(prev?.totals.cost ?? null));
+  }, [deviceId, range, bucket, fetchSeries, fetchAggregate, fetchCostSeries]);
 
   // Top consumers across the home / org.
   useEffect(() => {
@@ -142,15 +166,32 @@ export default function EnergyReportPage() {
     });
   }, [homeId, range, devices, devicesByHome, fetchMultiSeries]);
 
-  const home = homeId ? homes[homeId] : null;
-  const currency = (home?.currency ?? 'USD') as string;
+  // Home for the price curve: explicit selection, else the device's home.
+  const effectiveHomeId = homeId ?? (deviceId ? devices[deviceId]?.home_id ?? null : null);
+  const home = effectiveHomeId ? homes[effectiveHomeId] : null;
   const kwhPrice = Number(home?.kwh_price ?? 0);
 
   const energyKwh = aggregate?.energy_kwh ?? 0;
   const previousEnergy = previousAggregate?.energy_kwh ?? null;
-  const cost = energyKwh * kwhPrice;
+
+  // Server-side tariff-aware cost; falls back to flat kwh_price × energy when
+  // the cost series is unavailable (device without home, request failed…).
+  const currency = (costSeries?.currency ?? home?.currency ?? 'USD') as string;
+  const cost = costSeries?.totals.cost ?? energyKwh * kwhPrice;
   const previousCost =
-    previousEnergy != null ? previousEnergy * kwhPrice : null;
+    previousCostTotal ??
+    (previousEnergy != null ? previousEnergy * kwhPrice : null);
+  const tariffModeLabel =
+    costSeries?.mode === 'dynamic'
+      ? 'dynamic market price'
+      : costSeries?.mode === 'tou'
+        ? 'time-of-use tariff'
+        : null;
+  const avgPrice =
+    costSeries && costSeries.totals.energy_kwh > 0
+      ? costSeries.totals.cost / costSeries.totals.energy_kwh
+      : null;
+  const isEstimate = (costSeries?.totals.fallback_hours ?? 0) > 0;
 
   const powerSparkline = useMemo(
     () =>
@@ -228,12 +269,14 @@ export default function EnergyReportPage() {
           accentColor="#8b5cf6"
         />
         <KPICard
-          label="Estimated cost"
+          label={isEstimate ? 'Estimated cost*' : 'Energy cost'}
           value={formatCurrency(cost, currency)}
           subtitle={
-            kwhPrice > 0
-              ? `@ ${formatCurrency(kwhPrice, currency, 4)}/kWh`
-              : 'Set kWh price in home settings'
+            tariffModeLabel && avgPrice != null
+              ? `${tariffModeLabel} · avg ${formatCurrency(avgPrice, currency, 4)}/kWh`
+              : kwhPrice > 0
+                ? `@ ${formatCurrency(kwhPrice, currency, 4)}/kWh`
+                : 'Set the tariff in Settings'
           }
           current={cost}
           previous={previousCost}
@@ -296,6 +339,45 @@ export default function EnergyReportPage() {
           />
         </CardContent>
       </Card>
+
+      {costSeries && costSeries.points.length > 0 && (
+        <Card className="bg-card/40 border-border">
+          <CardHeader>
+            <CardTitle className="text-lg">
+              Energy cost{isEstimate ? ' (estimate)' : ''}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <BarChartCmp
+              data={costSeries.points.map((p) => ({
+                bucket: p.bucket,
+                cost: p.cost,
+              }))}
+              xKey="bucket"
+              series={[
+                { key: 'cost', label: 'Cost', unit: currency, color: '#10b981' },
+              ]}
+              yUnit={currency}
+              xFormat={(v) =>
+                costSeries.bucket === 'day'
+                  ? new Date(v).toLocaleDateString()
+                  : new Date(v).toLocaleString(undefined, {
+                      day: '2-digit',
+                      hour: '2-digit',
+                    })
+              }
+            />
+            {isEstimate && (
+              <p className="text-xs text-muted-foreground mt-2">
+                * {costSeries.totals.fallback_hours} h had no market price and
+                used the home's fixed fallback price.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {effectiveHomeId && <PriceCurveCard homeId={effectiveHomeId} />}
 
       <Card className="bg-card/40 border-border">
         <CardHeader>
