@@ -47,6 +47,7 @@
     "class-validator": "^0.14.3",
     "connect-redis": "^9.0.0",
     "express-session": "^1.18.2",
+    "fast-xml-parser": "^5.2.5",
     "mastra": "^1.1.0",
     "mqtt": "^5.14.1",
     "nats": "^2.29.3",
@@ -122,10 +123,12 @@
     ],
     "moduleNameMapper": {
       "^@app/cache(|/.*)$": "<rootDir>/libs/cache/src/$1",
+      "^@app/crypto(|/.*)$": "<rootDir>/libs/crypto/src/$1",
       "^@app/db(|/.*)$": "<rootDir>/libs/db/src/$1",
       "^@app/models(|/.*)$": "<rootDir>/libs/models/src/$1",
       "^@app/mqtt(|/.*)$": "<rootDir>/libs/mqtt/src/$1",
-      "^@app/nats-client(|/.*)$": "<rootDir>/libs/nats-client/src/$1"
+      "^@app/nats-client(|/.*)$": "<rootDir>/libs/nats-client/src/$1",
+      "^generated/prisma(|/.*)$": "<rootDir>/generated/prisma$1"
     }
   },
   "packageManager": "pnpm@10.25.0+sha512.5e82639027af37cf832061bcc6d639c219634488e0f2baebe785028a793de7b525ffcd3f7ff574f5e9860654e098fe852ba8ac5dd5cefe1767d23a020a92f501"

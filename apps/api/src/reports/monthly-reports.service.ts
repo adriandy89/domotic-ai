@@ -162,7 +162,23 @@ export class MonthlyReportsService {
       }
     }
 
-    const cost = energySum * Number(home.kwh_price ?? 0);
+    // Real tariff-aware cost (fixed / TOU / dynamic market prices). For FIXED
+    // homes this matches the old `energySum * kwh_price` computation.
+    let cost = energySum * Number(home.kwh_price ?? 0);
+    let avgPrice: number | null = null;
+    let fallbackHours = 0;
+    try {
+      const summary = await this.reports.getHomeCostSummary(home.id, from, to);
+      cost = summary.totals.cost;
+      fallbackHours = summary.totals.fallback_hours;
+      if (summary.totals.energy_kwh > 0) {
+        avgPrice = summary.totals.cost / summary.totals.energy_kwh;
+      }
+    } catch (err) {
+      this.logger.warn(
+        `cost summary for home ${home.id} failed, using fixed price: ${(err as Error).message}`,
+      );
+    }
     const tempAvg =
       tempSamples.length > 0
         ? tempSamples.reduce((a, b) => a + b, 0) / tempSamples.length
@@ -191,8 +207,20 @@ export class MonthlyReportsService {
     </tr>
     <tr>
       <td style="padding:8px;">Estimated cost</td>
-      <td style="padding:8px; text-align:right;"><strong>${formatCurrency(cost, home.currency)}</strong></td>
+      <td style="padding:8px; text-align:right;"><strong>${formatCurrency(cost, home.currency)}</strong>${
+        fallbackHours > 0
+          ? `<br/><span style="color:#94a3b8; font-size:11px;">estimate — ${fallbackHours} h used the fixed fallback price</span>`
+          : ''
+      }</td>
     </tr>
+    ${
+      avgPrice == null
+        ? ''
+        : `<tr>
+      <td style="padding:8px; background:#f8fafc; border-radius:6px;">Average price</td>
+      <td style="padding:8px; text-align:right;"><strong>${formatCurrency(avgPrice, home.currency)}/kWh</strong></td>
+    </tr>`
+    }
     <tr>
       <td style="padding:8px; background:#f8fafc; border-radius:6px;">Average temperature</td>
       <td style="padding:8px; text-align:right;"><strong>${tempAvg == null ? '—' : `${tempAvg.toFixed(1)} °C`}</strong></td>

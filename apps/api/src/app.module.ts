@@ -11,6 +11,7 @@ import { HomeModule } from './home';
 import { XiaozhiIntegrationModule } from './integrations/xiaozhi/xiaozhi.module';
 import { McpModule } from './mcp/mcp.module';
 import { NotificationModule } from './notification';
+import { PricingModule } from './pricing';
 import { ReportsModule } from './reports';
 import { RuleModule } from './rule';
 import { ScheduleModule } from './schedule';
@@ -39,6 +40,7 @@ import { UserModule } from './user';
     RuleModule,
     ScheduleModule,
     ReportsModule,
+    PricingModule,
     NotificationModule,
     AiModule,
     McpModule,

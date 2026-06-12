@@ -20,6 +20,8 @@ export interface Home {
   // Reports / energy-cost configuration (populated by the API).
   currency?: string;
   kwh_price?: number | string | null;
+  tariff_type?: string; // 'FIXED' | 'TOU' | 'DYNAMIC'
+  tariff_config?: Record<string, unknown> | null;
   comfort_min_temp?: number | string | null;
   comfort_max_temp?: number | string | null;
   comfort_min_humidity?: number | string | null;

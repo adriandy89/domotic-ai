@@ -51,6 +51,10 @@ model Home {
   // Reports configuration: per-home cost & comfort settings.
   currency             String   @default("USD") @db.VarChar(3)
   kwh_price            Decimal  @default(0)     @db.Decimal(8, 4)
+  // Electricity tariff: FIXED uses kwh_price; TOU/DYNAMIC read tariff_config
+  // (shape validated by pricing DTOs, see libs/models/src/pricing).
+  tariff_type          TariffType @default(FIXED)
+  tariff_config        Json?      @db.JsonB
   comfort_min_temp     Decimal? @db.Decimal(4, 1)
   comfort_max_temp     Decimal? @db.Decimal(4, 1)
   comfort_min_humidity Decimal? @db.Decimal(4, 1)
@@ -401,6 +405,41 @@ enum ScheduleDays {
   THURSDAY
   FRIDAY
   SATURDAY
+}
+
+enum TariffType {
+  FIXED
+  TOU
+  DYNAMIC
+}
+
+/// Shared market price series — one row per (provider, zone, hour start UTC).
+/// All homes on the same dynamic tariff/zone read the same rows; written only
+/// by PriceFetchService via idempotent upserts. Energy term only (no taxes).
+model ElectricityPrice {
+  source     String    @db.VarChar(24) // 'esios_pvpc' | 'entsoe' (future)
+  zone       String    @db.VarChar(16) // 'ES-PEN' | 'ES-CAN' | 'ES-BAL' | 'ES-CEU' | 'ES-MEL'
+  ts         DateTime  @db.Timestamptz(6)
+  price_kwh  Decimal   @db.Decimal(12, 8)
+  currency   String    @default("EUR") @db.VarChar(3)
+  created_at DateTime  @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at DateTime? @updatedAt @db.Timestamptz(6)
+
+  @@id([source, zone, ts], map: "pk_electricity_price")
+  @@index([zone, ts(sort: Desc)], map: "idx_electricity_price_zone_ts")
+  @@map("electricity_prices")
+}
+
+/// App-wide electricity price provider API tokens, encrypted at rest with
+/// INTEGRATIONS_ENCRYPTION_KEY (same envelope as XiaozhiIntegration). Env vars
+/// (ESIOS_API_TOKEN / ENTSOE_API_TOKEN) remain the fallback when no row exists.
+model PricingProviderCredential {
+  source          String    @id(map: "pk_pricing_provider_credential") @db.VarChar(24)
+  token_encrypted String
+  created_at      DateTime  @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at      DateTime? @updatedAt @db.Timestamptz(6)
+
+  @@map("pricing_provider_credentials")
 }
 
 model OAuthAccount {
