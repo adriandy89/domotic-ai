@@ -166,6 +166,16 @@ function haComponentToExpose(
         type: 'enum',
         values: (cp.options as string[] | undefined) ?? [],
       };
+    case 'text':
+      // The ESP32 relay firmware publishes its on-board scheduler as a JSON
+      // array on a `text` component named "schedule". The backend HA adapter
+      // has no `text` actions (commands are rejected as UNKNOWN_PROPERTY), so
+      // the SET bit is dropped to keep these out of rule/schedule action
+      // pickers until editing is supported end-to-end.
+      if (objectId === 'schedule') {
+        return { ...base, type: 'schedule', access: FeatureAccessMode.STATE };
+      }
+      return { ...base, type: 'value', access: FeatureAccessMode.STATE };
     case 'sensor':
     default:
       // A numeric state_class (HA recorder semantics) or a unit → numeric

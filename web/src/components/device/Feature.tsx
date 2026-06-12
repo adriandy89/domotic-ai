@@ -1,6 +1,7 @@
 import { useCallback, useState, useEffect } from 'react';
 import convert from 'color-convert';
 import type { DeviceExpose } from '../../store/useDevicesStore';
+import { ScheduleFeature } from './ScheduleFeature';
 
 // Feature access modes (bitmask)
 export const FeatureAccessMode = {
@@ -309,16 +310,31 @@ export function ValueDisplay({
     displayValue = value ? 'ON' : 'OFF';
   } else if (typeof value === 'number') {
     displayValue = expose.unit ? `${value}${expose.unit}` : String(value);
+  } else if (Array.isArray(value)) {
+    // String(array) would render object items as "[object Object],…".
+    const allPrimitive = value.every(
+      (v) => v === null || typeof v !== 'object',
+    );
+    displayValue = allPrimitive
+      ? value.join(', ')
+      : `${value.length} ${value.length === 1 ? 'item' : 'items'}`;
+  } else if (typeof value === 'object') {
+    displayValue = JSON.stringify(value);
   } else {
     displayValue = String(value);
   }
+
+  const isStructured = typeof value === 'object' && value !== null;
 
   return (
     <div className="flex items-center justify-between py-1 px-2 bg-background/30 rounded">
       <span className="text-xs text-muted-foreground">
         {expose.label || expose.name}
       </span>
-      <span className="text-xs font-medium text-foreground">
+      <span
+        className="text-xs font-medium text-foreground truncate max-w-[140px]"
+        title={isStructured ? JSON.stringify(value, null, 2) : undefined}
+      >
         {displayValue}
       </span>
     </div>
@@ -551,6 +567,10 @@ export function Feature({ expose, value, onChange, data }: FeatureProps) {
     // strings faithfully via ValueDisplay.
     case 'value':
       return <ValueDisplay expose={exposeWithLabel} value={value} />;
+
+    // On-device scheduler arrays (e.g. the ESP32 relay firmware) — read-only.
+    case 'schedule':
+      return <ScheduleFeature expose={exposeWithLabel} value={value} />;
 
     // Composite types with sub-features
     // Note: color_xy, color_hs, color_rgb are handled inside CompositeFeature
