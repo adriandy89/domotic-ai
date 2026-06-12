@@ -45,6 +45,15 @@ export interface PricingProvider {
   zones: { id: string; label: string }[];
 }
 
+export type ProviderTokenStatus = 'configured' | 'not_configured' | 'rejected';
+
+export interface AdminPricingProvider extends PricingProvider {
+  token_status: ProviderTokenStatus;
+  token_origin: 'db' | 'env' | null;
+  token_masked: string | null;
+  token_updated_at: string | null;
+}
+
 export interface PricePoint {
   ts: string;
   price_kwh: number;
@@ -111,6 +120,11 @@ interface PricingState {
   error: string | null;
 
   fetchProviders: () => Promise<PricingProvider[]>;
+  fetchAdminProviders: () => Promise<AdminPricingProvider[]>;
+  saveProviderCredentials: (
+    source: string,
+    token: string,
+  ) => Promise<AdminPricingProvider | null>;
   fetchTariff: (homeId: string) => Promise<HomeTariff | null>;
   updateTariff: (
     homeId: string,
@@ -142,6 +156,39 @@ export const usePricingStore = create<PricingState>((set, get) => ({
       return data;
     } catch {
       return [];
+    }
+  },
+
+  fetchAdminProviders: async () => {
+    try {
+      const { data } = await api.get<AdminPricingProvider[]>(
+        '/pricing/admin/providers',
+      );
+      return data;
+    } catch (e: unknown) {
+      const message =
+        (e as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || 'Failed to fetch providers';
+      set({ error: message });
+      return [];
+    }
+  },
+
+  saveProviderCredentials: async (source, token) => {
+    try {
+      const { data } = await api.put<AdminPricingProvider>(
+        `/pricing/admin/providers/${source}/credentials`,
+        { token },
+      );
+      // The public provider list (tariff selects) must refetch `enabled`.
+      set({ providers: null });
+      return data;
+    } catch (e: unknown) {
+      const message =
+        (e as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message || 'Failed to save provider token';
+      set({ error: message });
+      return null;
     }
   },
 

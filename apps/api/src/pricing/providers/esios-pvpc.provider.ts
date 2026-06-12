@@ -1,6 +1,6 @@
 import { HttpService } from '@nestjs/axios';
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ProviderCredentialsService } from '../provider-credentials.service';
 import { addDays, zonedDayStartUtc } from '../time.util';
 import {
   ElectricityPriceProvider,
@@ -80,24 +80,18 @@ export class EsiosPvpcProvider implements ElectricityPriceProvider {
   ];
 
   private readonly logger = new Logger(EsiosPvpcProvider.name);
-  private readonly token: string;
-  private disabledByAuth = false;
   private readonly retryDelaysMs: number[] = [1000, 4000, 9000];
 
   constructor(
     private readonly http: HttpService,
-    config: ConfigService,
-  ) {
-    this.token = config.get('ESIOS_API_TOKEN', '');
-    if (!this.token) {
-      this.logger.warn(
-        'ESIOS_API_TOKEN not set — PVPC provider disabled (request a free token at consultasios@ree.es)',
-      );
-    }
-  }
+    private readonly credentials: ProviderCredentialsService,
+  ) {}
 
   get enabled(): boolean {
-    return !!this.token && !this.disabledByAuth;
+    return (
+      !!this.credentials.getToken(this.source) &&
+      !this.credentials.isAuthRejected(this.source)
+    );
   }
 
   async fetchDayAheadPrices(
@@ -136,7 +130,7 @@ export class EsiosPvpcProvider implements ElectricityPriceProvider {
           {
             headers: {
               Accept: 'application/json; application/vnd.esios-api-v1+json',
-              'x-api-key': this.token,
+              'x-api-key': this.credentials.getToken(this.source) ?? '',
             },
           },
         );
@@ -145,9 +139,9 @@ export class EsiosPvpcProvider implements ElectricityPriceProvider {
         const status = (error as { response?: { status?: number } })?.response
           ?.status;
         if (status === 401 || status === 403) {
-          this.disabledByAuth = true;
+          this.credentials.reportAuthRejected(this.source);
           this.logger.error(
-            `ESIOS token rejected (${status}) — provider disabled until restart`,
+            `ESIOS token rejected (${status}) — provider disabled until a new token is saved`,
           );
           throw error;
         }

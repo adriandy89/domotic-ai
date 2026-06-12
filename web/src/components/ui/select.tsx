@@ -181,22 +181,28 @@ SelectContent.displayName = 'SelectContent';
 
 interface SelectItemProps extends React.HTMLAttributes<HTMLDivElement> {
   value: string;
+  disabled?: boolean;
 }
 
 const SelectItem = React.forwardRef<HTMLDivElement, SelectItemProps>(
-  ({ className, children, value, ...props }, ref) => {
+  ({ className, children, value, disabled, ...props }, ref) => {
     const ctx = React.useContext(SelectContext);
     const isSelected = ctx?.value === value;
 
     return (
       <div
         ref={ref}
+        aria-disabled={disabled || undefined}
         className={cn(
-          'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none hover:bg-accent hover:text-accent-foreground',
+          'relative flex w-full select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none',
+          disabled
+            ? 'cursor-not-allowed opacity-50'
+            : 'cursor-pointer hover:bg-accent hover:text-accent-foreground',
           isSelected && 'bg-accent',
           className,
         )}
         onClick={() => {
+          if (disabled) return;
           ctx?.onValueChange(value);
           ctx?.setOpen(false);
         }}

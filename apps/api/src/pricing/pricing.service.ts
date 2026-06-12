@@ -3,10 +3,12 @@ import {
   DynamicTariffConfig,
   HomePriceCurveResponseDto,
   HomeTariffResponseDto,
+  PricingProviderAdminDto,
   PricingProviderDto,
   TariffMode,
   TouTariffConfig,
   UpdateHomeTariffDto,
+  UpdateProviderCredentialsDto,
 } from '@app/models';
 import {
   BadRequestException,
@@ -19,6 +21,7 @@ import {
 import { Prisma } from 'generated/prisma/client';
 import { TariffType } from 'generated/prisma/enums';
 import { PriceFetchService } from './price-fetch.service';
+import { ProviderCredentialsService } from './provider-credentials.service';
 import {
   ElectricityPriceProvider,
   PRICE_PROVIDERS,
@@ -63,6 +66,7 @@ export class PricingService {
   constructor(
     private readonly db: DbService,
     private readonly priceFetch: PriceFetchService,
+    private readonly credentials: ProviderCredentialsService,
     @Inject(PRICE_PROVIDERS)
     private readonly providers: ElectricityPriceProvider[],
   ) {}
@@ -74,6 +78,61 @@ export class PricingService {
       enabled: p.enabled,
       zones: [...p.zones],
     }));
+  }
+
+  listProvidersAdmin(): PricingProviderAdminDto[] {
+    return this.providers.map((p) => {
+      const info = this.credentials.tokenInfo(p.source);
+      return {
+        source: p.source,
+        label: p.label,
+        enabled: p.enabled,
+        zones: [...p.zones],
+        token_status: info.status,
+        token_origin: info.origin,
+        token_masked: info.masked,
+        token_updated_at: info.updatedAt,
+      };
+    });
+  }
+
+  async updateProviderCredentials(
+    source: string,
+    dto: UpdateProviderCredentialsDto,
+  ): Promise<PricingProviderAdminDto> {
+    const provider = this.providers.find((p) => p.source === source);
+    if (!provider) {
+      throw new NotFoundException(`Unknown provider "${source}"`);
+    }
+
+    await this.credentials.setToken(source, dto.token ?? null);
+
+    // Probe with a real fetch so an invalid token is reported as `rejected`
+    // in this very response (a 401/403 marks the source via the provider).
+    // Non-auth failures (outage, day not published) must not block the save.
+    if (provider.enabled && provider.zones.length > 0) {
+      try {
+        await provider.fetchDayAheadPrices(
+          provider.zones[0].id,
+          isoDay(new Date(), provider.marketTimezone),
+        );
+        // Token works — pull data for every zone in use without waiting a cron.
+        void this.priceFetch
+          .backfillSource(source)
+          .catch((err) =>
+            this.logger.warn(
+              `backfillSource(${source}) failed: ${(err as Error).message}`,
+            ),
+          );
+      } catch (error) {
+        this.logger.warn(
+          `Credentials probe for "${source}" failed: ${(error as Error).message}`,
+        );
+      }
+    }
+
+    const updated = this.listProvidersAdmin().find((p) => p.source === source);
+    return updated!;
   }
 
   async getHomeTariff(

@@ -1,38 +1,84 @@
-import { Check, Loader2, Zap } from 'lucide-react';
+import {
+  Check,
+  Clock3,
+  Coins,
+  Loader2,
+  TrendingUp,
+  Zap,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useAuthStore } from '../../store/useAuthStore';
-import { useHomesStore } from '../../store/useHomesStore';
+import { useAuthStore } from '../../../store/useAuthStore';
+import { useHomesStore } from '../../../store/useHomesStore';
 import {
   SPANISH_20TD_PRESET,
   usePricingStore,
   type PricingProvider,
   type TariffMode,
   type TouPeriod,
-} from '../../store/usePricingStore';
-import { Button } from '../ui/button';
+} from '../../../store/usePricingStore';
+import { Badge } from '../../ui/badge';
+import { Button } from '../../ui/button';
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '../ui/card';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
-import TouPeriodsEditor from './TouPeriodsEditor';
+} from '../../ui/card';
+import { Input } from '../../ui/input';
+import { Label } from '../../ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../ui/select';
+import TouPeriodsEditor from '../TouPeriodsEditor';
+import PricePreview from './PricePreview';
 
-const MODE_OPTIONS: { value: TariffMode; label: string; hint: string }[] = [
-  { value: 'fixed', label: 'Fixed price', hint: 'One €/kWh price for every hour' },
-  { value: 'tou', label: 'Time of use', hint: 'Manual periods (e.g. Spanish 2.0TD P1/P2/P3)' },
-  { value: 'dynamic', label: 'Dynamic (market)', hint: 'Hourly prices from a public API (PVPC…)' },
+const MODE_OPTIONS: {
+  value: TariffMode;
+  label: string;
+  hint: string;
+  icon: typeof Coins;
+}[] = [
+  {
+    value: 'fixed',
+    label: 'Fixed price',
+    hint: 'One €/kWh price for every hour',
+    icon: Coins,
+  },
+  {
+    value: 'tou',
+    label: 'Time of use',
+    hint: 'Manual periods (e.g. Spanish 2.0TD P1/P2/P3)',
+    icon: Clock3,
+  },
+  {
+    value: 'dynamic',
+    label: 'Dynamic (market)',
+    hint: 'Hourly prices from a public API (PVPC, ENTSO-E…)',
+    icon: TrendingUp,
+  },
 ];
 
-export default function HomeTariffCard() {
+interface TariffSectionProps {
+  /** Scrolls to the providers section below (admin hint). */
+  onConfigureProviders?: () => void;
+}
+
+export default function TariffSection({
+  onConfigureProviders,
+}: TariffSectionProps) {
   const { user } = useAuthStore();
   const { homes, homeIds, selectedHomeId } = useHomesStore();
   const { fetchProviders, fetchTariff, updateTariff } = usePricingStore();
+  // Re-fetch when the cache is invalidated (e.g. an admin just saved a token).
+  const providersCache = usePricingStore((s) => s.providers);
 
-  const canEdit = user?.role === 'MANAGER' || user?.role === 'ADMIN';
+  const isAdmin = user?.role === 'ADMIN';
+  const canEdit = user?.role === 'MANAGER' || isAdmin;
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   // Default to the globally selected home without a state-syncing effect.
@@ -43,6 +89,7 @@ export default function HomeTariffCard() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewKey, setPreviewKey] = useState(0);
 
   // Form state
   const [mode, setMode] = useState<TariffMode>('fixed');
@@ -56,7 +103,7 @@ export default function HomeTariffCard() {
 
   useEffect(() => {
     void fetchProviders().then(setProviders);
-  }, [fetchProviders]);
+  }, [fetchProviders, providersCache]);
 
   useEffect(() => {
     if (!homeId) return;
@@ -83,6 +130,7 @@ export default function HomeTariffCard() {
   }, [homeId, fetchTariff]);
 
   const selectedProvider = providers.find((p) => p.source === provider);
+  const hasUnconfiguredProviders = providers.some((p) => !p.enabled);
 
   async function handleSave() {
     if (!homeId) return;
@@ -112,6 +160,7 @@ export default function HomeTariffCard() {
     setSaving(false);
     if (result) {
       setSaved(true);
+      setPreviewKey((k) => k + 1);
       setTimeout(() => setSaved(false), 2500);
     } else {
       setError(usePricingStore.getState().error ?? 'Failed to save tariff');
@@ -133,21 +182,31 @@ export default function HomeTariffCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <Label className="text-xs text-muted-foreground block mb-1">Home</Label>
-            <select
+          <div className="w-56">
+            <Label className="text-xs text-muted-foreground block mb-1">
+              Home
+            </Label>
+            <Select
               value={homeId ?? ''}
-              onChange={(e) => setSelectedId(e.target.value || null)}
-              className="h-9 px-3 rounded-md border border-border bg-background/50 text-sm"
+              onValueChange={(value) => setSelectedId(value || null)}
             >
-              {homeIds.map((id) => (
-                <option key={id} value={id}>
-                  {homes[id]?.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger>
+                <SelectValue placeholder="Pick a home…">
+                  {homeId ? homes[homeId]?.name : null}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {homeIds.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {homes[id]?.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          {loading && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mb-2" />}
+          {loading && (
+            <Loader2 className="w-4 h-4 animate-spin text-muted-foreground mb-2" />
+          )}
         </div>
 
         <div className="grid gap-2 sm:grid-cols-3">
@@ -159,12 +218,20 @@ export default function HomeTariffCard() {
               onClick={() => setMode(option.value)}
               className={`p-3 rounded-lg border text-left transition-colors ${
                 mode === option.value
-                  ? 'border-primary/60 bg-primary/10'
+                  ? 'border-primary/60 bg-primary/10 ring-1 ring-primary/40'
                   : 'border-border/50 bg-background/50 hover:bg-accent/40'
               } ${!canEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
-              <p className="text-sm font-medium">{option.label}</p>
-              <p className="text-xs text-muted-foreground">{option.hint}</p>
+              <p className="text-sm font-medium flex items-center gap-1.5">
+                <option.icon className="h-4 w-4 text-primary" />
+                {option.label}
+                {mode === option.value && (
+                  <Check className="h-3.5 w-3.5 ml-auto text-primary" />
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {option.hint}
+              </p>
             </button>
           ))}
         </div>
@@ -186,7 +253,9 @@ export default function HomeTariffCard() {
               />
             </div>
             <div>
-              <Label className="text-xs text-muted-foreground block mb-1">Currency</Label>
+              <Label className="text-xs text-muted-foreground block mb-1">
+                Currency
+              </Label>
               <Input
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value.toUpperCase())}
@@ -202,7 +271,9 @@ export default function HomeTariffCard() {
           <div className="space-y-3">
             <div className="flex flex-wrap items-end gap-3">
               <div>
-                <Label className="text-xs text-muted-foreground block mb-1">Timezone</Label>
+                <Label className="text-xs text-muted-foreground block mb-1">
+                  Timezone
+                </Label>
                 <Input
                   value={timezone}
                   onChange={(e) => setTimezone(e.target.value)}
@@ -226,7 +297,9 @@ export default function HomeTariffCard() {
                 />
               </div>
               <div>
-                <Label className="text-xs text-muted-foreground block mb-1">Currency</Label>
+                <Label className="text-xs text-muted-foreground block mb-1">
+                  Currency
+                </Label>
                 <Input
                   value={currency}
                   onChange={(e) => setCurrency(e.target.value.toUpperCase())}
@@ -249,48 +322,75 @@ export default function HomeTariffCard() {
                 Load Spanish 2.0TD preset
               </Button>
             </div>
-            <TouPeriodsEditor periods={periods} onChange={setPeriods} disabled={!canEdit} />
+            <TouPeriodsEditor
+              periods={periods}
+              onChange={setPeriods}
+              disabled={!canEdit}
+            />
           </div>
         )}
 
         {mode === 'dynamic' && (
           <div className="space-y-2">
             <div className="flex flex-wrap items-end gap-3">
-              <div>
-                <Label className="text-xs text-muted-foreground block mb-1">Provider</Label>
-                <select
+              <div className="w-64">
+                <Label className="text-xs text-muted-foreground block mb-1">
+                  Provider
+                </Label>
+                <Select
                   value={provider}
-                  onChange={(e) => {
-                    setProvider(e.target.value);
+                  onValueChange={(value) => {
+                    setProvider(value);
                     setZone('');
                   }}
                   disabled={!canEdit}
-                  className="h-9 px-3 rounded-md border border-border bg-background/50 text-sm"
                 >
-                  <option value="">Pick a provider…</option>
-                  {providers.map((p) => (
-                    <option key={p.source} value={p.source} disabled={!p.enabled}>
-                      {p.label}
-                      {!p.enabled ? ' (not configured)' : ''}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pick a provider…">
+                      {selectedProvider?.label ?? null}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {providers.map((p) => (
+                      <SelectItem
+                        key={p.source}
+                        value={p.source}
+                        disabled={!p.enabled}
+                      >
+                        <span className="flex items-center gap-2">
+                          {p.label}
+                          {!p.enabled && (
+                            <Badge variant="warning">Not configured</Badge>
+                          )}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              <div>
-                <Label className="text-xs text-muted-foreground block mb-1">Zone</Label>
-                <select
+              <div className="w-56">
+                <Label className="text-xs text-muted-foreground block mb-1">
+                  Zone
+                </Label>
+                <Select
                   value={zone}
-                  onChange={(e) => setZone(e.target.value)}
+                  onValueChange={setZone}
                   disabled={!canEdit || !selectedProvider}
-                  className="h-9 px-3 rounded-md border border-border bg-background/50 text-sm"
                 >
-                  <option value="">Pick a zone…</option>
-                  {(selectedProvider?.zones ?? []).map((z) => (
-                    <option key={z.id} value={z.id}>
-                      {z.label}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Pick a zone…">
+                      {selectedProvider?.zones.find((z) => z.id === zone)
+                        ?.label ?? null}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(selectedProvider?.zones ?? []).map((z) => (
+                      <SelectItem key={z.id} value={z.id}>
+                        {z.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground block mb-1">
@@ -307,6 +407,26 @@ export default function HomeTariffCard() {
                 />
               </div>
             </div>
+
+            {hasUnconfiguredProviders &&
+              (isAdmin ? (
+                <p className="text-xs text-muted-foreground">
+                  Some providers need an API token before they can be selected.{' '}
+                  <button
+                    type="button"
+                    onClick={onConfigureProviders}
+                    className="text-primary hover:underline"
+                  >
+                    Configure providers below
+                  </button>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Greyed-out providers need an API token — ask an administrator
+                  to configure them in Settings → Energy.
+                </p>
+              ))}
+
             <p className="text-xs text-muted-foreground">
               Hourly market prices (energy term, taxes excluded). Hours without
               published data fall back to the fixed price above and are flagged
@@ -316,7 +436,9 @@ export default function HomeTariffCard() {
         )}
 
         {error && (
-          <p className="text-red-500 text-sm bg-red-500/10 p-2 rounded">{error}</p>
+          <p className="text-red-500 text-sm bg-red-500/10 p-2 rounded">
+            {error}
+          </p>
         )}
 
         {canEdit ? (
@@ -332,6 +454,10 @@ export default function HomeTariffCard() {
           <p className="text-xs text-muted-foreground">
             Only managers can change the tariff configuration.
           </p>
+        )}
+
+        {homeId && mode !== 'fixed' && !loading && (
+          <PricePreview homeId={homeId} refreshKey={previewKey} />
         )}
       </CardContent>
     </Card>

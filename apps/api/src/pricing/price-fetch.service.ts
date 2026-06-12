@@ -84,6 +84,13 @@ export class PriceFetchService implements OnApplicationBootstrap {
     await this.backfillTarget({ source, zone });
   }
 
+  /** Backfill every active (source, zone) of one provider; used after an admin saves a token. */
+  async backfillSource(source: string): Promise<void> {
+    for (const target of await this.activeTargets()) {
+      if (target.source === source) await this.backfillTarget(target);
+    }
+  }
+
   /** Manual admin refetch; `force` re-downloads even complete days. */
   async refresh(params: {
     source?: PricingSource;

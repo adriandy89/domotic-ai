@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PriceFetchService } from './price-fetch.service';
 import { PricingController } from './pricing.controller';
 import { PricingService } from './pricing.service';
+import { ProviderCredentialsService } from './provider-credentials.service';
 import { EntsoeProvider } from './providers/entsoe.provider';
 import { EsiosPvpcProvider } from './providers/esios-pvpc.provider';
 import { PRICE_PROVIDERS } from './providers/price-provider.interface';
@@ -15,6 +16,7 @@ import { PRICE_PROVIDERS } from './providers/price-provider.interface';
 @Module({
   controllers: [PricingController],
   providers: [
+    ProviderCredentialsService,
     EsiosPvpcProvider,
     EntsoeProvider,
     {

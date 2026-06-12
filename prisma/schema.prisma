@@ -430,6 +430,18 @@ model ElectricityPrice {
   @@map("electricity_prices")
 }
 
+/// App-wide electricity price provider API tokens, encrypted at rest with
+/// INTEGRATIONS_ENCRYPTION_KEY (same envelope as XiaozhiIntegration). Env vars
+/// (ESIOS_API_TOKEN / ENTSOE_API_TOKEN) remain the fallback when no row exists.
+model PricingProviderCredential {
+  source          String    @id(map: "pk_pricing_provider_credential") @db.VarChar(24)
+  token_encrypted String
+  created_at      DateTime  @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at      DateTime? @updatedAt @db.Timestamptz(6)
+
+  @@map("pricing_provider_credentials")
+}
+
 model OAuthAccount {
   id            String    @id(map: "pk_oauth_account_id") @default(uuid())
   provider      String    @db.VarChar(50) // 'google', 'microsoft', 'github'

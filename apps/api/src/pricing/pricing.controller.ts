@@ -3,8 +3,10 @@ import {
   HomePriceCurveResponseDto,
   HomePricesQueryDto,
   HomeTariffResponseDto,
+  PricingProviderAdminDto,
   PricingProviderDto,
   UpdateHomeTariffDto,
+  UpdateProviderCredentialsDto,
 } from '@app/models';
 import type { SessionUser } from '@app/models';
 import {
@@ -81,5 +83,22 @@ export class PricingController {
     @Body() dto: AdminPricingRefreshDto,
   ): Promise<{ upserted: number }> {
     return this.priceFetchService.refresh(dto);
+  }
+
+  @Get('admin/providers')
+  @Permissions([Role.ADMIN])
+  @UseGuards(PermissionsGuard)
+  getAdminProviders(): PricingProviderAdminDto[] {
+    return this.pricingService.listProvidersAdmin();
+  }
+
+  @Put('admin/providers/:source/credentials')
+  @Permissions([Role.ADMIN])
+  @UseGuards(PermissionsGuard)
+  async updateProviderCredentials(
+    @Param('source') source: string,
+    @Body() dto: UpdateProviderCredentialsDto,
+  ): Promise<PricingProviderAdminDto> {
+    return this.pricingService.updateProviderCredentials(source, dto);
   }
 }

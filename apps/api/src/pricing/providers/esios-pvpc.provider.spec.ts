@@ -1,5 +1,8 @@
-import { ConfigService } from '@nestjs/config';
+// Keep jest away from the generated Prisma client (ESM-only imports).
+jest.mock('@app/db', () => ({ DbService: class DbService {} }));
+
 import { HttpService } from '@nestjs/axios';
+import type { ProviderCredentialsService } from '../provider-credentials.service';
 import {
   EsiosIndicatorValue,
   EsiosPvpcProvider,
@@ -74,15 +77,24 @@ describe('EsiosPvpcProvider', () => {
       response: { status },
     });
 
-  const makeProvider = (token: string | undefined, get: jest.Mock) => {
-    const config = { get: jest.fn(() => token) } as unknown as ConfigService;
-    const http = { axiosRef: { get } } as unknown as HttpService;
-    return new EsiosPvpcProvider(http, config);
+  /** Stateful in-memory stand-in for ProviderCredentialsService. */
+  const makeCredentials = (token: string | null) => {
+    const rejected = new Set<string>();
+    return {
+      getToken: jest.fn(() => token),
+      isAuthRejected: jest.fn((source: string) => rejected.has(source)),
+      reportAuthRejected: jest.fn((source: string) => rejected.add(source)),
+    } as unknown as ProviderCredentialsService;
   };
 
-  it('is disabled without ESIOS_API_TOKEN and refuses to fetch', async () => {
+  const makeProvider = (token: string | null, get: jest.Mock) => {
+    const http = { axiosRef: { get } } as unknown as HttpService;
+    return new EsiosPvpcProvider(http, makeCredentials(token));
+  };
+
+  it('is disabled without a token and refuses to fetch', async () => {
     const get = jest.fn();
-    const provider = makeProvider(undefined, get);
+    const provider = makeProvider(null, get);
     expect(provider.enabled).toBe(false);
     await expect(
       provider.fetchDayAheadPrices('ES-PEN', '2026-06-11'),
