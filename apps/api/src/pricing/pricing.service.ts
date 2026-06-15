@@ -5,6 +5,7 @@ import {
   HomeTariffResponseDto,
   PricingProviderAdminDto,
   PricingProviderDto,
+  ProviderPricesResponseDto,
   TariffMode,
   TouTariffConfig,
   UpdateHomeTariffDto,
@@ -325,6 +326,33 @@ export class PricingService {
       points,
       current_price: currentPrice,
       tomorrow_published: tomorrowPublished,
+    };
+  }
+
+  /**
+   * Raw market price series for a (source, zone) over a period. Decoupled from
+   * any home — market prices are shared — so the Reports UI can draw one line
+   * per configured provider. Returns only stored (published) hours.
+   */
+  async getProviderPrices(
+    source: string,
+    zone: string,
+    from: Date,
+    to: Date,
+  ): Promise<ProviderPricesResponseDto> {
+    const rows = await this.db.electricityPrice.findMany({
+      where: { source, zone, ts: { gte: from, lt: to } },
+      select: { ts: true, price_kwh: true, currency: true },
+      orderBy: { ts: 'asc' },
+    });
+    return {
+      source,
+      zone,
+      currency: rows[0]?.currency ?? 'EUR',
+      points: rows.map((r) => ({
+        ts: r.ts.toISOString(),
+        price_kwh: round6(Number(r.price_kwh)),
+      })),
     };
   }
 

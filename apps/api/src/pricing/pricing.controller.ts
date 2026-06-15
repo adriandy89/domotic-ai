@@ -5,6 +5,8 @@ import {
   HomeTariffResponseDto,
   PricingProviderAdminDto,
   PricingProviderDto,
+  ProviderPricesQueryDto,
+  ProviderPricesResponseDto,
   UpdateHomeTariffDto,
   UpdateProviderCredentialsDto,
 } from '@app/models';
@@ -74,6 +76,15 @@ export class PricingController {
       from: q.from,
       to: q.to,
     });
+  }
+
+  @Get('prices')
+  @Permissions([Role.USER, Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async getProviderPrices(
+    @Query() q: ProviderPricesQueryDto,
+  ): Promise<ProviderPricesResponseDto> {
+    return this.pricingService.getProviderPrices(q.source, q.zone, q.from, q.to);
   }
 
   @Post('admin/refresh')

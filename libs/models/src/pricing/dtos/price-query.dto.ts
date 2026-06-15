@@ -51,12 +51,47 @@ export class AdminPricingRefreshDto {
   readonly to?: Date;
 }
 
+export class ProviderPricesQueryDto {
+  @ApiProperty({ enum: PRICING_SOURCES })
+  @IsIn(PRICING_SOURCES)
+  readonly source: PricingSource;
+
+  @ApiProperty({ description: 'Provider-specific zone id (e.g. ES-PEN, FR)' })
+  @IsString()
+  @MaxLength(16)
+  readonly zone: string;
+
+  @ApiProperty({ description: 'ISO8601 start (UTC)' })
+  @Type(() => Date)
+  @IsDate()
+  readonly from: Date;
+
+  @ApiProperty({ description: 'ISO8601 end (UTC, exclusive)' })
+  @Type(() => Date)
+  @IsDate()
+  readonly to: Date;
+}
+
 export class PricePointDto {
   @ApiProperty({ description: 'ISO8601 hour start (UTC)' })
   readonly ts: string;
 
   @ApiProperty({ description: 'Energy price (currency/kWh)' })
   readonly price_kwh: number;
+}
+
+export class ProviderPricesResponseDto {
+  @ApiProperty({ enum: PRICING_SOURCES })
+  readonly source: string;
+
+  @ApiProperty()
+  readonly zone: string;
+
+  @ApiProperty()
+  readonly currency: string;
+
+  @ApiProperty({ type: [PricePointDto] })
+  readonly points: PricePointDto[];
 }
 
 export class HomePriceCurveResponseDto {

@@ -68,6 +68,13 @@ export interface PriceCurve {
   tomorrow_published: boolean;
 }
 
+export interface ProviderPriceSeries {
+  source: string;
+  zone: string;
+  currency: string;
+  points: PricePoint[];
+}
+
 export interface CostSeriesPoint {
   bucket: string;
   energy_kwh: number;
@@ -116,6 +123,7 @@ interface PricingState {
   providers: PricingProvider[] | null;
   priceCurves: Map<string, CacheEntry<PriceCurve>>;
   costSeries: Map<string, CacheEntry<CostSeries>>;
+  providerPrices: Map<string, CacheEntry<ProviderPriceSeries>>;
   loading: boolean;
   error: string | null;
 
@@ -130,7 +138,16 @@ interface PricingState {
     homeId: string,
     payload: UpdateHomeTariffPayload,
   ) => Promise<HomeTariff | null>;
-  fetchPriceCurve: (homeId: string) => Promise<PriceCurve | null>;
+  fetchPriceCurve: (
+    homeId: string,
+    range?: { from: Date; to: Date },
+  ) => Promise<PriceCurve | null>;
+  fetchProviderPrices: (params: {
+    source: string;
+    zone: string;
+    from: Date;
+    to: Date;
+  }) => Promise<ProviderPriceSeries | null>;
   fetchCostSeries: (params: {
     device_id: string;
     from: Date;
@@ -144,6 +161,7 @@ export const usePricingStore = create<PricingState>((set, get) => ({
   providers: null,
   priceCurves: new Map(),
   costSeries: new Map(),
+  providerPrices: new Map(),
   loading: false,
   error: null,
 
@@ -231,16 +249,60 @@ export const usePricingStore = create<PricingState>((set, get) => ({
     }
   },
 
-  fetchPriceCurve: async (homeId) => {
-    const cacheKey = key(['curve', homeId]);
+  fetchPriceCurve: async (homeId, range) => {
+    const cacheKey = key([
+      'curve',
+      homeId,
+      range ? range.from.toISOString() : '',
+      range ? range.to.toISOString() : '',
+    ]);
     const cached = get().priceCurves.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return cached.data;
     try {
-      const { data } = await api.get<PriceCurve>(`/pricing/homes/${homeId}/prices`);
+      const { data } = await api.get<PriceCurve>(
+        `/pricing/homes/${homeId}/prices`,
+        range
+          ? {
+              params: {
+                from: range.from.toISOString(),
+                to: range.to.toISOString(),
+              },
+            }
+          : undefined,
+      );
       const next = new Map(get().priceCurves);
       next.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL_MS });
       evict(next);
       set({ priceCurves: next });
+      return data;
+    } catch {
+      return null;
+    }
+  },
+
+  fetchProviderPrices: async ({ source, zone, from, to }) => {
+    const cacheKey = key([
+      'provprices',
+      source,
+      zone,
+      from.toISOString(),
+      to.toISOString(),
+    ]);
+    const cached = get().providerPrices.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return cached.data;
+    try {
+      const { data } = await api.get<ProviderPriceSeries>('/pricing/prices', {
+        params: {
+          source,
+          zone,
+          from: from.toISOString(),
+          to: to.toISOString(),
+        },
+      });
+      const next = new Map(get().providerPrices);
+      next.set(cacheKey, { data, expiresAt: Date.now() + CACHE_TTL_MS });
+      evict(next);
+      set({ providerPrices: next });
       return data;
     } catch {
       return null;
@@ -277,7 +339,12 @@ export const usePricingStore = create<PricingState>((set, get) => ({
   },
 
   invalidate: () =>
-    set({ providers: null, priceCurves: new Map(), costSeries: new Map() }),
+    set({
+      providers: null,
+      priceCurves: new Map(),
+      costSeries: new Map(),
+      providerPrices: new Map(),
+    }),
 }));
 
 /** Spanish 2.0TD preset (peninsular defaults; prices are editable placeholders). */

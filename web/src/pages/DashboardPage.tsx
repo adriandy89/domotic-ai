@@ -23,6 +23,7 @@ import { useHomesStore } from '../store/useHomesStore';
 import { useDevicesStore } from '../store/useDevicesStore';
 import { hasExpose } from '../lib/device-capabilities';
 import { sseService } from '../lib/sse';
+import ElectricityPricesCard from '../components/dashboard/ElectricityPricesCard';
 
 export default function DashboardPage() {
   const { homes, homeIds } = useHomesStore();
@@ -377,6 +378,9 @@ export default function DashboardPage() {
           </Card>
         )}
       </div>
+
+      {/* ELECTRICITY PRICES (renders only when a home has a tariff) */}
+      <ElectricityPricesCard />
     </div>
   );
 }

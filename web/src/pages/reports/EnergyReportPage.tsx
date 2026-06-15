@@ -10,6 +10,7 @@ import {
 } from '../../components/charts';
 import DeviceSelector from '../../components/reports/DeviceSelector';
 import PriceCurveCard from '../../components/reports/PriceCurveCard';
+import ProviderPricesCard from '../../components/reports/ProviderPricesCard';
 import { Button } from '../../components/ui/button';
 import {
   Card,
@@ -378,6 +379,8 @@ export default function EnergyReportPage() {
       )}
 
       {effectiveHomeId && <PriceCurveCard homeId={effectiveHomeId} />}
+
+      <ProviderPricesCard homeId={homeId} from={range.from} to={range.to} />
 
       <Card className="bg-card/40 border-border">
         <CardHeader>
