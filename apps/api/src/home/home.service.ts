@@ -34,6 +34,11 @@ export class HomeService {
     icon: true,
     image: true,
     connected: true,
+    // Energy / pricing config consumed by the Reports + Dashboard pricing UI.
+    tariff_type: true,
+    tariff_config: true,
+    kwh_price: true,
+    currency: true,
   };
 
   constructor(
