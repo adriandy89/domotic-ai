@@ -1,3 +1,5 @@
+import { translate } from '@app/i18n';
+import { resolveLanguage } from '@app/models';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 const nodemailer = require('nodemailer');
@@ -38,10 +40,21 @@ export class EmailService {
     homeName: string,
     ruleName: string,
     event: string,
+    language?: string | null,
   ): Promise<void> {
-    const message = `🏠 Home: ${homeName}\n📋 Rule: ${ruleName}\n\n💬 ${event}`;
-    const subject = `🔔 Domotic AI - Rule: ${ruleName}`;
-    const html = this.createSimpleEmailHTML(message);
+    const message = translate('email.rule.body', language, {
+      homeName,
+      ruleName,
+      event,
+    });
+    const subject = translate('email.rule.subject', language, { ruleName });
+    const html = this.createEmailHTML({
+      title: translate('email.rule.title', language),
+      message,
+      language,
+      accent: '#F59E0B',
+      icon: '⚡',
+    });
 
     await this.sendEmail(email, subject, html);
   }
@@ -53,28 +66,58 @@ export class EmailService {
     email: string,
     homeName: string,
     connected: boolean,
+    language?: string | null,
   ): Promise<void> {
-    const icon = connected ? '🟢' : '🔴';
-    const status = connected ? 'reconnected' : 'disconnected';
-    const message = `🏠 Home: ${homeName}\n\n${icon} The home has ${status}.`;
-    const subject = `${icon} Domotic AI - Home ${connected ? 'Reconnected' : 'Disconnected'}: ${homeName}`;
-    const html = this.createSimpleEmailHTML(message);
+    const message = translate(
+      connected ? 'email.home.bodyConnected' : 'email.home.bodyDisconnected',
+      language,
+      { homeName },
+    );
+    const subject = translate(
+      connected
+        ? 'email.home.subjectConnected'
+        : 'email.home.subjectDisconnected',
+      language,
+      { homeName },
+    );
+    const html = this.createEmailHTML({
+      title: translate(
+        connected ? 'email.home.titleConnected' : 'email.home.titleDisconnected',
+        language,
+      ),
+      message,
+      language,
+      accent: connected ? '#22C55E' : '#EF4444',
+      icon: connected ? '🟢' : '🔴',
+    });
 
     await this.sendEmail(email, subject, html);
   }
 
   /**
-   * Send a notification email for sensor events
+   * Send a notification email for sensor events.
+   * `attribute` is the already-localized sensor label (e.g. "Contact Closed").
    */
   async sendNotificationEmail(
     email: string,
     homeName: string,
     deviceName: string,
-    attributeKey: string,
+    attribute: string,
+    language?: string | null,
   ): Promise<void> {
-    const message = `🏠 Home: ${homeName}\n📱 Device: ${deviceName}\n\n📈 ${attributeKey} detected`;
-    const subject = `🔔 Domotic AI - ${attributeKey} Detected`;
-    const html = this.createSimpleEmailHTML(message);
+    const message = translate('email.sensor.body', language, {
+      homeName,
+      deviceName,
+      attribute,
+    });
+    const subject = translate('email.sensor.subject', language, { attribute });
+    const html = this.createEmailHTML({
+      title: translate('email.sensor.title', language, { attribute }),
+      message,
+      language,
+      accent: '#3B82F6',
+      icon: '📡',
+    });
 
     await this.sendEmail(email, subject, html);
   }
@@ -99,50 +142,64 @@ export class EmailService {
   // === EMAIL HTML FORMATTING METHODS                            ===
   // =================================================================
 
-  private createSimpleEmailHTML(message: string): string {
+  /**
+   * Render a notification email with a per-type accent banner + icon + title,
+   * an accent-bordered message card and an accent CTA. `accent` / `icon` /
+   * `title` differ by notification type so each one is visually distinct.
+   */
+  private createEmailHTML(opts: {
+    title: string;
+    message: string;
+    language?: string | null;
+    accent: string;
+    icon: string;
+  }): string {
+    const { title, message, accent, icon } = opts;
+    const lang = resolveLanguage(opts.language);
     return `
       <!DOCTYPE html>
-      <html>
+      <html lang="${lang}">
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Domotic AI - Notify</title>
+        <title>${translate('email.chrome.title', opts.language)}</title>
       </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f5f5f5;">
-        <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 10px; 
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden;">
-          
-          <!-- Header -->
-          <div style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%); 
-                      color: white; padding: 25px; text-align: center;">
-            <h1 style="margin: 0; font-size: 24px; font-weight: bold;">
-              🏠 Domotic AI - Notify
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; background-color: #f4f5f7;">
+        <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 14px;
+                    box-shadow: 0 6px 18px rgba(0,0,0,0.08); overflow: hidden;">
+
+          <!-- Accent header (per type) -->
+          <div style="background: linear-gradient(135deg, ${accent} 0%, ${accent}cc 100%);
+                      color: #ffffff; padding: 28px 24px; text-align: center;">
+            <div style="font-size: 40px; line-height: 1; margin-bottom: 8px;">${icon}</div>
+            <h1 style="margin: 0; font-size: 22px; font-weight: 700; letter-spacing: 0.2px;">
+              ${title}
             </h1>
           </div>
 
           <!-- Content -->
-          <div style="padding: 25px;">
-            <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 15px 0;">
-              <p style="margin: 0; color: #555; line-height: 1.6; font-size: 16px;">
+          <div style="padding: 24px;">
+            <div style="background-color: #f8f9fa; border-left: 4px solid ${accent}; padding: 18px 20px; border-radius: 8px; margin: 8px 0 4px;">
+              <p style="margin: 0; color: #444; line-height: 1.7; font-size: 16px;">
                 ${message.replace(/\n/g, '<br>')}
               </p>
             </div>
-            
+
             <!-- Action Button -->
-            <div style="text-align: center; margin: 25px 0;">
-              <a href="${this.baseUrl}" 
-                 style="display: inline-block; padding: 12px 30px; background-color: #4CAF50; 
-                        color: white; text-decoration: none; border-radius: 6px; font-weight: bold; 
-                        font-size: 16px;">
-                🏠 Go to Domotic AI
+            <div style="text-align: center; margin: 26px 0 8px;">
+              <a href="${this.baseUrl}"
+                 style="display: inline-block; padding: 12px 32px; background-color: ${accent};
+                        color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 700;
+                        font-size: 15px;">
+                ${translate('email.chrome.cta', opts.language)} &rarr;
               </a>
             </div>
           </div>
 
           <!-- Footer -->
-          <div style="background-color: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #e9ecef;">
-            <p style="margin: 0; color: #666; font-size: 14px;">
-              This is an automatic message from the system
+          <div style="background-color: #f8f9fa; padding: 18px; text-align: center; border-top: 1px solid #eceef1;">
+            <p style="margin: 0; color: #8a909a; font-size: 13px;">
+              ${translate('email.chrome.footer', opts.language)}
             </p>
           </div>
         </div>

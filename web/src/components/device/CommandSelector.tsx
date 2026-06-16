@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -35,6 +36,7 @@ export default function CommandSelector({
   onClose,
   onCommand,
 }: CommandSelectorProps) {
+  const { t } = useTranslation();
   const [selectedCommandId, setSelectedCommandId] = useState<string>('');
   const [isSending, setIsSending] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -120,7 +122,7 @@ export default function CommandSelector({
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="sm:min-w-full">
           <DialogHeader>
-            <DialogTitle>Select IR Command</DialogTitle>
+            <DialogTitle>{t('devices.commands.select')}</DialogTitle>
           </DialogHeader>
 
           <div className="flex gap-2 py-4">
@@ -129,8 +131,10 @@ export default function CommandSelector({
               onValueChange={setSelectedCommandId}
             >
               <SelectTrigger className="flex-1 min-w-[200px]">
-                <SelectValue placeholder="Select a command">
-                  {selectedCommand ? selectedCommand.name : 'Select a command'}
+                <SelectValue placeholder={t('devices.commands.placeholder')}>
+                  {selectedCommand
+                    ? selectedCommand.name
+                    : t('devices.commands.placeholder')}
                 </SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -147,7 +151,7 @@ export default function CommandSelector({
               size="icon"
               onClick={handleEdit}
               disabled={!selectedCommandId}
-              title="Edit Name"
+              title={t('devices.commands.editName')}
             >
               <Edit className="h-4 w-4" />
             </Button>
@@ -157,7 +161,7 @@ export default function CommandSelector({
               onClick={handleDelete}
               disabled={!selectedCommandId}
               className="text-red-500 hover:text-red-600"
-              title="Delete Command"
+              title={t('devices.commands.deleteTitle')}
             >
               <Trash2 className="h-4 w-4" />
             </Button>
@@ -165,7 +169,7 @@ export default function CommandSelector({
 
           <DialogFooter>
             <Button variant="outline" onClick={onClose}>
-              Close
+              {t('common.close')}
             </Button>
             <Button
               onClick={handleSend}
@@ -175,10 +179,10 @@ export default function CommandSelector({
               {isSending ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Sending...
+                  {t('devices.commands.sending')}
                 </>
               ) : (
-                'Send'
+                t('devices.commands.send')
               )}
             </Button>
           </DialogFooter>
@@ -189,18 +193,18 @@ export default function CommandSelector({
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="sm:max-w-[325px]">
           <DialogHeader>
-            <DialogTitle>Edit Command Name</DialogTitle>
+            <DialogTitle>{t('devices.commands.editTitle')}</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <Input
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              placeholder="Command name"
+              placeholder={t('devices.commands.namePlaceholder')}
             />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={confirmEdit}
@@ -209,7 +213,7 @@ export default function CommandSelector({
               {isEditing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                'Save'
+                t('common.save')
               )}
             </Button>
           </DialogFooter>
@@ -220,18 +224,17 @@ export default function CommandSelector({
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent className="sm:max-w-[375px]">
           <DialogHeader>
-            <DialogTitle>Delete Command</DialogTitle>
+            <DialogTitle>{t('devices.commands.deleteTitle')}</DialogTitle>
           </DialogHeader>
           <div className="py-2 text-sm text-muted-foreground">
-            Are you sure you want to delete "{selectedCommand?.name}"? This
-            action cannot be undone.
+            {t('common.confirmDelete', { name: selectedCommand?.name ?? '' })}
           </div>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => setShowDeleteDialog(false)}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -241,7 +244,7 @@ export default function CommandSelector({
               {isDeleting ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                'Delete'
+                t('common.delete')
               )}
             </Button>
           </DialogFooter>

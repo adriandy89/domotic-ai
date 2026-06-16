@@ -1,10 +1,12 @@
 import { Bell, Plug, User, Zap } from 'lucide-react';
 import { useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import ActiveSessionsCard from '../components/settings/ActiveSessionsCard';
 import AiConfigCard from '../components/settings/AiConfigCard';
 import MarketProvidersSection from '../components/settings/energy/MarketProvidersSection';
 import TariffSection from '../components/settings/energy/TariffSection';
+import LanguageCard from '../components/settings/LanguageCard';
 import McpEndpointCard from '../components/settings/McpEndpointCard';
 import NotificationsCard from '../components/settings/NotificationsCard';
 import ProfileCard from '../components/settings/ProfileCard';
@@ -22,6 +24,7 @@ const TABS = ['general', 'notifications', 'integrations', 'energy'] as const;
 type SettingsTab = (typeof TABS)[number];
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   // The URL is the single source of truth so /settings?tab=energy deep-links.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -37,11 +40,9 @@ export default function SettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            Settings
+            {t('settings.title')}
           </h2>
-          <p className="text-muted-foreground">
-            Manage your profile and preferences
-          </p>
+          <p className="text-muted-foreground">{t('settings.subtitle')}</p>
         </div>
       </div>
 
@@ -56,24 +57,25 @@ export default function SettingsPage() {
         <TabsList className="bg-muted/50 w-full sm:w-auto overflow-x-auto justify-start">
           <TabsTrigger value="general" className="gap-2">
             <User className="h-4 w-4" />
-            General
+            {t('settings.tabs.general')}
           </TabsTrigger>
           <TabsTrigger value="notifications" className="gap-2">
             <Bell className="h-4 w-4" />
-            Notifications
+            {t('settings.tabs.notifications')}
           </TabsTrigger>
           <TabsTrigger value="integrations" className="gap-2">
             <Plug className="h-4 w-4" />
-            Integrations
+            {t('settings.tabs.integrations')}
           </TabsTrigger>
           <TabsTrigger value="energy" className="gap-2">
             <Zap className="h-4 w-4" />
-            Energy
+            {t('settings.tabs.energy')}
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-3">
           <ProfileCard />
+          <LanguageCard />
           <ActiveSessionsCard />
         </TabsContent>
 

@@ -42,6 +42,9 @@ export class UserDto {
   readonly notification_batch_minutes?: number;
 
   @ApiProperty()
+  readonly language: string;
+
+  @ApiProperty()
   readonly fmc_tokens?: string[];
 
   @ApiProperty()

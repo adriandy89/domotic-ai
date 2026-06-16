@@ -1,34 +1,17 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  ChevronLeft,
-  Trash2,
-  Loader2,
-  Save,
-  Bell,
-  Send,
-} from 'lucide-react';
-import { useSchedulesStore } from '../store/useSchedulesStore';
-import type {
-  CreateScheduleRequest,
-  ScheduleAction,
-  ScheduleFrequency,
-  ScheduleDay,
-  NotificationChannel,
-} from '../store/useSchedulesStore';
-import { useHomesStore } from '../store/useHomesStore';
-import { useDevicesStore, type DeviceExpose } from '../store/useDevicesStore';
-import { getPublishableExposes } from '../lib/device-capabilities';
+// import { useTranslation } from 'react-i18next';
+import { Bell, ChevronLeft, Loader2, Save, Send, Trash2 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Button } from '../components/ui/button';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from '../components/ui/card';
-import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Switch } from '../components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -37,12 +20,27 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Separator } from '../components/ui/separator';
+import { Switch } from '../components/ui/switch';
+import { getPublishableExposes } from '../lib/device-capabilities';
 import { cn } from '../lib/utils';
-import { toast } from 'sonner';
+import { useDevicesStore, type DeviceExpose } from '../store/useDevicesStore';
+import { useHomesStore } from '../store/useHomesStore';
+import type {
+  CreateScheduleRequest,
+  NotificationChannel,
+  ScheduleAction,
+  ScheduleDay,
+  ScheduleFrequency,
+} from '../store/useSchedulesStore';
+import { useSchedulesStore } from '../store/useSchedulesStore';
 
 const FREQUENCIES: { value: ScheduleFrequency; label: string; hint: string }[] =
   [
-    { value: 'ONCE', label: 'One time', hint: 'Run only once at the date/time' },
+    {
+      value: 'ONCE',
+      label: 'One time',
+      hint: 'Run only once at the date/time',
+    },
     { value: 'DAILY', label: 'Daily', hint: 'Run every day at the same time' },
     {
       value: 'CUSTOM',
@@ -60,6 +58,19 @@ const DAYS: { value: ScheduleDay; short: string; full: string }[] = [
   { value: 'SATURDAY', short: 'Sat', full: 'Saturday' },
   { value: 'SUNDAY', short: 'Sun', full: 'Sunday' },
 ];
+
+// const DAY_KEY: Record<
+//   ScheduleDay,
+//   'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'
+// > = {
+//   SUNDAY: 'sun',
+//   MONDAY: 'mon',
+//   TUESDAY: 'tue',
+//   WEDNESDAY: 'wed',
+//   THURSDAY: 'thu',
+//   FRIDAY: 'fri',
+//   SATURDAY: 'sat',
+// };
 
 const NOTIFICATION_CHANNELS: { value: NotificationChannel; label: string }[] = [
   { value: 'EMAIL', label: 'Email' },
@@ -86,6 +97,7 @@ function localInputValueToISO(local: string): string | null {
 }
 
 export default function ScheduleFormPage() {
+  // const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isEditMode = !!id;
@@ -214,9 +226,7 @@ export default function ScheduleFormPage() {
     if (newHomeId !== homeId) {
       setHomeId(newHomeId);
       // device-level actions become invalid if home changes
-      setActions(
-        actions.filter((a) => a.attribute === NOTIFICATION_ATTRIBUTE),
-      );
+      setActions(actions.filter((a) => a.attribute === NOTIFICATION_ATTRIBUTE));
     }
   };
 
@@ -268,8 +278,7 @@ export default function ScheduleFormPage() {
     if (!date) return toast.error('Date/time is required');
     if (frequency === 'CUSTOM' && days.length === 0)
       return toast.error('Pick at least one day for custom schedules');
-    if (actions.length === 0)
-      return toast.error('Add at least one action');
+    if (actions.length === 0) return toast.error('Add at least one action');
 
     if (hasNotificationAction && channel.length === 0) {
       return toast.error('Notification actions need at least one channel');
@@ -285,9 +294,7 @@ export default function ScheduleFormPage() {
       home_id: homeId,
       actions: actions.map((a) => ({
         device_id:
-          a.attribute === NOTIFICATION_ATTRIBUTE
-            ? null
-            : a.device_id || null,
+          a.attribute === NOTIFICATION_ATTRIBUTE ? null : a.device_id || null,
         attribute: a.attribute,
         data: a.data,
       })),
@@ -550,9 +557,7 @@ export default function ScheduleFormPage() {
                                 key={expose.property || expose.name}
                                 value={expose.property || expose.name}
                               >
-                                {expose.label ||
-                                  expose.property ||
-                                  expose.name}
+                                {expose.label || expose.property || expose.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -564,11 +569,7 @@ export default function ScheduleFormPage() {
                             value={String(action.data?.value ?? '')}
                             onValueChange={(v) => {
                               const val =
-                                v === 'true'
-                                  ? true
-                                  : v === 'false'
-                                    ? false
-                                    : v;
+                                v === 'true' ? true : v === 'false' ? false : v;
                               updateAction(index, 'data', { value: val });
                             }}
                           >

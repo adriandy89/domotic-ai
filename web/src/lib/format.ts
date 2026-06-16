@@ -1,7 +1,26 @@
 /**
  * Formatting helpers for the reports section.
  * All formatters tolerate `null`/`undefined` and return a "—" placeholder.
+ *
+ * Number/currency/date output is locale-aware: it follows the active i18n
+ * language so the same values render correctly in English, Spanish and French.
  */
+import { formatDistanceToNow } from 'date-fns';
+import type { Locale } from 'date-fns';
+import { enUS, es, fr } from 'date-fns/locale';
+import i18n from '../i18n';
+
+const DATE_FNS_LOCALES: Record<string, Locale> = { en: enUS, es, fr };
+
+/** Active BCP-47 language tag for Intl APIs (falls back to English). */
+function currentLng(): string {
+  return i18n.resolvedLanguage || i18n.language || 'en';
+}
+
+/** date-fns Locale for the active language (for `format(date, fmt, { locale })`). */
+export function dateFnsLocale(): Locale {
+  return DATE_FNS_LOCALES[currentLng()] ?? enUS;
+}
 
 /**
  * Pick a decimal count that keeps ~3 significant digits regardless of magnitude.
@@ -24,7 +43,7 @@ export function formatNumber(
 ): string {
   if (value == null || !Number.isFinite(value)) return '—';
   const d = digits ?? autoDigits(value);
-  return value.toLocaleString(undefined, {
+  return value.toLocaleString(currentLng(), {
     maximumFractionDigits: d,
     minimumFractionDigits: 0,
   });
@@ -45,7 +64,7 @@ export function formatPercent(
   digits = 0,
 ): string {
   if (value == null || !Number.isFinite(value)) return '—';
-  return `${value.toLocaleString(undefined, {
+  return `${value.toLocaleString(currentLng(), {
     maximumFractionDigits: digits,
   })}%`;
 }
@@ -57,7 +76,7 @@ export function formatCurrency(
 ): string {
   if (value == null || !Number.isFinite(value)) return '—';
   try {
-    return value.toLocaleString(undefined, {
+    return value.toLocaleString(currentLng(), {
       style: 'currency',
       currency,
       maximumFractionDigits: digits,
@@ -65,6 +84,33 @@ export function formatCurrency(
   } catch {
     return `${currency} ${value.toFixed(digits)}`;
   }
+}
+
+/** Locale-aware date/time formatter. */
+export function formatDate(
+  date: Date | string | number | null | undefined,
+  options: Intl.DateTimeFormatOptions = {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  },
+): string {
+  if (date == null) return '—';
+  const value = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(value.getTime())) return '—';
+  return new Intl.DateTimeFormat(currentLng(), options).format(value);
+}
+
+/** Locale-aware relative time, e.g. "5 minutes ago" / "hace 5 minutos". */
+export function formatRelativeTime(
+  date: Date | string | number | null | undefined,
+): string {
+  if (date == null) return '—';
+  const value = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(value.getTime())) return '—';
+  return formatDistanceToNow(value, {
+    locale: dateFnsLocale(),
+    addSuffix: true,
+  });
 }
 
 export function formatDelta(

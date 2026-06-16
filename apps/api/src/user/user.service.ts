@@ -36,6 +36,7 @@ export class UserService {
     expiration_time: true,
     channels: true,
     notification_batch_minutes: true,
+    language: true,
   };
 
   constructor(
@@ -633,7 +634,12 @@ export class UserService {
     await this.cacheService.del(`user-session:${userId}:${sessionId}`);
   }
 
-  async updateAllUserSessions(userId: string, attributes: any) {
+  /**
+   * Merge a partial patch (e.g. { attributes } or { language }) into the stored
+   * passport user of every active session for the given user, then notify SSE
+   * listeners so other devices refresh.
+   */
+  async updateAllUserSessions(userId: string, patch: Record<string, any>) {
     try {
       const pattern = `user-session:${userId}:*`;
       const keys = await this.cacheService.keys(pattern);
@@ -650,7 +656,7 @@ export class UserService {
             sessionData.passport &&
             sessionData.passport.user
           ) {
-            sessionData.passport.user.attributes = attributes;
+            Object.assign(sessionData.passport.user, patch);
             // Get original TTL to preserve it (optional, or just reset to max)
             const ttl = await this.cacheService.ttl(sessionKey);
             if (ttl > 0) {
@@ -664,6 +670,25 @@ export class UserService {
       await this.natsClient.emit('user.attributes.updated', { userId });
     } catch (error: any) {
       console.error('Failed to update user sessions:', error);
+    }
+  }
+
+  async updateLanguage(
+    userId: string,
+    organization_id: string,
+    language: string,
+  ) {
+    if (!organization_id) throw new Error('Organization not found');
+    try {
+      const updated = await this.dbService.user.update({
+        data: { language },
+        select: { id: true, language: true },
+        where: { id: userId, organization_id },
+      });
+      return { ok: true, data: updated };
+    } catch (error: any) {
+      if (error.code === 'P2025') throw new Error('not found');
+      throw new Error(error);
     }
   }
 

@@ -1,4 +1,5 @@
 import { useMemo, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Home, Wifi, WifiOff, Search } from 'lucide-react';
 import { useHomesStore } from '../store/useHomesStore';
 import { useDevicesStore, type Device } from '../store/useDevicesStore';
@@ -16,6 +17,7 @@ function countMainExposes(device: Device): number {
 }
 
 export default function DevicesPage() {
+  const { t } = useTranslation();
   const { homes, homeIds } = useHomesStore();
   const { devices, devicesByHome, devicesData } = useDevicesStore();
 
@@ -58,7 +60,7 @@ export default function DevicesPage() {
 
   // Remove device
   const handleRemove = useCallback(async (deviceId: string) => {
-    if (!confirm('Are you sure you want to remove this device?')) return;
+    if (!confirm(t('devices.card.confirmRemove'))) return;
     try {
       await api.delete(`/devices/${deviceId}`);
       useDevicesStore.getState().removeDevice(deviceId);
@@ -95,10 +97,13 @@ export default function DevicesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            Devices
+            {t('devices.title')}
           </h2>
           <p className="text-muted-foreground">
-            {totalDevices} devices across {homeIds.length} homes
+            {t('devices.subtitle', {
+              count: totalDevices,
+              homes: homeIds.length,
+            })}
           </p>
         </div>
 
@@ -106,13 +111,17 @@ export default function DevicesPage() {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-500">
             <Wifi className="h-4 w-4" />
-            <span className="text-sm font-medium">{connectedHomes} Online</span>
+            <span className="text-sm font-medium">
+              {t('devices.online', { count: connectedHomes })}
+            </span>
           </div>
           {homeIds.length - connectedHomes > 0 && (
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 text-red-500">
               <WifiOff className="h-4 w-4" />
               <span className="text-sm font-medium">
-                {homeIds.length - connectedHomes} Offline
+                {t('devices.offline', {
+                  count: homeIds.length - connectedHomes,
+                })}
               </span>
             </div>
           )}
@@ -125,11 +134,10 @@ export default function DevicesPage() {
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Search className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <h3 className="text-lg font-semibold text-foreground mb-2">
-              No devices found
+              {t('devices.empty.title')}
             </h3>
             <p className="text-muted-foreground text-center max-w-md">
-              Your devices will appear here once they are connected and
-              synchronized.
+              {t('devices.empty.description')}
             </p>
           </CardContent>
         </Card>
@@ -158,8 +166,12 @@ export default function DevicesPage() {
                 {home.name}
               </h3>
               <p className="text-sm text-muted-foreground">
-                {homeDevices.length} devices •{' '}
-                {home.connected ? 'Connected' : 'Disconnected'}
+                {t('devices.group', {
+                  count: homeDevices.length,
+                  status: home.connected
+                    ? t('common.connected')
+                    : t('common.disconnected'),
+                })}
               </p>
             </div>
           </div>

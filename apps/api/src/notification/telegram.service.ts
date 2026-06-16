@@ -1,5 +1,6 @@
 import { CacheService } from '@app/cache';
 import { DbService } from '@app/db';
+import { translate } from '@app/i18n';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AIChatRequest, AiService } from '../ai';
@@ -103,16 +104,17 @@ export class TelegramService implements OnModuleInit {
     if (!userId) {
       await this.bot.sendMessage(
         chatId,
-        '❌ <b>Invalid or expired code</b>\n\nPlease generate a new verification code from the <b>Domotic AI</b> dashboard.',
+        translate('telegram.bot.invalidCode'),
         { parse_mode: 'HTML' },
       );
       return false;
     }
 
     try {
-      await this.dbService.user.update({
+      const linkedUser = await this.dbService.user.update({
         where: { id: userId },
         data: { telegram_chat_id: chatId },
+        select: { language: true },
       });
 
       // Cleanup cache
@@ -121,17 +123,15 @@ export class TelegramService implements OnModuleInit {
 
       await this.bot.sendMessage(
         chatId,
-        '✨ <b>Account Linked Successfully!</b>\n\nYou will now receive important notifications from <b>Domotic AI</b> directly in this chat. 🏠\n\n<i>You can manage your notification preferences in the dashboard.</i>',
+        translate('telegram.bot.linkedSuccess', linkedUser.language),
         { parse_mode: 'HTML' },
       );
       return true;
     } catch (error: any) {
       this.logger.error(`Error linking account: ${error.message}`, error.stack);
-      await this.bot.sendMessage(
-        chatId,
-        '⚠️ <b>Error Linking Account</b>\n\nSomething went wrong. Please try again later or contact support.',
-        { parse_mode: 'HTML' },
-      );
+      await this.bot.sendMessage(chatId, translate('telegram.bot.linkError'), {
+        parse_mode: 'HTML',
+      });
       return false;
     }
   }
@@ -312,11 +312,9 @@ export class TelegramService implements OnModuleInit {
     const text = message.text;
 
     if (text === '/start') {
-      await this.bot.sendMessage(
-        chatId,
-        '👋 <b>Welcome to Domotic AI!</b>\n\nTo link your account and receive notifications:\n\n1️⃣ Go to the <b>Users</b> section in the dashboard.\n2️⃣ Click action"Telegram" on your user profile.\n3️⃣ Copy the verification code and send the command.',
-        { parse_mode: 'HTML' },
-      );
+      await this.bot.sendMessage(chatId, translate('telegram.bot.start'), {
+        parse_mode: 'HTML',
+      });
     } else if (text?.startsWith('/verify ')) {
       const code = text.substring(8); // Remove '/verify '
       await this.verifyAndLinkAccount(chatId.toString(), code);
@@ -328,6 +326,7 @@ export class TelegramService implements OnModuleInit {
           id: true,
           name: true,
           email: true,
+          language: true,
           organization: {
             select: { attributes: true },
           },
@@ -343,7 +342,7 @@ export class TelegramService implements OnModuleInit {
           if (!checkMsgInProgress) {
             await this.bot.sendMessage(
               chatId,
-              'Please wait for the previous request to complete.',
+              translate('telegram.bot.aiInProgress', user.language),
             );
             return;
           }
@@ -370,14 +369,16 @@ export class TelegramService implements OnModuleInit {
         } else {
           await this.bot.sendMessage(
             chatId,
-            `✅ <b>Account Linked</b>\n\nHello <b>${user.name || user.email}</b>! 👋\n\nYou are all set to receive notifications. 🔔 \n\nFor use AI features, configure your provider in the web dashboard.`,
+            translate('telegram.bot.accountLinked', user.language, {
+              name: user.name || user.email,
+            }),
             { parse_mode: 'HTML' },
           );
         }
       } else {
         await this.bot.sendMessage(
           chatId,
-          '🔒 <b>Account Not Linked</b>\n\nPlease use the <code>/verify</code> command followed by the code from your web dashboard to link your account.\n\nExample: <code>/verify 123456</code>',
+          translate('telegram.bot.notLinked'),
           { parse_mode: 'HTML' },
         );
       }

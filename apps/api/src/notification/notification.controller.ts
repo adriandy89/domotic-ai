@@ -2,6 +2,8 @@ import { Controller, Logger } from '@nestjs/common';
 import { EventPattern, Payload } from '@nestjs/microservices';
 import { TelegramService } from './telegram.service';
 import { EmailService } from './email.service';
+import type { TranslationKey } from '@app/i18n';
+import { translate } from '@app/i18n';
 import type {
   IHomeConnectionNotification,
   IUserSensorNotification,
@@ -9,16 +11,17 @@ import type {
 } from '@app/models';
 import { NotificationChannel } from 'generated/prisma/enums';
 
-const userAttrKeys: {
-  [key in userAttr]: string;
+// Maps a sensor attribute event to its i18n label key.
+const sensorAttrKey: {
+  [key in userAttr]: TranslationKey;
 } = {
-  contactTrue: 'Contact Closed',
-  contactFalse: 'Contact Opened',
-  vibrationTrue: 'Vibration',
-  occupancyTrue: 'Occupancy',
-  presenceTrue: 'Presence',
-  smokeTrue: 'Smoke',
-  waterLeakTrue: 'Water Leak',
+  contactTrue: 'sensor.contactClosed',
+  contactFalse: 'sensor.contactOpened',
+  vibrationTrue: 'sensor.vibration',
+  occupancyTrue: 'sensor.occupancy',
+  presenceTrue: 'sensor.presence',
+  smokeTrue: 'sensor.smoke',
+  waterLeakTrue: 'sensor.waterLeak',
 };
 
 // Interface for rule notification payload
@@ -31,6 +34,7 @@ interface IRuleTelegramNotificationPayload {
   homeId: string;
   homeName: string;
   chatId: string;
+  language?: string | null;
 }
 
 // Interface for email rule notification payload
@@ -43,6 +47,7 @@ interface IRuleEmailNotificationPayload {
   homeId: string;
   homeName: string;
   email: string;
+  language?: string | null;
 }
 
 @Controller('notification')
@@ -79,6 +84,7 @@ export class NotificationController {
               deviceName,
               homeName,
               attributeKey,
+              user.language,
             );
           } else {
             this.logger.warn(
@@ -94,6 +100,7 @@ export class NotificationController {
               deviceName,
               homeName,
               attributeKey,
+              user.language,
             );
           } else {
             this.logger.warn(
@@ -154,6 +161,7 @@ export class NotificationController {
                 user.telegram_chat_id,
                 homeName,
                 connected,
+                user.language,
               );
             } else {
               this.logger.warn(
@@ -168,6 +176,7 @@ export class NotificationController {
                 user.email,
                 homeName,
                 connected,
+                user.language,
               );
             } else {
               this.logger.warn(
@@ -195,13 +204,11 @@ export class NotificationController {
 
     try {
       // Build beautiful notification message
-      const message = `🔔 <b>Rule Alert</b>
-
-🏠 ${this.escapeHtml(payload.homeName)}
-📋 ${this.escapeHtml(payload.ruleName)}
-
-💬 ${this.escapeHtml(payload.event)}
-`;
+      const message = translate('telegram.rule', payload.language, {
+        homeName: this.escapeHtml(payload.homeName),
+        ruleName: this.escapeHtml(payload.ruleName),
+        event: this.escapeHtml(payload.event),
+      });
 
       const success = await this.telegramService.sendMessage(
         payload.chatId,
@@ -238,6 +245,7 @@ export class NotificationController {
         payload.homeName,
         payload.ruleName,
         payload.event,
+        payload.language,
       );
       this.logger.log(
         `Email notification sent successfully for rule ${payload.ruleId}`,
@@ -257,12 +265,17 @@ export class NotificationController {
     deviceName: string,
     homeName: string,
     attributeKey: string,
+    language?: string | null,
   ): Promise<void> {
-    const message = `🏠 <b>${this.escapeHtml(homeName)}</b> 
-📱 ${this.escapeHtml(deviceName)}
-
-📈 <b>${userAttrKeys[attributeKey as userAttr]} detected</b>
-`;
+    const attribute = translate(
+      sensorAttrKey[attributeKey as userAttr],
+      language,
+    );
+    const message = translate('telegram.sensor', language, {
+      homeName: this.escapeHtml(homeName),
+      deviceName: this.escapeHtml(deviceName),
+      attribute,
+    });
 
     const success = await this.telegramService.sendMessage(chatId, message);
 
@@ -280,13 +293,19 @@ export class NotificationController {
     deviceName: string,
     homeName: string,
     attributeKey: string,
+    language?: string | null,
   ): Promise<void> {
     try {
+      const attribute = translate(
+        sensorAttrKey[attributeKey as userAttr],
+        language,
+      );
       await this.emailService.sendNotificationEmail(
         email,
         homeName,
         deviceName,
-        userAttrKeys[attributeKey as userAttr],
+        attribute,
+        language,
       );
       this.logger.log(`Email sensor notification sent to ${email}`);
     } catch (error: any) {
@@ -300,15 +319,13 @@ export class NotificationController {
     chatId: string,
     homeName: string,
     connected: boolean,
+    language?: string | null,
   ): Promise<void> {
-    const icon = connected ? '🟢' : '🔴';
-    const title = connected ? 'Home Reconnected' : 'Home Disconnected';
-    const message = `${icon} <b>${title}</b>
-
-🏠 ${this.escapeHtml(homeName)}
-
-${connected ? 'The home is back online.' : 'The home has lost connection.'}
-`;
+    const message = translate(
+      connected ? 'telegram.homeConnected' : 'telegram.homeDisconnected',
+      language,
+      { homeName: this.escapeHtml(homeName) },
+    );
 
     const success = await this.telegramService.sendMessage(chatId, message);
     if (success) {
@@ -326,12 +343,14 @@ ${connected ? 'The home is back online.' : 'The home has lost connection.'}
     email: string,
     homeName: string,
     connected: boolean,
+    language?: string | null,
   ): Promise<void> {
     try {
       await this.emailService.sendHomeConnectionEmail(
         email,
         homeName,
         connected,
+        language,
       );
       this.logger.log(
         `Email home-connection notification sent to ${email} (connected=${connected})`,

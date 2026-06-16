@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardFooter, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
+import { formatDate } from '../../lib/format';
 import {
   Edit,
   Power,
@@ -37,63 +39,27 @@ interface ScheduleCardProps {
   onEdit?: (id: string) => void;
 }
 
-const DAY_SHORT: Record<ScheduleDay, string> = {
-  SUNDAY: 'Sun',
-  MONDAY: 'Mon',
-  TUESDAY: 'Tue',
-  WEDNESDAY: 'Wed',
-  THURSDAY: 'Thu',
-  FRIDAY: 'Fri',
-  SATURDAY: 'Sat',
+const DAY_KEY: Record<
+  ScheduleDay,
+  'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'
+> = {
+  SUNDAY: 'sun',
+  MONDAY: 'mon',
+  TUESDAY: 'tue',
+  WEDNESDAY: 'wed',
+  THURSDAY: 'thu',
+  FRIDAY: 'fri',
+  SATURDAY: 'sat',
 };
 
 const FREQ_META: Record<
   ScheduleFrequency,
-  { label: string; icon: React.ElementType; color: string }
+  { icon: React.ElementType; color: string }
 > = {
-  ONCE: {
-    label: 'One time',
-    icon: Clock,
-    color: 'bg-blue-500/10 text-blue-500',
-  },
-  DAILY: {
-    label: 'Daily',
-    icon: Repeat,
-    color: 'bg-emerald-500/10 text-emerald-500',
-  },
-  CUSTOM: {
-    label: 'Custom days',
-    icon: CalendarDays,
-    color: 'bg-violet-500/10 text-violet-500',
-  },
+  ONCE: { icon: Clock, color: 'bg-blue-500/10 text-blue-500' },
+  DAILY: { icon: Repeat, color: 'bg-emerald-500/10 text-emerald-500' },
+  CUSTOM: { icon: CalendarDays, color: 'bg-violet-500/10 text-violet-500' },
 };
-
-function formatTriggerDate(
-  frequency: ScheduleFrequency,
-  date?: string | null,
-  days?: ScheduleDay[],
-): string {
-  if (!date) return '—';
-  const d = new Date(date);
-  const time = d.toLocaleTimeString(undefined, {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-  if (frequency === 'ONCE') {
-    return `${d.toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-    })} · ${time}`;
-  }
-  if (frequency === 'DAILY') {
-    return `Every day · ${time}`;
-  }
-  if (frequency === 'CUSTOM') {
-    if (!days || days.length === 0) return `${time} · No days`;
-    return `${days.map((day) => DAY_SHORT[day]).join(', ')} · ${time}`;
-  }
-  return time;
-}
 
 export default function ScheduleCard({
   schedule,
@@ -101,7 +67,31 @@ export default function ScheduleCard({
   onDelete,
   onEdit,
 }: ScheduleCardProps) {
+  const { t } = useTranslation();
   const [isToggling, setIsToggling] = useState(false);
+
+  const formatTriggerDate = (
+    frequency: ScheduleFrequency,
+    date?: string | null,
+    days?: ScheduleDay[],
+  ): string => {
+    if (!date) return '—';
+    const time = formatDate(date, { hour: '2-digit', minute: '2-digit' });
+    if (frequency === 'ONCE') {
+      return `${formatDate(date, { month: 'short', day: 'numeric' })} · ${time}`;
+    }
+    if (frequency === 'DAILY') {
+      return `${t('schedules.card.everyDay')} · ${time}`;
+    }
+    if (frequency === 'CUSTOM') {
+      if (!days || days.length === 0)
+        return `${time} · ${t('schedules.card.noDays')}`;
+      return `${days
+        .map((day) => t(`common.weekdayShort.${DAY_KEY[day]}`))
+        .join(', ')} · ${time}`;
+    }
+    return time;
+  };
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showActions, setShowActions] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
@@ -129,7 +119,8 @@ export default function ScheduleCard({
     setShowDeleteDialog(false);
   };
 
-  const homeName = homes[schedule.home_id]?.name || 'Unknown';
+  const homeName =
+    homes[schedule.home_id]?.name || t('schedules.card.unknownHome');
   const freq = FREQ_META[schedule.frequency];
   const FreqIcon = freq.icon;
 
@@ -155,7 +146,7 @@ export default function ScheduleCard({
                   )}
                 >
                   <FreqIcon className="w-3 h-3" />
-                  {freq.label}
+                  {t(`schedules.freq.${schedule.frequency}`)}
                 </div>
               </div>
               <p className="text-xs text-muted-foreground line-clamp-1 truncate h-4 flex items-center gap-1.5">
@@ -190,7 +181,7 @@ export default function ScheduleCard({
                       className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
                     >
                       <Edit className="h-4 w-4" />
-                      Edit
+                      {t('common.edit')}
                     </button>
                   )}
                   <button
@@ -201,7 +192,7 @@ export default function ScheduleCard({
                     className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
                   >
                     <Trash2 className="h-4 w-4" />
-                    Delete
+                    {t('common.delete')}
                   </button>
                 </div>
               )}
@@ -219,14 +210,13 @@ export default function ScheduleCard({
                   {schedule._count?.actions ?? 0}
                 </span>
                 <span className="text-xs text-muted-foreground/70">
-                  actions
+                  {t('schedules.card.actions')}
                 </span>
               </div>
               {schedule.frequency === 'CUSTOM' && schedule.days.length > 0 && (
                 <div className="flex items-center gap-1 text-xs text-muted-foreground/80">
                   <CalendarDays className="w-3 h-3" />
-                  {schedule.days.length} day
-                  {schedule.days.length !== 1 ? 's' : ''}
+                  {t('schedules.card.days', { count: schedule.days.length })}
                 </div>
               )}
             </div>
@@ -263,10 +253,11 @@ export default function ScheduleCard({
             <div className="flex items-center gap-1.5">
               {schedule.updated_at && (
                 <span>
-                  Updated{' '}
-                  {new Date(schedule.updated_at).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
+                  {t('schedules.card.updated', {
+                    date: formatDate(schedule.updated_at, {
+                      month: 'short',
+                      day: 'numeric',
+                    }),
                   })}
                 </span>
               )}
@@ -283,10 +274,9 @@ export default function ScheduleCard({
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Schedule</DialogTitle>
+            <DialogTitle>{t('schedules.card.deleteTitle')}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{schedule.name}"? This action
-              cannot be undone.
+              {t('common.confirmDelete', { name: schedule.name })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -294,10 +284,10 @@ export default function ScheduleCard({
               variant="outline"
               onClick={() => setShowDeleteDialog(false)}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
-              Delete
+              {t('common.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

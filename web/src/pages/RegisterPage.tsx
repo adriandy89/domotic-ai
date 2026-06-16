@@ -1,4 +1,5 @@
 import { Github } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../components/ui/button';
 import {
   Card,
@@ -11,6 +12,7 @@ import {
 import { Link } from 'react-router-dom';
 
 export default function RegisterPage() {
+  const { t } = useTranslation();
   const handleLogin = (provider: string) => {
     // Redirect to backend auth endpoint
     window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3017/api/v1'}/auth/${provider}`;
@@ -25,10 +27,10 @@ export default function RegisterPage() {
           </div>
         </div>
         <CardTitle className="text-3xl font-bold tracking-tight text-foreground">
-          Create an account
+          {t('auth.createAccount')}
         </CardTitle>
         <CardDescription className="text-muted-foreground">
-          Get started with Domotic AI today
+          {t('auth.registerSubtitle')}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
@@ -38,7 +40,7 @@ export default function RegisterPage() {
           onClick={() => handleLogin('github')}
         >
           <Github className="w-5 h-5" />
-          Sign up with GitHub
+          {t('auth.signUpWith', { provider: 'GitHub' })}
         </Button>
         <Button
           variant="outline"
@@ -63,7 +65,7 @@ export default function RegisterPage() {
               fill="currentColor"
             />
           </svg>
-          Sign up with Google
+          {t('auth.signUpWith', { provider: 'Google' })}
         </Button>
         <Button
           variant="outline"
@@ -76,17 +78,17 @@ export default function RegisterPage() {
             <rect x="11" y="1" width="9" height="9" fill="#7FBA00" />
             <rect x="11" y="11" width="9" height="9" fill="#FFB900" />
           </svg>
-          Sign up with Microsoft
+          {t('auth.signUpWith', { provider: 'Microsoft' })}
         </Button>
       </CardContent>
       <CardFooter>
         <div className="text-sm text-center w-full text-muted-foreground">
-          Already have an account?{' '}
+          {t('auth.haveAccount')}{' '}
           <Link
             to="/login"
             className="text-primary hover:text-primary/80 hover:underline transition-colors font-medium"
           >
-            Sign in
+            {t('auth.signIn')}
           </Link>
         </div>
       </CardFooter>

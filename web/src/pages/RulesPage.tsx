@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Zap, Plus, Loader2, Filter, Home } from 'lucide-react';
 import { useRulesStore } from '../store/useRulesStore';
 import { useHomesStore } from '../store/useHomesStore';
@@ -8,6 +9,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 
 export default function RulesPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { rules, isLoading, error, fetchRules, toggleRule, deleteRule } =
     useRulesStore();
@@ -36,18 +38,16 @@ export default function RulesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            Rules
+            {t('rules.title')}
           </h2>
-          <p className="text-muted-foreground mt-1">
-            Automate your smart home with conditional rules
-          </p>
+          <p className="text-muted-foreground mt-1">{t('rules.subtitle')}</p>
         </div>
         <Button
           className="flex items-center gap-2"
           onClick={() => navigate('/rules/new')}
         >
           <Plus className="w-4 h-4" />
-          New Rule
+          {t('rules.new')}
         </Button>
       </div>
 
@@ -59,7 +59,9 @@ export default function RulesPage() {
               <div className="text-2xl font-bold text-primary">
                 {rules.length}
               </div>
-              <div className="text-xs text-muted-foreground">Total Rules</div>
+              <div className="text-xs text-muted-foreground">
+                {t('rules.stats.total')}
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-card/40 border-border">
@@ -67,7 +69,9 @@ export default function RulesPage() {
               <div className="text-2xl font-bold text-emerald-500">
                 {rules.filter((r) => r.active).length}
               </div>
-              <div className="text-xs text-muted-foreground">Active</div>
+              <div className="text-xs text-muted-foreground">
+                {t('common.active')}
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-card/40 border-border">
@@ -75,7 +79,9 @@ export default function RulesPage() {
               <div className="text-2xl font-bold text-muted-foreground">
                 {rules.filter((r) => !r.active).length}
               </div>
-              <div className="text-xs text-muted-foreground">Inactive</div>
+              <div className="text-xs text-muted-foreground">
+                {t('common.inactive')}
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-card/40 border-border">
@@ -84,7 +90,7 @@ export default function RulesPage() {
                 {rules.reduce((acc, r) => acc + r._count.conditions, 0)}
               </div>
               <div className="text-xs text-muted-foreground">
-                Total Conditions
+                {t('rules.stats.conditions')}
               </div>
             </CardContent>
           </Card>
@@ -94,7 +100,9 @@ export default function RulesPage() {
       {/* Home Filter */}
       <div className="flex flex-wrap items-center gap-2">
         <Filter className="w-4 h-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Filter by home:</span>
+        <span className="text-sm text-muted-foreground">
+          {t('common.filterByHome')}
+        </span>
         <div className="flex flex-wrap gap-2">
           <Button
             variant={selectedHomeId === null ? 'default' : 'outline'}
@@ -102,7 +110,7 @@ export default function RulesPage() {
             onClick={() => setSelectedHomeId(null)}
             className="text-xs"
           >
-            All Homes
+            {t('common.allHomes')}
           </Button>
           {homeList.map((home) => (
             <Button
@@ -130,7 +138,7 @@ export default function RulesPage() {
               onClick={fetchRules}
               className="mt-2"
             >
-              Try Again
+              {t('common.tryAgain')}
             </Button>
           </CardContent>
         </Card>
@@ -140,7 +148,7 @@ export default function RulesPage() {
       {isLoading && rules.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16">
           <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
-          <span className="text-muted-foreground">Loading rules...</span>
+          <span className="text-muted-foreground">{t('rules.loading')}</span>
         </div>
       )}
 
@@ -166,15 +174,19 @@ export default function RulesPage() {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
               <Zap className="w-8 h-8 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">No rules found</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {t('rules.empty.title')}
+            </h3>
             <p className="text-muted-foreground text-sm mb-4">
               {selectedHomeId
-                ? `No rules configured for "${homeList.find((h) => h.id === selectedHomeId)?.name}"`
-                : 'Create your first rule to automate your smart home'}
+                ? t('rules.empty.forHome', {
+                    home: homeList.find((h) => h.id === selectedHomeId)?.name,
+                  })
+                : t('rules.empty.cta')}
             </p>
             <Button onClick={() => navigate('/rules/new')}>
               <Plus className="w-4 h-4 mr-2" />
-              Create Rule
+              {t('rules.create')}
             </Button>
           </CardContent>
         </Card>

@@ -92,6 +92,8 @@ model User {
   role                       Role                  @default(USER)
   expiration_time            DateTime?             @db.Timestamptz(6)
   notification_batch_minutes Int?                  @default(5)
+  // Preferred language (ISO 639-1) for the UI and all outbound notifications.
+  language                   String                @default("en") @db.VarChar(5)
   fmc_tokens                 String[]
   telegram_chat_id           String?               @unique(map: "uq_user_telegram_chat_id") @db.VarChar(128)
   organization_id            String

@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import convert from 'color-convert';
 import type { DeviceExpose } from '../../store/useDevicesStore';
 import { ScheduleFeature } from './ScheduleFeature';
@@ -19,6 +20,7 @@ interface FeatureProps {
 
 // Binary toggle (ON/OFF, true/false)
 export function BinaryFeature({ expose, value, onChange }: FeatureProps) {
+  const { t } = useTranslation();
   const canSet = (expose.access & FeatureAccessMode.SET) !== 0;
   const valueOn = expose.value_on ?? true;
   const valueOff = expose.value_off ?? false;
@@ -41,8 +43,8 @@ export function BinaryFeature({ expose, value, onChange }: FeatureProps) {
   // For contact sensors, the zigbee2mqtt convention is ON = open, OFF = closed,
   // so the labels follow the semantic meaning of isOn (not the raw value).
   const isContact = expose.name === 'contact' || expose.property === 'contact';
-  const displayOn = isContact ? 'Open' : 'ON';
-  const displayOff = isContact ? 'Closed' : 'OFF';
+  const displayOn = isContact ? t('devices.features.open') : 'ON';
+  const displayOff = isContact ? t('devices.features.closed') : 'OFF';
 
   if (!canSet) {
     // For contact sensors, isOn means "open" (alert state) — color it amber
@@ -60,7 +62,7 @@ export function BinaryFeature({ expose, value, onChange }: FeatureProps) {
           {expose.label || expose.name}
         </span>
         <span className={`text-xs font-medium ${stateColor}`}>
-          {value === undefined ? 'N/A' : isOn ? displayOn : displayOff}
+          {value === undefined ? t('common.na') : isOn ? displayOn : displayOff}
         </span>
       </div>
     );
@@ -100,6 +102,7 @@ export function BinaryFeature({ expose, value, onChange }: FeatureProps) {
 
 // Numeric slider + input
 export function NumericFeature({ expose, value, onChange }: FeatureProps) {
+  const { t } = useTranslation();
   const canSet = (expose.access & FeatureAccessMode.SET) !== 0;
   const numValue = typeof value === 'number' ? value : 0;
   const min = expose.value_min ?? 0;
@@ -128,7 +131,7 @@ export function NumericFeature({ expose, value, onChange }: FeatureProps) {
           {expose.label || expose.name}
         </span>
         <span className="text-xs font-medium text-foreground">
-          {value === undefined ? 'N/A' : `${numValue}${unit}`}
+          {value === undefined ? t('common.na') : `${numValue}${unit}`}
         </span>
       </div>
     );
@@ -171,6 +174,7 @@ export function NumericFeature({ expose, value, onChange }: FeatureProps) {
 
 // Enum dropdown/buttons
 export function EnumFeature({ expose, value, onChange }: FeatureProps) {
+  const { t } = useTranslation();
   const canSet = (expose.access & FeatureAccessMode.SET) !== 0;
   const values = expose.values || [];
   const currentValue = value as string | undefined;
@@ -182,7 +186,7 @@ export function EnumFeature({ expose, value, onChange }: FeatureProps) {
           {expose.label || expose.name}
         </span>
         <span className="text-xs font-medium text-foreground">
-          {currentValue ?? 'N/A'}
+          {currentValue ?? t('common.na')}
         </span>
       </div>
     );
@@ -224,7 +228,7 @@ export function EnumFeature({ expose, value, onChange }: FeatureProps) {
         className="h-5 text-xs bg-background border border-border rounded px-1 focus:outline-none focus:ring-1 focus:ring-primary"
       >
         <option value="" disabled>
-          Select...
+          {t('devices.features.select')}
         </option>
         {values.map((val) => (
           <option key={val} value={val}>
@@ -238,6 +242,7 @@ export function EnumFeature({ expose, value, onChange }: FeatureProps) {
 
 // Text input
 export function TextFeature({ expose, value, onChange }: FeatureProps) {
+  const { t } = useTranslation();
   const canSet = (expose.access & FeatureAccessMode.SET) !== 0;
   const textValue = typeof value === 'string' ? value : '';
 
@@ -271,7 +276,7 @@ export function TextFeature({ expose, value, onChange }: FeatureProps) {
           className="text-xs font-medium text-foreground truncate max-w-[120px]"
           title={textValue}
         >
-          {textValue || 'N/A'}
+          {textValue || t('common.na')}
         </span>
       </div>
     );
@@ -302,10 +307,11 @@ export function ValueDisplay({
   expose: DeviceExpose;
   value: unknown;
 }) {
+  const { t } = useTranslation();
   let displayValue: string;
 
   if (value === undefined || value === null) {
-    displayValue = 'N/A';
+    displayValue = t('common.na');
   } else if (typeof value === 'boolean') {
     displayValue = value ? 'ON' : 'OFF';
   } else if (typeof value === 'number') {
@@ -317,7 +323,7 @@ export function ValueDisplay({
     );
     displayValue = allPrimitive
       ? value.join(', ')
-      : `${value.length} ${value.length === 1 ? 'item' : 'items'}`;
+      : t('devices.features.items', { count: value.length });
   } else if (typeof value === 'object') {
     displayValue = JSON.stringify(value);
   } else {
@@ -373,6 +379,7 @@ const whitePalette = ['#FFFFFF', '#FDF4DC', '#F4FDFF'];
 
 // Color feature for lights with color_xy, color_hs, color_rgb
 export function ColorFeature({ expose, onChange, data }: FeatureProps) {
+  const { t } = useTranslation();
   const features = expose.features || [];
   const format = expose.name as ColorFormat;
 
@@ -421,7 +428,7 @@ export function ColorFeature({ expose, onChange, data }: FeatureProps) {
 
   return (
     <div className="py-2 px-2 bg-background/30 rounded space-y-2">
-      <span className="text-xs text-muted-foreground font-medium">{expose.label || 'Color'}</span>
+      <span className="text-xs text-muted-foreground font-medium">{expose.label || t('devices.features.color')}</span>
 
       {/* Color palettes */}
       <div className="flex gap-1 flex-wrap">
@@ -456,7 +463,7 @@ export function ColorFeature({ expose, onChange, data }: FeatureProps) {
             value={currentColor}
             onChange={(e) => handlePickerChange(e.target.value)}
             onBlur={handlePickerCommit}
-            title="Click to open color picker"
+            title={t('devices.features.colorPicker')}
           />
           <div
             className="w-full h-full rounded-full border-4 border-border shadow-lg cursor-pointer hover:scale-105 transition-transform"
@@ -464,7 +471,7 @@ export function ColorFeature({ expose, onChange, data }: FeatureProps) {
           />
         </div>
         <div className="flex-1">
-          <div className="text-xs text-muted-foreground">Current Color</div>
+          <div className="text-xs text-muted-foreground">{t('devices.features.currentColor')}</div>
           <div className="text-xs font-mono font-bold text-foreground">{currentColor.toUpperCase()}</div>
         </div>
       </div>

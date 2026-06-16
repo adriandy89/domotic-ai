@@ -19,13 +19,16 @@ import {
   Wind,
   SignalLow,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useHomesStore } from '../store/useHomesStore';
 import { useDevicesStore } from '../store/useDevicesStore';
 import { hasExpose } from '../lib/device-capabilities';
 import { sseService } from '../lib/sse';
+import { formatNumber } from '../lib/format';
 import ElectricityPricesCard from '../components/dashboard/ElectricityPricesCard';
 
 export default function DashboardPage() {
+  const { t } = useTranslation();
   const { homes, homeIds } = useHomesStore();
   const { devices, devicesData } = useDevicesStore();
 
@@ -54,21 +57,21 @@ export default function DashboardPage() {
       if (hasContact && data.contact === false)
         return {
           device,
-          type: 'Open',
+          type: t('dashboard.security.open'),
           icon: ShieldAlert,
           color: 'text-red-500',
         };
       if (hasSmoke && data.smoke === true)
         return {
           device,
-          type: 'Smoke',
+          type: t('dashboard.security.smoke'),
           icon: ShieldAlert,
           color: 'text-red-500 animate-pulse',
         };
       if (hasWater && data.water_leak === true)
         return {
           device,
-          type: 'Water Leak',
+          type: t('dashboard.security.waterLeak'),
           icon: Droplets,
           color: 'text-blue-500 animate-pulse',
         };
@@ -95,10 +98,8 @@ export default function DashboardPage() {
 
   const avgTemp =
     climateSensors.length > 0
-      ? (
-          climateSensors.reduce((sum, s) => sum + s.temp, 0) /
-          climateSensors.length
-        ).toFixed(1)
+      ? climateSensors.reduce((sum, s) => sum + s.temp, 0) /
+        climateSensors.length
       : null;
 
   // --- MAINTENANCE ANALYTICS ---
@@ -123,27 +124,32 @@ export default function DashboardPage() {
 
   const summaryCards = [
     {
-      title: 'Total Homes',
+      title: t('dashboard.cards.totalHomes'),
       icon: Home,
       value: totalHomes.toString(),
-      subtitle: `${connectedHomes} online, ${disconnectedHomes} offline`,
+      subtitle: t('dashboard.cards.totalHomesSub', {
+        online: connectedHomes,
+        offline: disconnectedHomes,
+      }),
       color: 'text-cyan-400',
     },
     {
-      title: 'Total Devices',
+      title: t('dashboard.cards.totalDevices'),
       icon: Cpu,
       value: totalDevices.toString(),
-      subtitle: `${activeDevices} active recently`,
+      subtitle: t('dashboard.cards.totalDevicesSub', { count: activeDevices }),
       color: 'text-emerald-400',
     },
     {
-      title: 'Connection Status',
+      title: t('dashboard.cards.connectionStatus'),
       icon: connectedHomes === totalHomes ? Wifi : WifiOff,
       value:
         connectedHomes === totalHomes
-          ? 'All Online'
-          : `${disconnectedHomes} Offline`,
-      subtitle: sseService.isConnected() ? 'SSE Connected' : 'SSE Disconnected',
+          ? t('dashboard.cards.allOnline')
+          : t('dashboard.cards.offlineCount', { count: disconnectedHomes }),
+      subtitle: sseService.isConnected()
+        ? t('dashboard.cards.sseConnected')
+        : t('dashboard.cards.sseDisconnected'),
       color:
         connectedHomes === totalHomes ? 'text-emerald-400' : 'text-amber-400',
     },
@@ -154,11 +160,9 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            Dashboard
+            {t('dashboard.title')}
           </h2>
-          <p className="text-muted-foreground">
-            Overview of your smart home system
-          </p>
+          <p className="text-muted-foreground">{t('dashboard.subtitle')}</p>
         </div>
         <div className="flex items-center gap-2">
           <div
@@ -166,7 +170,9 @@ export default function DashboardPage() {
           >
             <Radio className="h-3 w-3" />
             <span className="text-xs font-medium">
-              {sseService.isConnected() ? 'Live' : 'Disconnected'}
+              {sseService.isConnected()
+                ? t('dashboard.live')
+                : t('common.disconnected')}
             </span>
           </div>
         </div>
@@ -201,23 +207,27 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Wifi className="h-5 w-5 text-primary" />
-              Network Health
+              {t('dashboard.network.title')}
             </CardTitle>
-            <CardDescription>Signal quality and connectivity</CardDescription>
+            <CardDescription>{t('dashboard.network.subtitle')}</CardDescription>
           </CardHeader>
           <CardContent>
             {poorSignalDevices.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-6 text-emerald-500 gap-2">
                 <Wifi className="h-10 w-10 opacity-50" />
-                <span className="font-medium">Signals Strong</span>
+                <span className="font-medium">
+                  {t('dashboard.network.strong')}
+                </span>
                 <p className="text-xs text-muted-foreground">
-                  All devices reporting good LQI
+                  {t('dashboard.network.allGoodLqi')}
                 </p>
               </div>
             ) : (
               <div className="space-y-3">
                 <p className="text-sm font-medium text-amber-500">
-                  {poorSignalDevices.length} devices with potential weak signal
+                  {t('dashboard.network.weakSignal', {
+                    count: poorSignalDevices.length,
+                  })}
                 </p>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
                   {poorSignalDevices.map((item) => (
@@ -252,19 +262,21 @@ export default function DashboardPage() {
               ) : (
                 <ShieldAlert className="h-5 w-5 text-red-500 animate-pulse" />
               )}
-              Security Status
+              {t('dashboard.security.title')}
             </CardTitle>
             <CardDescription>
               {isSecure
-                ? 'All monitored zones are secure'
-                : 'Attention required'}
+                ? t('dashboard.security.allSecure')
+                : t('dashboard.security.attention')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {isSecure ? (
               <div className="flex flex-col items-center justify-center py-6 text-emerald-500 gap-2">
                 <ShieldCheck className="h-12 w-12 opacity-50" />
-                <span className="font-medium">System Secure</span>
+                <span className="font-medium">
+                  {t('dashboard.security.systemSecure')}
+                </span>
               </div>
             ) : (
               <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar">
@@ -294,25 +306,29 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
               <Thermometer className="h-5 w-5 text-rose-500" />
-              Climate
+              {t('dashboard.climate.title')}
             </CardTitle>
             <CardDescription>
-              {avgTemp
-                ? `Avg. Temperature: ${avgTemp}°C`
-                : 'No temperature data'}
+              {avgTemp !== null
+                ? t('dashboard.climate.avgTemp', {
+                    temp: formatNumber(avgTemp, 1),
+                  })
+                : t('dashboard.climate.noData')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {climateSensors.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-6 text-muted-foreground gap-2">
                 <Wind className="h-10 w-10 opacity-20" />
-                <span className="text-sm">No climate sensors active</span>
+                <span className="text-sm">
+                  {t('dashboard.climate.noSensors')}
+                </span>
               </div>
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs text-muted-foreground pb-1 border-b border-border/50">
-                  <span>Room</span>
-                  <span>Temp / Humidity</span>
+                  <span>{t('dashboard.climate.room')}</span>
+                  <span>{t('dashboard.climate.tempHumidity')}</span>
                 </div>
                 <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
                   {climateSensors.map((sensor) => (
@@ -330,12 +346,12 @@ export default function DashboardPage() {
                         <span
                           className={`text-sm font-medium ${sensor.temp > 25 ? 'text-amber-500' : 'text-emerald-400'}`}
                         >
-                          {sensor.temp.toFixed(1)}°C
+                          {`${formatNumber(sensor.temp, 1)}°C`}
                         </span>
                         {sensor.humidity && (
                           <span className="text-xs text-blue-400 flex items-center gap-0.5">
                             <Droplets className="h-3 w-3" />
-                            {sensor.humidity}%
+                            {formatNumber(sensor.humidity)}%
                           </span>
                         )}
                       </div>
@@ -353,7 +369,7 @@ export default function DashboardPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg text-amber-500">
                 <Battery className="h-5 w-5" />
-                Low Battery Warnings
+                {t('dashboard.battery.title')}
               </CardTitle>
             </CardHeader>
             <CardContent>

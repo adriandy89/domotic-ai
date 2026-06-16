@@ -15,6 +15,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { sseService } from '../../lib/sse';
 import { cn } from '../../lib/utils';
@@ -25,21 +26,22 @@ import { Button } from '../ui/button';
 import { ThemeToggle } from '../ui/theme-toggle';
 
 export default function DashboardLayout() {
+  const { t } = useTranslation();
   const { logout, user } = useAuthStore();
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const navItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', href: '/' },
-    { icon: Home, label: 'Homes', href: '/homes' },
-    { icon: Cpu, label: 'Devices', href: '/devices' },
-    { icon: BarChart3, label: 'Reports', href: '/reports' },
-    { icon: Zap, label: 'Rules', href: '/rules' },
-    { icon: CalendarClock, label: 'Schedules', href: '/schedules' },
-    { icon: KeyRound, label: 'Access', href: '/access' },
-    { icon: Activity, label: 'Activity', href: '/activity' },
-    { icon: Settings, label: 'Settings', href: '/settings' },
+    { icon: LayoutDashboard, label: t('nav.dashboard'), href: '/' },
+    { icon: Home, label: t('nav.homes'), href: '/homes' },
+    { icon: Cpu, label: t('nav.devices'), href: '/devices' },
+    { icon: BarChart3, label: t('nav.reports'), href: '/reports' },
+    { icon: Zap, label: t('nav.rules'), href: '/rules' },
+    { icon: CalendarClock, label: t('nav.schedules'), href: '/schedules' },
+    { icon: KeyRound, label: t('nav.access'), href: '/access' },
+    { icon: Activity, label: t('nav.activity'), href: '/activity' },
+    { icon: Settings, label: t('nav.settings'), href: '/settings' },
   ];
 
   const { addEvent } = useActivityStore();
@@ -81,7 +83,7 @@ export default function DashboardLayout() {
         <div className="p-4 flex items-center justify-between border-b border-border/50">
           {!isCollapsed && (
             <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent whitespace-nowrap overflow-hidden">
-              Domotic AI
+              {t('common.appName')}
             </h1>
           )}
           <Button
@@ -153,7 +155,7 @@ export default function DashboardLayout() {
                   {user?.name
                     ? user?.name?.slice(0, 20) +
                       (user?.name?.length > 20 ? '...' : '')
-                    : 'User'}
+                    : t('common.user')}
                 </p>
                 <p className="text-xs text-muted-foreground truncate">
                   {user?.email}
@@ -168,10 +170,10 @@ export default function DashboardLayout() {
               isCollapsed ? 'justify-center px-0' : 'justify-start',
             )}
             onClick={() => logout()}
-            title={isCollapsed ? 'Logout' : undefined}
+            title={isCollapsed ? t('common.logout') : undefined}
           >
             <LogOut className="w-4 h-4" />
-            {!isCollapsed && <span>Logout</span>}
+            {!isCollapsed && <span>{t('common.logout')}</span>}
           </Button>
         </div>
       </aside>
@@ -182,7 +184,7 @@ export default function DashboardLayout() {
           <div className="fixed inset-y-0 left-0 z-50 w-64 h-full bg-card border-r border-border shadow-lg transition-transform duration-300">
             <div className="flex items-center justify-between p-6 border-b border-border">
               <h2 className="text-xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
-                Menu
+                {t('common.menu')}
               </h2>
               <Button
                 variant="ghost"
@@ -237,7 +239,7 @@ export default function DashboardLayout() {
                     {user?.name
                       ? user?.name?.slice(0, 20) +
                         (user?.name?.length > 20 ? '...' : '')
-                      : 'User'}
+                      : t('common.user')}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {user?.email}
@@ -250,7 +252,7 @@ export default function DashboardLayout() {
                 onClick={() => logout()}
               >
                 <LogOut className="w-4 h-4" />
-                Logout
+                {t('common.logout')}
               </Button>
             </div>
           </div>
@@ -270,7 +272,7 @@ export default function DashboardLayout() {
               <Menu className="w-6 h-6" />
             </Button>
             <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-purple-400 bg-clip-text text-transparent">
-              Domotic AI
+              {t('common.appName')}
             </h1>
           </div>
           <div className="flex gap-2">

@@ -1,4 +1,5 @@
 import { useMemo, useCallback, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Battery,
   Wifi,
@@ -12,6 +13,7 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { formatRelativeTime } from '../../lib/format';
 import { Card, CardContent } from '../ui/card';
 import { Button } from '../ui/button';
 import { cn } from '../../lib/utils';
@@ -43,27 +45,6 @@ function getBatteryColor(battery?: number): string {
   return 'text-emerald-500';
 }
 
-// Format last seen timestamp
-function formatLastSeen(timestamp?: string | number): string {
-  if (!timestamp) return 'Never';
-
-  const date =
-    typeof timestamp === 'number' ? new Date(timestamp) : new Date(timestamp);
-
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffMins < 1) return 'Just now';
-  if (diffMins < 60) return `${diffMins}m ago`;
-  if (diffHours < 24) return `${diffHours}h ago`;
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  return date.toLocaleDateString();
-}
-
 export default function DeviceCard({
   device,
   deviceData,
@@ -71,6 +52,7 @@ export default function DeviceCard({
   onRename,
   onRemove,
 }: DeviceCardProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(true);
   const [showActions, setShowActions] = useState(false);
@@ -159,7 +141,7 @@ export default function DeviceCard({
                         'h-2 w-2 rounded-full shrink-0',
                         footer.online ? 'bg-emerald-500' : 'bg-muted-foreground/40',
                       )}
-                      title={footer.online ? 'Online' : 'Offline'}
+                      title={footer.online ? t('common.online') : t('common.offline')}
                     />
                   )}
                   <span className="truncate">{device.name || device.unique_id}</span>
@@ -177,7 +159,11 @@ export default function DeviceCard({
                 </p>
               )}
               <p className="text-xs text-muted-foreground/60 mt-1">
-                Last seen: {formatLastSeen(lastSeen)}
+                {t('devices.card.lastSeen', {
+                  time: lastSeen
+                    ? formatRelativeTime(lastSeen)
+                    : t('devices.card.never'),
+                })}
               </p>
             </div>
 
@@ -189,7 +175,7 @@ export default function DeviceCard({
                   size="icon"
                   className="h-7 w-7"
                   onClick={() => setShowActions(!showActions)}
-                  title="Actions"
+                  title={t('devices.card.actions')}
                 >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
@@ -208,7 +194,7 @@ export default function DeviceCard({
                 className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
               >
                 <BarChart3 className="h-4 w-4" />
-                History & charts
+                {t('devices.card.history')}
               </button>
               <button
                 onClick={() => {
@@ -218,7 +204,7 @@ export default function DeviceCard({
                 className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
               >
                 <Edit className="h-4 w-4" />
-                Rename
+                {t('devices.card.rename')}
               </button>
               <button
                 onClick={() => {
@@ -228,7 +214,7 @@ export default function DeviceCard({
                 className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
               >
                 <Trash2 className="h-4 w-4" />
-                Remove
+                {t('devices.card.remove')}
               </button>
             </div>
           )}
@@ -243,7 +229,7 @@ export default function DeviceCard({
               onClick={() => setShowLearnIR(true)}
               className="text-xs h-7"
             >
-              Learn IR
+              {t('devices.card.learnIR')}
             </Button>
             <Button
               variant="default"
@@ -251,7 +237,9 @@ export default function DeviceCard({
               onClick={() => setShowCommands(true)}
               className="text-xs h-7 bg-emerald-600 hover:bg-emerald-700 text-white"
             >
-              Learned Commands ({device.learned_commands?.length || 0})
+              {t('devices.card.learnedCommands', {
+                count: device.learned_commands?.length || 0,
+              })}
             </Button>
 
             <LearnIRModal
@@ -283,7 +271,7 @@ export default function DeviceCard({
           <div className="p-2 flex-1">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                Properties ({mainExposes.length})
+                {t('devices.card.properties', { count: mainExposes.length })}
               </span>
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
@@ -314,7 +302,7 @@ export default function DeviceCard({
 
                 {mainExposes.length === 0 && (
                   <p className="text-sm text-muted-foreground text-center py-4">
-                    No properties available
+                    {t('devices.card.noProperties')}
                   </p>
                 )}
               </div>
@@ -329,7 +317,7 @@ export default function DeviceCard({
               {/* Link / signal quality (linkquality for zigbee, wifi_rssi for HA) */}
               <div
                 className={cn('flex items-center gap-1', footer.signal.color)}
-                title={`Signal: ${footer.signal.label}`}
+                title={t('devices.card.signal', { label: footer.signal.label })}
               >
                 <Wifi className="h-3.5 w-3.5" />
                 <span className="text-xs font-medium">{footer.signal.value}</span>
@@ -342,11 +330,13 @@ export default function DeviceCard({
                     'flex items-center gap-1',
                     getBatteryColor(footer.battery),
                   )}
-                  title="Battery"
+                  title={t('devices.card.battery')}
                 >
                   <Battery className="h-3.5 w-3.5" />
                   <span className="text-xs font-medium">
-                    {footer.battery !== undefined ? `${footer.battery}%` : 'N/A'}
+                    {footer.battery !== undefined
+                      ? `${footer.battery}%`
+                      : t('common.na')}
                   </span>
                 </div>
               )}
@@ -355,7 +345,7 @@ export default function DeviceCard({
               {footer.isMains && (
                 <div
                   className="flex items-center gap-1 text-cyan-500"
-                  title="AC Powered"
+                  title={t('devices.card.acPowered')}
                 >
                   <Power className="h-3.5 w-3.5" />
                   <span className="text-xs font-medium">AC</span>
@@ -376,9 +366,13 @@ export default function DeviceCard({
               <div className="mt-2 flex items-center gap-1 text-amber-500">
                 <AlertTriangle className="h-3.5 w-3.5" />
                 <span className="text-xs">
-                  {data.battery_low === true && 'Low Battery • '}
-                  {data.tamper === true && 'Tamper Alert • '}
-                  {data.device_fault === true && 'Device Fault'}
+                  {[
+                    data.battery_low === true && t('devices.card.lowBattery'),
+                    data.tamper === true && t('devices.card.tamperAlert'),
+                    data.device_fault === true && t('devices.card.deviceFault'),
+                  ]
+                    .filter(Boolean)
+                    .join(' • ')}
                 </span>
               </div>
             )}

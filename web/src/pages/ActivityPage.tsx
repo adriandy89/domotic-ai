@@ -6,9 +6,12 @@ import {
   CardDescription,
 } from '../components/ui/card';
 import { Activity } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useActivityStore } from '../store/useActivityStore';
+import { formatDate } from '../lib/format';
 
 export default function ActivityPage() {
+  const { t } = useTranslation();
   const { events } = useActivityStore();
 
   return (
@@ -16,11 +19,9 @@ export default function ActivityPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            Activity
+            {t('activity.title')}
           </h2>
-          <p className="text-muted-foreground">
-            Live stream of system events and notifications
-          </p>
+          <p className="text-muted-foreground">{t('activity.subtitle')}</p>
         </div>
         <div className="p-3 bg-primary/10 rounded-full">
           <Activity className="h-8 w-8 text-primary" />
@@ -31,18 +32,18 @@ export default function ActivityPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5 text-primary" />
-            Live Events
+            {t('activity.liveEvents')}
           </CardTitle>
-          <CardDescription>Showing last {events.length} events</CardDescription>
+          <CardDescription>
+            {t('activity.showingLast', { count: events.length })}
+          </CardDescription>
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden">
           {events.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 border border-dashed border-border/50 rounded-lg">
               <Activity className="h-12 w-12 mb-4 opacity-20" />
-              <p>No recent events</p>
-              <p className="text-xs opacity-70 mt-1">
-                Waiting for system activity...
-              </p>
+              <p>{t('activity.empty')}</p>
+              <p className="text-xs opacity-70 mt-1">{t('activity.waiting')}</p>
             </div>
           ) : (
             <div className="h-full overflow-y-auto space-y-4 pr-2 custom-scrollbar">
@@ -56,7 +57,11 @@ export default function ActivityPage() {
                       {event.topic}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {event.timestamp.toLocaleTimeString()}
+                      {formatDate(event.timestamp, {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                      })}
                     </span>
                   </div>
                   <pre className="text-xs font-mono text-muted-foreground bg-background/80 p-3 rounded border border-border/30 overflow-x-auto">

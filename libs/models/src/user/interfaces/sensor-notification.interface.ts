@@ -11,6 +11,7 @@ export interface IUserSensorNotification {
     telegram_chat_id: string | null;
     email: string | null;
     is_active: boolean;
+    language: string;
   };
   homeId: string;
   deviceId: string;

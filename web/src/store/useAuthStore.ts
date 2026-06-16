@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { api } from '../lib/api';
 import { useHomesStore } from './useHomesStore';
 import { sseService } from '../lib/sse';
+import { setAppLanguage } from '../i18n';
 
 export interface User {
   id: string;
@@ -16,6 +17,7 @@ export interface User {
   telegram_chat_id: string | null;
   channels: string[];
   notification_batch_minutes: number;
+  language: string;
   created_at: string;
   updated_at: string;
 }
@@ -49,6 +51,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         isAuthenticated: true,
         isLoading: false,
       });
+
+      // The server-stored preference is the source of truth once authenticated.
+      setAppLanguage(response.data.user?.language);
 
       // Fetch homes after successful authentication
       useHomesStore.getState().fetchHomes();

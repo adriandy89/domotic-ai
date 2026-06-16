@@ -352,6 +352,7 @@ export class InitService implements OnModuleInit {
                 telegram_chat_id: true,
                 email: true,
                 is_active: true,
+                language: true,
               },
             },
           },
@@ -384,6 +385,7 @@ export class InitService implements OnModuleInit {
             telegram_chat_id: u.user.telegram_chat_id,
             email: u.user.email,
             is_active: u.user.is_active,
+            language: u.user.language,
           })),
         },
       );

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   CalendarClock,
   Plus,
@@ -16,6 +17,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 
 export default function SchedulesPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const {
     schedules,
@@ -59,19 +61,16 @@ export default function SchedulesPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            Schedules
+            {t('schedules.title')}
           </h2>
-          <p className="text-muted-foreground mt-1">
-            Run actions on your devices at specific times — once, daily, or on
-            custom days
-          </p>
+          <p className="text-muted-foreground mt-1">{t('schedules.subtitle')}</p>
         </div>
         <Button
           className="flex items-center gap-2"
           onClick={() => navigate('/schedules/new')}
         >
           <Plus className="w-4 h-4" />
-          New Schedule
+          {t('schedules.new')}
         </Button>
       </div>
 
@@ -83,7 +82,9 @@ export default function SchedulesPage() {
               <div className="text-2xl font-bold text-primary">
                 {schedules.length}
               </div>
-              <div className="text-xs text-muted-foreground">Total</div>
+              <div className="text-xs text-muted-foreground">
+                {t('schedules.stats.total')}
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-card/40 border-border">
@@ -91,7 +92,9 @@ export default function SchedulesPage() {
               <div className="text-2xl font-bold text-emerald-500">
                 {schedules.filter((s) => s.active).length}
               </div>
-              <div className="text-xs text-muted-foreground">Active</div>
+              <div className="text-xs text-muted-foreground">
+                {t('common.active')}
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-card/40 border-border">
@@ -100,7 +103,9 @@ export default function SchedulesPage() {
                 <Repeat className="w-5 h-5" />
                 {recurrentCount}
               </div>
-              <div className="text-xs text-muted-foreground">Recurrent</div>
+              <div className="text-xs text-muted-foreground">
+                {t('schedules.stats.recurrent')}
+              </div>
             </CardContent>
           </Card>
           <Card className="bg-card/40 border-border">
@@ -109,7 +114,9 @@ export default function SchedulesPage() {
                 <Clock className="w-5 h-5" />
                 {onceCount}
               </div>
-              <div className="text-xs text-muted-foreground">One time</div>
+              <div className="text-xs text-muted-foreground">
+                {t('schedules.stats.once')}
+              </div>
             </CardContent>
           </Card>
         </div>
@@ -118,7 +125,9 @@ export default function SchedulesPage() {
       {/* Home Filter */}
       <div className="flex flex-wrap items-center gap-2">
         <Filter className="w-4 h-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Filter by home:</span>
+        <span className="text-sm text-muted-foreground">
+          {t('common.filterByHome')}
+        </span>
         <div className="flex flex-wrap gap-2">
           <Button
             variant={selectedHomeId === null ? 'default' : 'outline'}
@@ -126,7 +135,7 @@ export default function SchedulesPage() {
             onClick={() => setSelectedHomeId(null)}
             className="text-xs"
           >
-            All Homes
+            {t('common.allHomes')}
           </Button>
           {homeList.map((home) => (
             <Button
@@ -154,7 +163,7 @@ export default function SchedulesPage() {
               onClick={fetchSchedules}
               className="mt-2"
             >
-              Try Again
+              {t('common.tryAgain')}
             </Button>
           </CardContent>
         </Card>
@@ -164,7 +173,9 @@ export default function SchedulesPage() {
       {isLoading && schedules.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16">
           <Loader2 className="w-8 h-8 animate-spin text-primary mb-4" />
-          <span className="text-muted-foreground">Loading schedules...</span>
+          <span className="text-muted-foreground">
+            {t('schedules.loading')}
+          </span>
         </div>
       )}
 
@@ -190,15 +201,19 @@ export default function SchedulesPage() {
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary/10 mb-4">
               <CalendarClock className="w-8 h-8 text-primary" />
             </div>
-            <h3 className="text-lg font-semibold mb-2">No schedules yet</h3>
+            <h3 className="text-lg font-semibold mb-2">
+              {t('schedules.empty.title')}
+            </h3>
             <p className="text-muted-foreground text-sm mb-4">
               {selectedHomeId
-                ? `No schedules configured for "${homeList.find((h) => h.id === selectedHomeId)?.name}"`
-                : 'Schedule actions to run automatically — turn off lights at midnight, water plants Mon/Wed/Fri, ...'}
+                ? t('schedules.empty.forHome', {
+                    home: homeList.find((h) => h.id === selectedHomeId)?.name,
+                  })
+                : t('schedules.empty.cta')}
             </p>
             <Button onClick={() => navigate('/schedules/new')}>
               <Plus className="w-4 h-4 mr-2" />
-              Create Schedule
+              {t('schedules.create')}
             </Button>
           </CardContent>
         </Card>
