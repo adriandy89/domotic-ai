@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsEnum,
+  IsIn,
   IsOptional,
   IsString,
   Matches,
@@ -10,6 +11,8 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { NotificationChannel, Role } from 'generated/prisma/enums';
+import { DEFAULT_LANGUAGE, SUPPORTED_LANGUAGES } from '../enums';
+import type { Language } from '../enums';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -86,4 +89,13 @@ export class CreateUserDto {
   @IsString({ each: true })
   @IsOptional()
   readonly channels: NotificationChannel[];
+
+  @ApiPropertyOptional({
+    description: 'Preferred language (ISO 639-1) for UI and notifications',
+    enum: SUPPORTED_LANGUAGES,
+    default: DEFAULT_LANGUAGE,
+  })
+  @IsOptional()
+  @IsIn(SUPPORTED_LANGUAGES as readonly string[])
+  readonly language?: Language = DEFAULT_LANGUAGE;
 }

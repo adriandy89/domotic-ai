@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardFooter, CardHeader } from '../ui/card';
 import { Button } from '../ui/button';
+import { formatDate } from '../../lib/format';
 import {
   Edit,
   Power,
@@ -30,21 +32,13 @@ interface RuleCardProps {
   onEdit?: (id: string) => void;
 }
 
-function formatDate(date: string): string {
-  return new Date(date).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
-
 export default function RuleCard({
   rule,
   onToggle,
   onDelete,
   onEdit,
 }: RuleCardProps) {
+  const { t } = useTranslation();
   const [isToggling, setIsToggling] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showActions, setShowActions] = useState(false);
@@ -73,7 +67,7 @@ export default function RuleCard({
     setShowDeleteDialog(false);
   };
 
-  const homeName = homes[rule.home_id]?.name || 'Unknown';
+  const homeName = homes[rule.home_id]?.name || t('rules.card.unknownHome');
 
   return (
     <>
@@ -122,7 +116,7 @@ export default function RuleCard({
                       className="flex items-center gap-2 w-full px-3 py-2 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
                     >
                       <Edit className="h-4 w-4" />
-                      Edit
+                      {t('common.edit')}
                     </button>
                   )}
                   <button
@@ -133,7 +127,7 @@ export default function RuleCard({
                     className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 rounded-md transition-colors"
                   >
                     <Trash2 className="h-4 w-4" />
-                    Delete
+                    {t('common.delete')}
                   </button>
                 </div>
               )}
@@ -151,7 +145,7 @@ export default function RuleCard({
                   {rule._count.conditions}
                 </span>
                 <span className="text-xs text-muted-foreground/70">
-                  conditions
+                  {t('rules.card.conditions')}
                 </span>
               </div>
               <div className="flex items-center gap-1.5 text-sm">
@@ -160,7 +154,7 @@ export default function RuleCard({
                   {rule._count.results}
                 </span>
                 <span className="text-xs text-muted-foreground/70">
-                  actions
+                  {t('rules.card.actions')}
                 </span>
               </div>
             </div>
@@ -209,10 +203,9 @@ export default function RuleCard({
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Rule</DialogTitle>
+            <DialogTitle>{t('rules.card.deleteTitle')}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{rule.name}"? This action cannot
-              be undone.
+              {t('common.confirmDelete', { name: rule.name })}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -220,10 +213,10 @@ export default function RuleCard({
               variant="outline"
               onClick={() => setShowDeleteDialog(false)}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
-              Delete
+              {t('common.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '../components/ui/card';
 import { useHomesStore } from '../store/useHomesStore';
 import { Wifi, WifiOff, Home as HomeIcon } from 'lucide-react';
@@ -6,6 +7,7 @@ import { Badge } from '../components/ui/badge';
 import { useDevicesStore } from '../store/useDevicesStore';
 
 export default function HomesPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { homes, homeIds, isLoading } = useHomesStore();
   const { getDevicesByHomeId } = useDevicesStore();
@@ -23,12 +25,12 @@ export default function HomesPage() {
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight">Homes</h1>
+        <h1 className="text-3xl font-bold tracking-tight">{t('homes.title')}</h1>
       </div>
 
       {homeIds.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
-          No homes found. Add a home in the Access page.
+          {t('homes.empty')}
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -62,12 +64,12 @@ export default function HomesPage() {
                       {home.connected ? (
                         <>
                           <Wifi className="w-3 h-3" />
-                          <span className="text-xs">Online</span>
+                          <span className="text-xs">{t('common.online')}</span>
                         </>
                       ) : (
                         <>
                           <WifiOff className="w-3 h-3" />
-                          <span className="text-xs">Offline</span>
+                          <span className="text-xs">{t('common.offline')}</span>
                         </>
                       )}
                     </Badge>
@@ -78,10 +80,10 @@ export default function HomesPage() {
                     {home.name}
                   </h3>
                   <p className="text-sm text-muted-foreground line-clamp-2 mb-3 h-10">
-                    {home.description || 'No description'}
+                    {home.description || t('common.noDescription')}
                   </p>
                   <div className="flex items-center text-xs text-muted-foreground bg-muted/50 px-2 py-1 rounded w-fit">
-                    {deviceCount} device{deviceCount !== 1 ? 's' : ''}
+                    {t('homes.devices', { count: deviceCount })}
                   </div>
                 </CardContent>
               </Card>

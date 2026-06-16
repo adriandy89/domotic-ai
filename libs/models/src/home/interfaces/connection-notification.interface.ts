@@ -6,6 +6,7 @@ export interface IHomeConnectionNotificationUser {
   telegram_chat_id: string | null;
   email: string | null;
   is_active: boolean;
+  language: string;
 }
 
 export interface IHomeConnectionNotification {

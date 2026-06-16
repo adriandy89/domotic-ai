@@ -67,6 +67,7 @@ export class ZigbeeIngestionService {
                 telegram_chat_id: true,
                 email: true,
                 is_active: true,
+                language: true,
               },
             },
           },

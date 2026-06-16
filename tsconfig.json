@@ -30,6 +30,8 @@
       "@app/crypto/*": ["libs/crypto/src/*"],
       "@app/db": ["libs/db/src"],
       "@app/db/*": ["libs/db/src/*"],
+      "@app/i18n": ["libs/i18n/src"],
+      "@app/i18n/*": ["libs/i18n/src/*"],
       "@app/models": ["libs/models/src"],
       "@app/models/*": ["libs/models/src/*"],
       "@app/mqtt": ["libs/mqtt/src"],

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +30,7 @@ export default function LearnIRModal({
   learnedIrCode,
   onCommand,
 }: LearnIRModalProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState('');
   const [isLearning, setIsLearning] = useState(false);
   const [learningResult, setLearningResult] = useState<{
@@ -63,7 +65,7 @@ export default function LearnIRModal({
 
           setLearningResult({
             success: true,
-            message: 'Command learned successfully',
+            message: t('devices.ir.learned'),
             command: learnedIrCode,
           });
 
@@ -76,7 +78,7 @@ export default function LearnIRModal({
           console.error('Error saving command:', error);
           setLearningResult({
             success: false,
-            message: 'Error saving command',
+            message: t('devices.ir.saveError'),
           });
         } finally {
           setIsLearning(false);
@@ -85,7 +87,7 @@ export default function LearnIRModal({
 
       saveCommand();
     }
-  }, [learnedIrCode, isLearning, initialIrCode, deviceId, name, updateDevice]);
+  }, [learnedIrCode, isLearning, initialIrCode, deviceId, name, updateDevice, t]);
 
   const handleLearn = () => {
     if (!name.trim()) return;
@@ -101,28 +103,27 @@ export default function LearnIRModal({
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Learn New IR Command</DialogTitle>
+          <DialogTitle>{t('devices.ir.title')}</DialogTitle>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name" className="text-right">
-              Name
+              {t('common.name')}
             </Label>
             <Input
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="col-span-3"
-              placeholder="e.g., Power On"
+              placeholder={t('devices.ir.namePlaceholder')}
               disabled={isLearning || (learningResult?.success ?? false)}
             />
           </div>
 
           {!learningResult && isLearning && (
             <div className="text-center text-sm text-blue-500 py-2">
-              Point the remote at the device and press the button you want to
-              learn.
+              {t('devices.ir.instruction')}
             </div>
           )}
 
@@ -140,17 +141,17 @@ export default function LearnIRModal({
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            {learningResult?.success ? 'Close' : 'Cancel'}
+            {learningResult?.success ? t('common.close') : t('common.cancel')}
           </Button>
           {!learningResult?.success && (
             <Button onClick={handleLearn} disabled={isLearning || !name.trim()}>
               {isLearning ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Learning...
+                  {t('devices.ir.learning')}
                 </>
               ) : (
-                'Start Learning'
+                t('devices.ir.start')
               )}
             </Button>
           )}

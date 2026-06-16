@@ -4,6 +4,7 @@ import {
   CreateUserDto,
   LinksUUIDsDto,
   OrgAiConfigDto,
+  UpdateLanguageDto,
   UpdateUserAttributesDto,
   UpdateUserDto,
   UpdateUserFmcTokenDto,
@@ -89,10 +90,9 @@ export class UserController {
         }
 
         // 3. Update all OTHER active sessions
-        await this.userService.updateAllUserSessions(
-          user.id,
-          result.data.attributes,
-        );
+        await this.userService.updateAllUserSessions(user.id, {
+          attributes: result.data.attributes,
+        });
       }
       return result;
     } catch (error: any) {
@@ -165,6 +165,42 @@ export class UserController {
   @UseGuards(PermissionsGuard)
   async findMeAttributes(@GetUserInfo() user: SessionUser) {
     return user.attributes || {};
+  }
+
+  // Self-service language preference. No PermissionsGuard: any authenticated
+  // user (including USER) may change their own language.
+  @Put('me/language')
+  async updateMyLanguage(
+    @Body() dto: UpdateLanguageDto,
+    @GetUserInfo() user: SessionUser,
+    @Req() req: Request,
+  ) {
+    try {
+      const result = await this.userService.updateLanguage(
+        user.id,
+        user.organization_id,
+        dto.language,
+      );
+      if (result.ok) {
+        // 1. Update current session immediately
+        const session = (req as any).session;
+        if (session?.passport?.user) {
+          session.passport.user.language = dto.language;
+        }
+        // 2. Lazy index the current session
+        const sessionId = (req as any).sessionID;
+        if (sessionId) {
+          await this.userService.saveUserSession(user.id, sessionId);
+        }
+        // 3. Propagate to all OTHER active sessions + notify SSE
+        await this.userService.updateAllUserSessions(user.id, {
+          language: dto.language,
+        });
+      }
+      return result;
+    } catch (error: any) {
+      throw new BadRequestException('Bad request');
+    }
   }
 
   @Get('sessions/active')

@@ -61,6 +61,7 @@ export class HomeRegistryService {
         telegram_chat_id: string | null;
         email: string | null;
         is_active: boolean;
+        language: string;
       };
     }[];
   }) {
@@ -102,6 +103,7 @@ export class HomeRegistryService {
           telegram_chat_id: u.user.telegram_chat_id,
           email: u.user.email,
           is_active: u.user.is_active,
+          language: u.user.language,
         })),
       },
     );

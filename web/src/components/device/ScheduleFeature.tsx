@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { CalendarClock, ChevronDown, ChevronUp } from 'lucide-react';
 import type { DeviceExpose } from '../../store/useDevicesStore';
 import { cn } from '../../lib/utils';
@@ -14,19 +15,12 @@ interface ScheduleFeatureProps {
   value: unknown;
 }
 
-function genericText(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `${value.length} ${value.length === 1 ? 'item' : 'items'}`;
-  }
-  if (typeof value === 'object' && value !== null) return JSON.stringify(value);
-  return String(value);
-}
-
 // Read-only renderer for the on-device scheduler array some WiFi firmwares
 // publish (e.g. the ESP32 relay): a collapsed one-line summary that expands
 // inline to the rule list. Editing isn't wired up — the backend HA adapter has
 // no `text` actions yet, so the expose is read-only (see device-capabilities.ts).
 export function ScheduleFeature({ expose, value }: ScheduleFeatureProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const entries = useMemo(() => parseScheduleValue(value), [value]);
   const next = useMemo(
@@ -38,12 +32,18 @@ export function ScheduleFeature({ expose, value }: ScheduleFeatureProps) {
   // Degraded states share one row shell. ValueDisplay isn't reused so the
   // Feature → ScheduleFeature import stays one-directional.
   if (!entries || entries.length === 0) {
-    const display =
-      value === undefined || value === null
-        ? 'N/A'
-        : entries
-          ? 'No schedules'
-          : genericText(value);
+    let display: string;
+    if (value === undefined || value === null) {
+      display = t('common.na');
+    } else if (entries) {
+      display = t('devices.schedule.noSchedules');
+    } else if (Array.isArray(value)) {
+      display = t('devices.features.items', { count: value.length });
+    } else if (typeof value === 'object') {
+      display = JSON.stringify(value);
+    } else {
+      display = String(value);
+    }
     return (
       <div className="flex items-center justify-between py-1 px-2 bg-background/30 rounded">
         <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-0">
@@ -72,7 +72,7 @@ export function ScheduleFeature({ expose, value }: ScheduleFeatureProps) {
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between gap-2 text-left"
-        title={open ? 'Collapse schedule' : 'Expand schedule'}
+        title={open ? t('devices.schedule.collapse') : t('devices.schedule.expand')}
       >
         <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-0">
           <CalendarClock className="h-3 w-3 shrink-0" />
@@ -80,10 +80,13 @@ export function ScheduleFeature({ expose, value }: ScheduleFeatureProps) {
         </span>
         <span className="flex items-center gap-1 shrink-0 min-w-0">
           <span className="text-xs font-medium text-foreground truncate">
-            {count} {count === 1 ? 'rule' : 'rules'}
+            {t('devices.schedule.rules', { count })}
             {next && (
               <>
-                <span className="text-muted-foreground"> · next </span>
+                <span className="text-muted-foreground">
+                  {' · '}
+                  {t('devices.schedule.next')}{' '}
+                </span>
                 <span
                   className={
                     next.entry.action === 'ON'
@@ -116,7 +119,7 @@ export function ScheduleFeature({ expose, value }: ScheduleFeatureProps) {
                 'flex items-center gap-2 py-0.5 px-1.5 rounded bg-background/40',
                 !entry.enabled && 'opacity-40',
               )}
-              title={entry.enabled ? undefined : 'Disabled'}
+              title={entry.enabled ? undefined : t('common.disabled')}
             >
               <span className="text-xs font-mono tabular-nums font-medium text-foreground">
                 {entry.time}

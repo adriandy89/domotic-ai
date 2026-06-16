@@ -96,6 +96,7 @@ export class SensorIngestionService {
                 email: true,
                 is_active: true,
                 attributes: true,
+                language: true,
               },
             },
           },
@@ -196,6 +197,7 @@ export class SensorIngestionService {
           telegram_chat_id: string | null;
           email: string | null;
           is_active: boolean;
+          language: string;
         };
       }[];
     },

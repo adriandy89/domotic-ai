@@ -13,6 +13,7 @@ export interface SessionUser {
   telegram_chat_id: string | null;
   channels: any;
   notification_batch_minutes: number | null;
+  language: string;
   created_at: Date;
   updated_at: Date | null;
 }

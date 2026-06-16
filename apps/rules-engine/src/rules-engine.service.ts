@@ -701,6 +701,7 @@ export class RulesEngineService {
         email: true,
         phone: true,
         fmc_tokens: true,
+        language: true,
       },
     });
 
@@ -742,6 +743,7 @@ export class RulesEngineService {
         userId: ruleInfo.userId,
         homeId: ruleInfo.homeId,
         homeName: home?.name,
+        language: user.language,
       };
 
       switch (channel) {

@@ -125,6 +125,7 @@
       "^@app/cache(|/.*)$": "<rootDir>/libs/cache/src/$1",
       "^@app/crypto(|/.*)$": "<rootDir>/libs/crypto/src/$1",
       "^@app/db(|/.*)$": "<rootDir>/libs/db/src/$1",
+      "^@app/i18n(|/.*)$": "<rootDir>/libs/i18n/src/$1",
       "^@app/models(|/.*)$": "<rootDir>/libs/models/src/$1",
       "^@app/mqtt(|/.*)$": "<rootDir>/libs/mqtt/src/$1",
       "^@app/nats-client(|/.*)$": "<rootDir>/libs/nats-client/src/$1",

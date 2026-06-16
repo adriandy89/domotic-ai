@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   ChevronLeft,
   Trash2,
@@ -61,6 +62,19 @@ const DAYS: { value: ScheduleDay; short: string; full: string }[] = [
   { value: 'SUNDAY', short: 'Sun', full: 'Sunday' },
 ];
 
+const DAY_KEY: Record<
+  ScheduleDay,
+  'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'
+> = {
+  SUNDAY: 'sun',
+  MONDAY: 'mon',
+  TUESDAY: 'tue',
+  WEDNESDAY: 'wed',
+  THURSDAY: 'thu',
+  FRIDAY: 'fri',
+  SATURDAY: 'sat',
+};
+
 const NOTIFICATION_CHANNELS: { value: NotificationChannel; label: string }[] = [
   { value: 'EMAIL', label: 'Email' },
   { value: 'SMS', label: 'SMS' },
@@ -86,6 +100,7 @@ function localInputValueToISO(local: string): string | null {
 }
 
 export default function ScheduleFormPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isEditMode = !!id;

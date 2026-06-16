@@ -17,6 +17,7 @@ export const SELECT_USER_SESSION = {
   telegram_chat_id: true,
   channels: true,
   notification_batch_minutes: true,
+  language: true,
   created_at: true,
   updated_at: true,
 } as const;
