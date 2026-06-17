@@ -1,5 +1,6 @@
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { formatCurrency } from '../../../lib/format';
 import {
   usePricingStore,
@@ -19,6 +20,7 @@ interface PricePreviewProps {
  * a curve with data exists (fixed tariffs never show it).
  */
 export default function PricePreview({ homeId, refreshKey }: PricePreviewProps) {
+  const { t } = useTranslation();
   const { fetchPriceCurve } = usePricingStore();
   const [curve, setCurve] = useState<PriceCurve | null>(null);
 
@@ -46,31 +48,39 @@ export default function PricePreview({ homeId, refreshKey }: PricePreviewProps) 
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4 rounded-lg border border-border/50 bg-background/50">
       <div>
-        <p className="text-xs text-muted-foreground">Current price</p>
+        <p className="text-xs text-muted-foreground">
+          {t('settings.pricePreview.currentPrice')}
+        </p>
         <p className="text-lg font-semibold">
           {formatCurrency(curve.current_price, curve.currency, 4)}
           <span className="text-xs font-normal text-muted-foreground">
             {' '}
-            / kWh
+            {t('settings.pricePreview.perKwh')}
           </span>
         </p>
       </div>
       <div className="flex items-center gap-1.5 text-sm">
         <TrendingDown className="h-4 w-4 text-emerald-500" />
-        <span className="text-muted-foreground">Today min</span>
+        <span className="text-muted-foreground">
+          {t('settings.pricePreview.todayMin')}
+        </span>
         <span className="font-medium">
           {formatCurrency(min, curve.currency, 4)}
         </span>
       </div>
       <div className="flex items-center gap-1.5 text-sm">
         <TrendingUp className="h-4 w-4 text-red-500" />
-        <span className="text-muted-foreground">Today max</span>
+        <span className="text-muted-foreground">
+          {t('settings.pricePreview.todayMax')}
+        </span>
         <span className="font-medium">
           {formatCurrency(max, curve.currency, 4)}
         </span>
       </div>
       <Badge variant={curve.tomorrow_published ? 'success' : 'outline'}>
-        {curve.tomorrow_published ? 'Tomorrow published' : 'Tomorrow pending'}
+        {curve.tomorrow_published
+          ? t('settings.pricePreview.tomorrowPublished')
+          : t('settings.pricePreview.tomorrowPending')}
       </Badge>
     </div>
   );

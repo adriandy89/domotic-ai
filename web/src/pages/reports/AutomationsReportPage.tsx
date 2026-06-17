@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   BarChartCmp,
   KPICard,
@@ -19,6 +20,7 @@ import {
 import { CalendarClock, CheckCircle2, XCircle, Zap } from 'lucide-react';
 
 export default function AutomationsReportPage() {
+  const { t } = useTranslation();
   const { fetchAutomations } = useReportsStore();
   const [range, setRange] = useState<RangeValue>(presetRange('30d'));
   const [report, setReport] = useState<AutomationsReport | null>(null);
@@ -35,26 +37,26 @@ export default function AutomationsReportPage() {
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <KPICard
-          label="Rule executions"
+          label={t('reports.automations.ruleExecutions')}
           value={String(report?.totals.rule_executions ?? 0)}
           accentColor="#8b5cf6"
           icon={<CalendarClock className="w-4 h-4" />}
         />
         <KPICard
-          label="Rule errors"
+          label={t('reports.automations.ruleErrors')}
           value={String(report?.totals.rule_executions_failed ?? 0)}
           accentColor="#ef4444"
           inverse
           icon={<XCircle className="w-4 h-4" />}
         />
         <KPICard
-          label="Commands sent"
+          label={t('reports.automations.commandsSent')}
           value={String(report?.totals.commands_total ?? 0)}
           accentColor="#22d3ee"
           icon={<Zap className="w-4 h-4" />}
         />
         <KPICard
-          label="Command failures"
+          label={t('reports.automations.commandFailures')}
           value={String(report?.totals.commands_failed ?? 0)}
           accentColor="#f59e0b"
           inverse
@@ -64,7 +66,9 @@ export default function AutomationsReportPage() {
 
       <Card className="bg-card/40 border-border">
         <CardHeader>
-          <CardTitle className="text-lg">Rule firings per day</CardTitle>
+          <CardTitle className="text-lg">
+            {t('reports.automations.ruleFirings')}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <BarChartCmp
@@ -75,8 +79,16 @@ export default function AutomationsReportPage() {
             }))}
             xKey="day"
             series={[
-              { key: 'triggered', label: 'Conditions met', color: '#8b5cf6' },
-              { key: 'executed', label: 'Executed', color: '#10b981' },
+              {
+                key: 'triggered',
+                label: t('reports.automations.series.conditionsMet'),
+                color: '#8b5cf6',
+              },
+              {
+                key: 'executed',
+                label: t('reports.automations.series.executed'),
+                color: '#10b981',
+              },
             ]}
             xFormat={(v) => new Date(v).toLocaleDateString()}
             stacked={false}
@@ -86,7 +98,9 @@ export default function AutomationsReportPage() {
 
       <Card className="bg-card/40 border-border">
         <CardHeader>
-          <CardTitle className="text-lg">Commands by source</CardTitle>
+          <CardTitle className="text-lg">
+            {t('reports.automations.commandsBySource')}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <BarChartCmp
@@ -99,10 +113,26 @@ export default function AutomationsReportPage() {
             }))}
             xKey="day"
             series={[
-              { key: 'api', label: 'API', color: '#22d3ee' },
-              { key: 'ai', label: 'AI', color: '#8b5cf6' },
-              { key: 'rule', label: 'Rule', color: '#10b981' },
-              { key: 'schedule', label: 'Schedule', color: '#f59e0b' },
+              {
+                key: 'api',
+                label: t('reports.automations.series.api'),
+                color: '#22d3ee',
+              },
+              {
+                key: 'ai',
+                label: t('reports.automations.series.ai'),
+                color: '#8b5cf6',
+              },
+              {
+                key: 'rule',
+                label: t('reports.automations.series.rule'),
+                color: '#10b981',
+              },
+              {
+                key: 'schedule',
+                label: t('reports.automations.series.schedule'),
+                color: '#f59e0b',
+              },
             ]}
             xFormat={(v) => new Date(v).toLocaleDateString()}
             stacked
@@ -113,12 +143,14 @@ export default function AutomationsReportPage() {
       <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
         <Card className="bg-card/40 border-border">
           <CardHeader>
-            <CardTitle className="text-lg">Top rules</CardTitle>
+            <CardTitle className="text-lg">
+              {t('reports.automations.topRules')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {(report?.rule_top ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
-                No rule executions yet.
+                {t('reports.automations.noExecutions')}
               </p>
             ) : (
               <BarChartCmp
@@ -130,7 +162,7 @@ export default function AutomationsReportPage() {
                 series={[
                   {
                     key: 'executions',
-                    label: 'Executions',
+                    label: t('reports.automations.series.executions'),
                     color: '#8b5cf6',
                   },
                 ]}
@@ -143,12 +175,14 @@ export default function AutomationsReportPage() {
 
         <Card className="bg-card/40 border-border">
           <CardHeader>
-            <CardTitle className="text-lg">Most commanded devices</CardTitle>
+            <CardTitle className="text-lg">
+              {t('reports.automations.mostCommanded')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {(report?.commands_top_devices ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
-                No commands sent yet.
+                {t('reports.automations.noCommands')}
               </p>
             ) : (
               <BarChartCmp
@@ -158,7 +192,11 @@ export default function AutomationsReportPage() {
                 }))}
                 xKey="name"
                 series={[
-                  { key: 'commands', label: 'Commands', color: '#22d3ee' },
+                  {
+                    key: 'commands',
+                    label: t('reports.automations.series.commands'),
+                    color: '#22d3ee',
+                  },
                 ]}
                 layout="vertical"
                 height={Math.max(

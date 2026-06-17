@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   bucketForRange,
   KPICard,
@@ -37,6 +38,7 @@ import {
 import { Download, Zap } from 'lucide-react';
 
 export default function EnergyReportPage() {
+  const { t } = useTranslation();
   const { devices, devicesByHome } = useDevicesStore();
   const { homes, homeIds } = useHomesStore();
   const { fetchSeries, fetchAggregate, fetchMultiSeries, exportCsv } =
@@ -184,9 +186,9 @@ export default function EnergyReportPage() {
     (previousEnergy != null ? previousEnergy * kwhPrice : null);
   const tariffModeLabel =
     costSeries?.mode === 'dynamic'
-      ? 'dynamic market price'
+      ? t('reports.energy.dynamicMode')
       : costSeries?.mode === 'tou'
-        ? 'time-of-use tariff'
+        ? t('reports.energy.touMode')
         : null;
   const avgPrice =
     costSeries && costSeries.totals.energy_kwh > 0
@@ -209,14 +211,14 @@ export default function EnergyReportPage() {
         <div className="flex flex-wrap items-end gap-3">
           <div>
             <label className="text-xs text-muted-foreground block mb-1">
-              Home
+              {t('common.home')}
             </label>
             <select
               value={homeId ?? ''}
               onChange={(e) => setHomeId(e.target.value || null)}
               className="h-9 px-3 rounded-md border border-border bg-background/50 text-sm"
             >
-              <option value="">All homes</option>
+              <option value="">{t('common.allHomes')}</option>
               {homeIds.map((id) => (
                 <option key={id} value={id}>
                   {homes[id]?.name}
@@ -226,14 +228,14 @@ export default function EnergyReportPage() {
           </div>
           <div>
             <label className="text-xs text-muted-foreground block mb-1">
-              Device
+              {t('common.device')}
             </label>
             <DeviceSelector
               value={deviceId}
               onChange={setDeviceId}
               hasProperty="power"
               homeId={homeId}
-              placeholder="Pick an energy meter"
+              placeholder={t('reports.deviceSelector.pickEnergyMeter')}
             />
           </div>
           <RangeSelector value={range} onChange={setRange} />
@@ -254,15 +256,15 @@ export default function EnergyReportPage() {
           }
         >
           <Download className="w-4 h-4 mr-1" />
-          Export CSV
+          {t('reports.filters.exportCsv')}
         </Button>
       </div>
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <KPICard
-          label="Energy used"
+          label={t('reports.energy.energyUsed')}
           value={formatWithUnit(energyKwh, 'kWh', 2)}
-          subtitle="period"
+          subtitle={t('reports.energy.period')}
           current={energyKwh}
           previous={previousEnergy}
           inverse
@@ -270,14 +272,23 @@ export default function EnergyReportPage() {
           accentColor="#8b5cf6"
         />
         <KPICard
-          label={isEstimate ? 'Estimated cost*' : 'Energy cost'}
+          label={
+            isEstimate
+              ? t('reports.energy.estimatedCost')
+              : t('reports.energy.energyCost')
+          }
           value={formatCurrency(cost, currency)}
           subtitle={
             tariffModeLabel && avgPrice != null
-              ? `${tariffModeLabel} · avg ${formatCurrency(avgPrice, currency, 4)}/kWh`
+              ? t('reports.energy.avgPriceSubtitle', {
+                  mode: tariffModeLabel,
+                  price: formatCurrency(avgPrice, currency, 4),
+                })
               : kwhPrice > 0
-                ? `@ ${formatCurrency(kwhPrice, currency, 4)}/kWh`
-                : 'Set the tariff in Settings'
+                ? t('reports.energy.flatPriceSubtitle', {
+                    price: formatCurrency(kwhPrice, currency, 4),
+                  })
+                : t('reports.energy.setTariff')
           }
           current={cost}
           previous={previousCost}
@@ -285,9 +296,9 @@ export default function EnergyReportPage() {
           accentColor="#10b981"
         />
         <KPICard
-          label="Avg power"
+          label={t('reports.energy.avgPower')}
           value={formatWithUnit(aggregate?.power_avg, 'W', 0)}
-          subtitle="across period"
+          subtitle={t('reports.energy.acrossPeriod')}
           current={aggregate?.power_avg ?? null}
           previous={previousAggregate?.power_avg ?? null}
           inverse
@@ -295,16 +306,18 @@ export default function EnergyReportPage() {
           accentColor="#22d3ee"
         />
         <KPICard
-          label="Peak power"
+          label={t('reports.energy.peakPower')}
           value={formatWithUnit(aggregate?.power_max, 'W', 0)}
-          subtitle="max in period"
+          subtitle={t('reports.energy.maxInPeriod')}
           accentColor="#ef4444"
         />
       </div>
 
       <Card className="bg-card/40 border-border">
         <CardHeader>
-          <CardTitle className="text-lg">Power over time</CardTitle>
+          <CardTitle className="text-lg">
+            {t('reports.energy.powerOverTime')}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <TimeSeriesChart
@@ -313,7 +326,12 @@ export default function EnergyReportPage() {
               power: p.value,
             }))}
             series={[
-              { key: 'power', label: 'Power', unit: 'W', color: '#22d3ee' },
+              {
+                key: 'power',
+                label: t('reports.energy.series.power'),
+                unit: 'W',
+                color: '#22d3ee',
+              },
             ]}
             type="area"
             yUnit="W"
@@ -323,7 +341,9 @@ export default function EnergyReportPage() {
 
       <Card className="bg-card/40 border-border">
         <CardHeader>
-          <CardTitle className="text-lg">Energy consumption</CardTitle>
+          <CardTitle className="text-lg">
+            {t('reports.energy.energyConsumption')}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <BarChartCmp
@@ -333,7 +353,12 @@ export default function EnergyReportPage() {
             }))}
             xKey="bucket"
             series={[
-              { key: 'energy', label: 'Energy', unit: 'kWh', color: '#8b5cf6' },
+              {
+                key: 'energy',
+                label: t('reports.energy.series.energy'),
+                unit: 'kWh',
+                color: '#8b5cf6',
+              },
             ]}
             yUnit="kWh"
             xFormat={(v) => new Date(v).toLocaleDateString()}
@@ -345,7 +370,9 @@ export default function EnergyReportPage() {
         <Card className="bg-card/40 border-border">
           <CardHeader>
             <CardTitle className="text-lg">
-              Energy cost{isEstimate ? ' (estimate)' : ''}
+              {isEstimate
+                ? t('reports.energy.energyCostEstimate')
+                : t('reports.energy.energyCostChart')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -356,7 +383,12 @@ export default function EnergyReportPage() {
               }))}
               xKey="bucket"
               series={[
-                { key: 'cost', label: 'Cost', unit: currency, color: '#10b981' },
+                {
+                  key: 'cost',
+                  label: t('reports.energy.series.cost'),
+                  unit: currency,
+                  color: '#10b981',
+                },
               ]}
               yUnit={currency}
               xFormat={(v) =>
@@ -370,8 +402,9 @@ export default function EnergyReportPage() {
             />
             {isEstimate && (
               <p className="text-xs text-muted-foreground mt-2">
-                * {costSeries.totals.fallback_hours} h had no market price and
-                used the home's fixed fallback price.
+                {t('reports.energy.fallbackNote', {
+                  hours: costSeries.totals.fallback_hours,
+                })}
               </p>
             )}
           </CardContent>
@@ -384,24 +417,26 @@ export default function EnergyReportPage() {
 
       <Card className="bg-card/40 border-border">
         <CardHeader>
-          <CardTitle className="text-lg">Top consumers</CardTitle>
+          <CardTitle className="text-lg">
+            {t('reports.energy.topConsumers')}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {topConsumers.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              No energy meters with data in this period.
+              {t('reports.energy.noMeters')}
             </p>
           ) : (
             <BarChartCmp
-              data={topConsumers.map((t) => ({
-                name: t.name,
-                energy: Number(t.energy.toFixed(3)),
+              data={topConsumers.map((c) => ({
+                name: c.name,
+                energy: Number(c.energy.toFixed(3)),
               }))}
               xKey="name"
               series={[
                 {
                   key: 'energy',
-                  label: 'Energy',
+                  label: t('reports.energy.series.energy'),
                   unit: 'kWh',
                   color: '#f59e0b',
                 },
@@ -415,7 +450,9 @@ export default function EnergyReportPage() {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Total samples: {formatNumber(aggregate?.sample_count ?? 0, 0)}
+        {t('reports.energy.totalSamples', {
+          count: formatNumber(aggregate?.sample_count ?? 0, 0),
+        })}
       </p>
     </div>
   );

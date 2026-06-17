@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   bucketForRange,
   KPICard,
@@ -25,6 +26,7 @@ import { formatNumber, formatPercent, formatWithUnit } from '../../lib/format';
 import { Droplets, Thermometer } from 'lucide-react';
 
 export default function ClimateReportPage() {
+  const { t } = useTranslation();
   const { devices } = useDevicesStore();
   const { homes, homeIds } = useHomesStore();
   const { fetchSeries, fetchAggregate } = useReportsStore();
@@ -116,14 +118,14 @@ export default function ClimateReportPage() {
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="text-xs text-muted-foreground block mb-1">
-            Home
+            {t('common.home')}
           </label>
           <select
             value={homeId ?? ''}
             onChange={(e) => setHomeId(e.target.value || null)}
             className="h-9 px-3 rounded-md border border-border bg-background/50 text-sm"
           >
-            <option value="">All homes</option>
+            <option value="">{t('common.allHomes')}</option>
             {homeIds.map((id) => (
               <option key={id} value={id}>
                 {homes[id]?.name}
@@ -133,14 +135,14 @@ export default function ClimateReportPage() {
         </div>
         <div>
           <label className="text-xs text-muted-foreground block mb-1">
-            Sensor
+            {t('reports.filters.sensor')}
           </label>
           <DeviceSelector
             value={deviceId}
             onChange={setDeviceId}
             hasProperty="temperature"
             homeId={homeId}
-            placeholder="Pick a climate sensor"
+            placeholder={t('reports.deviceSelector.pickClimateSensor')}
           />
         </div>
         <RangeSelector value={range} onChange={setRange} />
@@ -148,24 +150,24 @@ export default function ClimateReportPage() {
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <KPICard
-          label="Avg temperature"
+          label={t('reports.climate.avgTemperature')}
           value={formatWithUnit(aggregate?.temperature_avg, '°C', 1)}
           accentColor="#f59e0b"
           icon={<Thermometer className="w-4 h-4" />}
         />
         <KPICard
-          label="Min / Max"
+          label={t('reports.climate.minMax')}
           value={`${formatNumber(aggregate?.temperature_min, 1)} / ${formatNumber(aggregate?.temperature_max, 1)} °C`}
           accentColor="#3b82f6"
         />
         <KPICard
-          label="Avg humidity"
+          label={t('reports.climate.avgHumidity')}
           value={formatWithUnit(aggregate?.humidity_avg, '%', 0)}
           accentColor="#22d3ee"
           icon={<Droplets className="w-4 h-4" />}
         />
         <KPICard
-          label="Time in comfort"
+          label={t('reports.climate.timeInComfort')}
           value={formatPercent(comfortPct, 0)}
           subtitle={`${comfortMin}°C – ${comfortMax}°C`}
           accentColor="#10b981"
@@ -174,7 +176,9 @@ export default function ClimateReportPage() {
 
       <Card className="bg-card/40 border-border">
         <CardHeader>
-          <CardTitle className="text-lg">Temperature & humidity</CardTitle>
+          <CardTitle className="text-lg">
+            {t('reports.climate.tempHumidity')}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <TimeSeriesChart
@@ -182,13 +186,13 @@ export default function ClimateReportPage() {
             series={[
               {
                 key: 'temperature',
-                label: 'Temperature',
+                label: t('reports.climate.series.temperature'),
                 unit: '°C',
                 color: '#f59e0b',
               },
               {
                 key: 'humidity',
-                label: 'Humidity',
+                label: t('reports.climate.series.humidity'),
                 unit: '%',
                 color: '#22d3ee',
               },
@@ -196,12 +200,12 @@ export default function ClimateReportPage() {
             referenceLines={[
               {
                 value: comfortMin,
-                label: 'comfort min',
+                label: t('reports.climate.comfortMin'),
                 color: '#10b981',
               },
               {
                 value: comfortMax,
-                label: 'comfort max',
+                label: t('reports.climate.comfortMax'),
                 color: '#10b981',
               },
             ]}

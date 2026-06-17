@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Battery, HeartPulse, SignalLow, WifiOff } from 'lucide-react';
 import {
   Card,
@@ -19,6 +20,7 @@ import { Loader2 } from 'lucide-react';
 type SortKey = 'battery' | 'lqi' | 'last_seen' | 'uptime' | 'name';
 
 export default function DevicesHealthReportPage() {
+  const { t } = useTranslation();
   const { fetchDevicesHealth, loading } = useReportsStore();
   const [devices, setDevices] = useState<DeviceHealth[]>([]);
   const [sortKey, setSortKey] = useState<SortKey>('battery');
@@ -80,30 +82,30 @@ export default function DevicesHealthReportPage() {
     <div className="space-y-6">
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <KPICard
-          label="Low battery"
+          label={t('reports.devicesHealth.lowBattery')}
           value={String(lowBattery.length)}
-          subtitle="< 20%"
+          subtitle={t('reports.devicesHealth.lowBatterySub')}
           accentColor="#f59e0b"
           icon={<Battery className="w-4 h-4" />}
         />
         <KPICard
-          label="Weak signal"
+          label={t('reports.devicesHealth.weakSignal')}
           value={String(weakSignal.length)}
-          subtitle="LQI < 40"
+          subtitle={t('reports.devicesHealth.weakSignalSub')}
           accentColor="#ef4444"
           icon={<SignalLow className="w-4 h-4" />}
         />
         <KPICard
-          label="Silent"
+          label={t('reports.devicesHealth.silent')}
           value={String(silent.length)}
-          subtitle="no data ≥ 4h"
+          subtitle={t('reports.devicesHealth.silentSub')}
           accentColor="#6b7280"
           icon={<WifiOff className="w-4 h-4" />}
         />
         <KPICard
-          label="Low uptime (30d)"
+          label={t('reports.devicesHealth.lowUptime')}
           value={String(lowUptime.length)}
-          subtitle="< 90%"
+          subtitle={t('reports.devicesHealth.lowUptimeSub')}
           accentColor="#3b82f6"
           icon={<HeartPulse className="w-4 h-4" />}
         />
@@ -111,17 +113,21 @@ export default function DevicesHealthReportPage() {
 
       <Card className="bg-card/40 border-border">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">Devices ({devices.length})</CardTitle>
+          <CardTitle className="text-lg">
+            {t('reports.devicesHealth.devices', { count: devices.length })}
+          </CardTitle>
           <div className="flex items-center gap-1">
-            <span className="text-xs text-muted-foreground mr-1">Sort:</span>
+            <span className="text-xs text-muted-foreground mr-1">
+              {t('reports.devicesHealth.sort')}
+            </span>
             {(
               [
-                { k: 'battery', l: 'Battery' },
-                { k: 'lqi', l: 'LQI' },
-                { k: 'last_seen', l: 'Last seen' },
-                { k: 'uptime', l: 'Uptime' },
-                { k: 'name', l: 'Name' },
-              ] as { k: SortKey; l: string }[]
+                { k: 'battery', tk: 'battery' },
+                { k: 'lqi', tk: 'lqi' },
+                { k: 'last_seen', tk: 'lastSeen' },
+                { k: 'uptime', tk: 'uptime' },
+                { k: 'name', tk: 'name' },
+              ] as { k: SortKey; tk: string }[]
             ).map((s) => (
               <Button
                 key={s.k}
@@ -130,7 +136,7 @@ export default function DevicesHealthReportPage() {
                 onClick={() => setSortKey(s.k)}
                 className="h-7 text-xs"
               >
-                {s.l}
+                {t(`reports.devicesHealth.sortBy.${s.tk}`)}
               </Button>
             ))}
           </div>
@@ -142,19 +148,31 @@ export default function DevicesHealthReportPage() {
             </div>
           ) : devices.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-6">
-              No devices in this organization.
+              {t('reports.devicesHealth.noDevices')}
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-xs text-muted-foreground border-b border-border/50">
-                    <th className="text-left py-2 px-2">Name</th>
-                    <th className="text-right py-2 px-2">Battery</th>
-                    <th className="text-right py-2 px-2">Trend (30d)</th>
-                    <th className="text-right py-2 px-2">LQI</th>
-                    <th className="text-right py-2 px-2">Uptime 30d</th>
-                    <th className="text-right py-2 px-2">Last seen</th>
+                    <th className="text-left py-2 px-2">
+                      {t('reports.devicesHealth.columns.name')}
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      {t('reports.devicesHealth.columns.battery')}
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      {t('reports.devicesHealth.columns.trend')}
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      {t('reports.devicesHealth.columns.lqi')}
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      {t('reports.devicesHealth.columns.uptime')}
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      {t('reports.devicesHealth.columns.lastSeen')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -183,7 +201,9 @@ export default function DevicesHealthReportPage() {
                           {d.battery == null ? '—' : `${d.battery}%`}
                         </td>
                         <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">
-                          {days == null ? '—' : `~${days}d left`}
+                          {days == null
+                            ? '—'
+                            : t('reports.devicesHealth.daysLeft', { days })}
                         </td>
                         <td
                           className={cn(
@@ -218,7 +238,7 @@ export default function DevicesHealthReportPage() {
                         <td className="py-2 px-2 text-right text-muted-foreground text-xs">
                           {d.last_seen
                             ? new Date(d.last_seen).toLocaleString()
-                            : 'never'}
+                            : t('reports.devicesHealth.never')}
                         </td>
                       </tr>
                     );

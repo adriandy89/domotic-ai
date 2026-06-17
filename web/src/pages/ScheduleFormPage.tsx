@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-// import { useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { Bell, ChevronLeft, Loader2, Save, Send, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
@@ -34,50 +34,27 @@ import type {
 } from '../store/useSchedulesStore';
 import { useSchedulesStore } from '../store/useSchedulesStore';
 
-const FREQUENCIES: { value: ScheduleFrequency; label: string; hint: string }[] =
-  [
-    {
-      value: 'ONCE',
-      label: 'One time',
-      hint: 'Run only once at the date/time',
-    },
-    { value: 'DAILY', label: 'Daily', hint: 'Run every day at the same time' },
-    {
-      value: 'CUSTOM',
-      label: 'Custom days',
-      hint: 'Run on selected days of the week',
-    },
-  ];
+// Labels/hints resolved via i18n at render time (schedules.freq.* / form.freqHint.*).
+const FREQUENCIES: ScheduleFrequency[] = ['ONCE', 'DAILY', 'CUSTOM'];
 
-const DAYS: { value: ScheduleDay; short: string; full: string }[] = [
-  { value: 'MONDAY', short: 'Mon', full: 'Monday' },
-  { value: 'TUESDAY', short: 'Tue', full: 'Tuesday' },
-  { value: 'WEDNESDAY', short: 'Wed', full: 'Wednesday' },
-  { value: 'THURSDAY', short: 'Thu', full: 'Thursday' },
-  { value: 'FRIDAY', short: 'Fri', full: 'Friday' },
-  { value: 'SATURDAY', short: 'Sat', full: 'Saturday' },
-  { value: 'SUNDAY', short: 'Sun', full: 'Sunday' },
+// `key` maps to common.weekdayShort for the day toggle buttons.
+const DAYS: { value: ScheduleDay; key: string }[] = [
+  { value: 'MONDAY', key: 'mon' },
+  { value: 'TUESDAY', key: 'tue' },
+  { value: 'WEDNESDAY', key: 'wed' },
+  { value: 'THURSDAY', key: 'thu' },
+  { value: 'FRIDAY', key: 'fri' },
+  { value: 'SATURDAY', key: 'sat' },
+  { value: 'SUNDAY', key: 'sun' },
 ];
 
-// const DAY_KEY: Record<
-//   ScheduleDay,
-//   'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'
-// > = {
-//   SUNDAY: 'sun',
-//   MONDAY: 'mon',
-//   TUESDAY: 'tue',
-//   WEDNESDAY: 'wed',
-//   THURSDAY: 'thu',
-//   FRIDAY: 'fri',
-//   SATURDAY: 'sat',
-// };
-
-const NOTIFICATION_CHANNELS: { value: NotificationChannel; label: string }[] = [
-  { value: 'EMAIL', label: 'Email' },
-  { value: 'SMS', label: 'SMS' },
-  { value: 'PUSH', label: 'App' },
-  { value: 'TELEGRAM', label: 'Telegram' },
-  { value: 'WEBHOOK', label: 'Webhook' },
+// Channel labels come from common.channel.*.
+const NOTIFICATION_CHANNELS: NotificationChannel[] = [
+  'EMAIL',
+  'SMS',
+  'PUSH',
+  'TELEGRAM',
+  'WEBHOOK',
 ];
 
 const NOTIFICATION_ATTRIBUTE = '__notification__';
@@ -97,7 +74,7 @@ function localInputValueToISO(local: string): string | null {
 }
 
 export default function ScheduleFormPage() {
-  // const { t } = useTranslation();
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isEditMode = !!id;
@@ -273,15 +250,16 @@ export default function ScheduleFormPage() {
   }, [name, homeId, date, frequency, days, actions, channel]);
 
   const handleSubmit = async () => {
-    if (!name.trim()) return toast.error('Name is required');
-    if (!homeId) return toast.error('Please select a home');
-    if (!date) return toast.error('Date/time is required');
+    if (!name.trim()) return toast.error(t('schedules.form.toast.nameRequired'));
+    if (!homeId) return toast.error(t('schedules.form.toast.selectHome'));
+    if (!date) return toast.error(t('schedules.form.toast.dateRequired'));
     if (frequency === 'CUSTOM' && days.length === 0)
-      return toast.error('Pick at least one day for custom schedules');
-    if (actions.length === 0) return toast.error('Add at least one action');
+      return toast.error(t('schedules.form.toast.pickDay'));
+    if (actions.length === 0)
+      return toast.error(t('schedules.form.toast.addAction'));
 
     if (hasNotificationAction && channel.length === 0) {
-      return toast.error('Notification actions need at least one channel');
+      return toast.error(t('schedules.form.toast.channelRequired'));
     }
 
     const payload: CreateScheduleRequest = {
@@ -303,10 +281,10 @@ export default function ScheduleFormPage() {
     let success = false;
     if (isEditMode && id) {
       success = await updateSchedule(id, payload);
-      if (success) toast.success('Schedule updated');
+      if (success) toast.success(t('schedules.form.toast.updated'));
     } else {
       success = await createSchedule(payload);
-      if (success) toast.success('Schedule created');
+      if (success) toast.success(t('schedules.form.toast.created'));
     }
     if (success) navigate('/schedules');
   };
@@ -331,35 +309,39 @@ export default function ScheduleFormPage() {
           <ChevronLeft className="w-5 h-5" />
         </Button>
         <h1 className="text-2xl font-bold">
-          {isEditMode ? 'Edit Schedule' : 'Create Schedule'}
+          {isEditMode
+            ? t('schedules.form.editTitle')
+            : t('schedules.form.createTitle')}
         </h1>
       </div>
 
       {/* Basic Info */}
       <Card className="bg-card/40 border-border">
         <CardHeader>
-          <CardTitle className="text-lg">Basic Information</CardTitle>
+          <CardTitle className="text-lg">
+            {t('schedules.form.basicInfo')}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
+              <Label htmlFor="name">{t('schedules.form.name')}</Label>
               <Input
                 id="name"
-                placeholder="Turn off bedroom lights at night"
+                placeholder={t('schedules.form.namePlaceholder')}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="home">Home *</Label>
+              <Label htmlFor="home">{t('schedules.form.home')}</Label>
               <Select
                 value={homeId}
                 onValueChange={handleHomeChange}
                 disabled={isEditMode}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select home">
+                  <SelectValue placeholder={t('schedules.form.selectHome')}>
                     {homeId ? homes[homeId]?.name : null}
                   </SelectValue>
                 </SelectTrigger>
@@ -376,7 +358,7 @@ export default function ScheduleFormPage() {
 
           <div className="flex items-center gap-2 pt-2">
             <Switch checked={active} onCheckedChange={setActive} />
-            <Label>Active</Label>
+            <Label>{t('schedules.form.active')}</Label>
           </div>
         </CardContent>
       </Card>
@@ -384,25 +366,27 @@ export default function ScheduleFormPage() {
       {/* When */}
       <Card className="bg-card/40 border-border">
         <CardHeader>
-          <CardTitle className="text-lg">When to run</CardTitle>
+          <CardTitle className="text-lg">
+            {t('schedules.form.whenToRun')}
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Frequency selector */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {FREQUENCIES.map((f) => (
               <button
-                key={f.value}
-                onClick={() => setFrequency(f.value)}
+                key={f}
+                onClick={() => setFrequency(f)}
                 className={cn(
                   'text-left p-3 rounded-lg border transition-all',
-                  frequency === f.value
+                  frequency === f
                     ? 'border-primary bg-primary/10'
                     : 'border-border bg-card/30 hover:bg-card/60',
                 )}
               >
-                <div className="font-medium">{f.label}</div>
+                <div className="font-medium">{t(`schedules.freq.${f}`)}</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {f.hint}
+                  {t(`schedules.form.freqHint.${f}`)}
                 </div>
               </button>
             ))}
@@ -411,7 +395,9 @@ export default function ScheduleFormPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="date">
-                {frequency === 'ONCE' ? 'Date and time *' : 'Time anchor *'}
+                {frequency === 'ONCE'
+                  ? t('schedules.form.dateTime')
+                  : t('schedules.form.timeAnchor')}
               </Label>
               <Input
                 id="date"
@@ -421,8 +407,8 @@ export default function ScheduleFormPage() {
               />
               <p className="text-xs text-muted-foreground">
                 {frequency === 'ONCE'
-                  ? 'The schedule fires once at this exact moment.'
-                  : 'Only the time-of-day matters for recurrent schedules.'}
+                  ? t('schedules.form.dateHint')
+                  : t('schedules.form.timeHint')}
               </p>
             </div>
           </div>
@@ -430,7 +416,7 @@ export default function ScheduleFormPage() {
           {/* Day picker for CUSTOM */}
           {frequency === 'CUSTOM' && (
             <div className="space-y-2">
-              <Label>Days of week *</Label>
+              <Label>{t('schedules.form.daysOfWeek')}</Label>
               <div className="flex flex-wrap gap-2">
                 {DAYS.map((d) => (
                   <button
@@ -444,14 +430,14 @@ export default function ScheduleFormPage() {
                     )}
                     type="button"
                   >
-                    {d.short}
+                    {t(`common.weekdayShort.${d.key}`)}
                   </button>
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
                 {days.length === 0
-                  ? 'Pick at least one day.'
-                  : `${days.length} day${days.length !== 1 ? 's' : ''} selected.`}
+                  ? t('schedules.form.pickDay')
+                  : t('schedules.form.daysSelected', { count: days.length })}
               </p>
             </div>
           )}
@@ -461,20 +447,22 @@ export default function ScheduleFormPage() {
       {/* Actions */}
       <Card className="bg-card/40 border-border">
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">Actions to run</CardTitle>
+          <CardTitle className="text-lg">
+            {t('schedules.form.actionsToRun')}
+          </CardTitle>
           <div className="flex gap-2">
             <Button size="sm" variant="outline" onClick={addNotificationAction}>
-              <Bell className="w-4 h-4 mr-1" /> Notification
+              <Bell className="w-4 h-4 mr-1" /> {t('schedules.form.notification')}
             </Button>
             <Button size="sm" onClick={addAction}>
-              <Send className="w-4 h-4 mr-1" /> Device action
+              <Send className="w-4 h-4 mr-1" /> {t('schedules.form.deviceAction')}
             </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {actions.length === 0 ? (
             <p className="text-muted-foreground text-sm text-center py-4">
-              No actions yet. Add a device action or a notification.
+              {t('schedules.form.noActions')}
             </p>
           ) : (
             actions.map((action, index) => {
@@ -501,10 +489,10 @@ export default function ScheduleFormPage() {
                       <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] gap-2 items-start">
                         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-amber-500/10 text-amber-500 text-sm font-medium whitespace-nowrap">
                           <Bell className="w-4 h-4" />
-                          Notification
+                          {t('schedules.form.notification')}
                         </div>
                         <Input
-                          placeholder="Notification message..."
+                          placeholder={t('schedules.form.messagePlaceholder')}
                           value={String(action.data?.value ?? '')}
                           onChange={(e) =>
                             updateAction(index, 'data', {
@@ -523,7 +511,7 @@ export default function ScheduleFormPage() {
                           }
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Device">
+                            <SelectValue placeholder={t('schedules.form.device')}>
                               {action.device_id
                                 ? getDeviceName(action.device_id)
                                 : null}
@@ -547,7 +535,7 @@ export default function ScheduleFormPage() {
                           disabled={!action.device_id}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Attribute">
+                            <SelectValue placeholder={t('schedules.form.attribute')}>
                               {action.attribute || null}
                             </SelectValue>
                           </SelectTrigger>
@@ -574,7 +562,7 @@ export default function ScheduleFormPage() {
                             }}
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Value">
+                              <SelectValue placeholder={t('schedules.form.value')}>
                                 {action.data?.value !== undefined
                                   ? String(action.data.value)
                                   : null}
@@ -606,7 +594,7 @@ export default function ScheduleFormPage() {
                             }
                           >
                             <SelectTrigger>
-                              <SelectValue placeholder="Value">
+                              <SelectValue placeholder={t('schedules.form.value')}>
                                 {action.data?.value !== undefined
                                   ? String(action.data.value)
                                   : null}
@@ -633,9 +621,9 @@ export default function ScheduleFormPage() {
                                   selectedExpose.value_max !== undefined
                                   ? `${selectedExpose.value_min ?? 0} - ${selectedExpose.value_max ?? '∞'}${selectedExpose.unit ? ` ${selectedExpose.unit}` : ''}`
                                   : selectedExpose.unit
-                                    ? `Value (${selectedExpose.unit})`
-                                    : 'Value'
-                                : 'Value'
+                                    ? `${t('schedules.form.value')} (${selectedExpose.unit})`
+                                    : t('schedules.form.value')
+                                : t('schedules.form.value')
                             }
                             min={selectedExpose?.value_min}
                             max={selectedExpose?.value_max}
@@ -673,28 +661,27 @@ export default function ScheduleFormPage() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Bell className="w-5 h-5 text-amber-500" />
-              Notification channels
+              {t('schedules.form.notificationChannels')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground mb-3">
-              Pick where notifications will be delivered. At least one is
-              required when there is a notification action.
+              {t('schedules.form.channelsHint')}
             </p>
             <div className="flex flex-wrap gap-2">
               {NOTIFICATION_CHANNELS.map((ch) => (
                 <button
-                  key={ch.value}
-                  onClick={() => toggleChannel(ch.value)}
+                  key={ch}
+                  onClick={() => toggleChannel(ch)}
                   className={cn(
                     'px-3 py-2 rounded-lg border text-sm transition-all',
-                    channel.includes(ch.value)
+                    channel.includes(ch)
                       ? 'border-primary bg-primary text-primary-foreground'
                       : 'border-border bg-card/30 hover:bg-card/60 text-muted-foreground',
                   )}
                   type="button"
                 >
-                  {ch.label}
+                  {t(`common.channel.${ch}`)}
                 </button>
               ))}
             </div>
@@ -707,7 +694,7 @@ export default function ScheduleFormPage() {
       {/* Submit */}
       <div className="flex items-center justify-end gap-4">
         <Button variant="outline" onClick={() => navigate('/schedules')}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button onClick={handleSubmit} disabled={isLoading || !isFormValid}>
           {isLoading ? (
@@ -715,7 +702,9 @@ export default function ScheduleFormPage() {
           ) : (
             <Save className="w-4 h-4 mr-2" />
           )}
-          {isEditMode ? 'Update Schedule' : 'Create Schedule'}
+          {isEditMode
+            ? t('schedules.form.update')
+            : t('schedules.create')}
         </Button>
       </div>
     </div>

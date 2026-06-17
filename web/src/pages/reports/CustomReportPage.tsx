@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { History, Loader2 } from 'lucide-react';
 import {
   bucketForRange,
@@ -61,6 +62,7 @@ interface FieldOption {
  * variables that have no fixed report metric (leq_db, band_*, zcr, …).
  */
 export default function CustomReportPage() {
+  const { t } = useTranslation();
   const { devices, devicesData } = useDevicesStore();
   const { homes, homeIds } = useHomesStore();
   const { fetchFieldSeries, fetchStateEvents } = useReportsStore();
@@ -229,14 +231,14 @@ export default function CustomReportPage() {
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="text-xs text-muted-foreground block mb-1">
-            Home
+            {t('common.home')}
           </label>
           <select
             value={homeId ?? ''}
             onChange={(e) => setHomeId(e.target.value || null)}
             className="h-9 px-3 rounded-md border border-border bg-background/50 text-sm"
           >
-            <option value="">All homes</option>
+            <option value="">{t('common.allHomes')}</option>
             {homeIds.map((id) => (
               <option key={id} value={id}>
                 {homes[id]?.name}
@@ -246,13 +248,13 @@ export default function CustomReportPage() {
         </div>
         <div>
           <label className="text-xs text-muted-foreground block mb-1">
-            Device
+            {t('common.device')}
           </label>
           <DeviceSelector
             value={deviceId}
             onChange={setDeviceId}
             homeId={homeId}
-            placeholder="Pick a device"
+            placeholder={t('reports.deviceSelector.pickDevice')}
           />
         </div>
         <RangeSelector value={range} onChange={setRange} />
@@ -260,18 +262,20 @@ export default function CustomReportPage() {
 
       {!device ? (
         <p className="text-sm text-muted-foreground py-10 text-center">
-          Pick a device to chart any of its variables
+          {t('reports.custom.pickToChart')}
         </p>
       ) : (
         <>
           <Card className="bg-card/40 border-border">
             <CardHeader>
-              <CardTitle className="text-base">Variables</CardTitle>
+              <CardTitle className="text-base">
+                {t('reports.custom.variables')}
+              </CardTitle>
             </CardHeader>
             <CardContent>
               {fieldOptions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  This device reports no numeric variables
+                  {t('reports.custom.noNumericVariables')}
                 </p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
@@ -345,7 +349,7 @@ export default function CustomReportPage() {
               <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
                 <CardTitle className="text-base flex items-center gap-2">
                   <History className="w-4 h-4" />
-                  State history
+                  {t('reports.custom.stateHistory')}
                 </CardTitle>
                 {eventProperties.length > 1 && (
                   <div className="flex flex-wrap gap-1">
@@ -358,7 +362,7 @@ export default function CustomReportPage() {
                           : 'border-border text-muted-foreground hover:text-foreground',
                       )}
                     >
-                      All
+                      {t('common.all')}
                     </button>
                     {eventProperties.map((p) => (
                       <button

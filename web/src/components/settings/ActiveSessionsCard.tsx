@@ -1,5 +1,6 @@
 import { Monitor } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/api';
 import { Button } from '../ui/button';
 import {
@@ -19,6 +20,7 @@ import {
 } from '../ui/dialog';
 
 export default function ActiveSessionsCard() {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [activeSessionsCount, setActiveSessionsCount] = useState(0);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -58,11 +60,10 @@ export default function ActiveSessionsCard() {
       <CardHeader>
         <CardTitle className="flex items-center gap-1 text-destructive">
           <Monitor className="h-5 w-5" />
-          Active Sessions
+          {t('settings.sessions.title')}
         </CardTitle>
         <CardDescription>
-          You have {activeSessionsCount} other active session
-          {activeSessionsCount > 1 ? 's' : ''} on other browser.
+          {t('settings.sessions.description', { count: activeSessionsCount })}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -71,28 +72,29 @@ export default function ActiveSessionsCard() {
           disabled={loading}
           onClick={() => setIsConfirmOpen(true)}
         >
-          Log out other browser
+          {t('settings.sessions.logout')}
         </Button>
 
         <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
           <DialogContent onClose={() => setIsConfirmOpen(false)}>
             <DialogHeader>
-              <DialogTitle>Are you active on other browser?</DialogTitle>
+              <DialogTitle>{t('settings.sessions.confirmTitle')}</DialogTitle>
               <DialogDescription>
-                This action will log out all other browser logged into your
-                account. You will remain logged in on this browser.
+                {t('settings.sessions.confirmDesc')}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsConfirmOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={handleRevokeSessions}
                 variant="destructive"
                 disabled={loading}
               >
-                {loading ? 'Logging out...' : 'Log out others'}
+                {loading
+                  ? t('settings.sessions.loggingOut')
+                  : t('settings.sessions.logoutOthers')}
               </Button>
             </DialogFooter>
           </DialogContent>

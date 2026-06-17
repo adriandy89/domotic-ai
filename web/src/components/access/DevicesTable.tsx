@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useHomesStore } from '../../store/useHomesStore';
 import {
   Table,
@@ -87,6 +88,7 @@ interface DevicesTableProps {
 }
 
 export default function DevicesTable({ onDataChange }: DevicesTableProps) {
+  const { t } = useTranslation();
   const getStoredPageSize = () => {
     const stored = localStorage.getItem('devicesTable_pageSize');
     if (stored) {
@@ -195,7 +197,9 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
       onDataChange?.();
     } catch (error: any) {
       console.error('Failed to delete device:', error);
-      setModalError(error.response?.data?.message || 'Failed to delete device');
+      setModalError(
+        error.response?.data?.message || t('access.devices.deleteError'),
+      );
     }
   };
 
@@ -225,7 +229,9 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
       onDataChange?.();
     } catch (error: any) {
       console.error('Failed to add device:', error);
-      setModalError(error.response?.data?.message || 'Failed to add device');
+      setModalError(
+        error.response?.data?.message || t('access.devices.addError'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -257,7 +263,9 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
       onDataChange?.();
     } catch (error: any) {
       console.error('Failed to edit device:', error);
-      setModalError(error.response?.data?.message || 'Failed to update device');
+      setModalError(
+        error.response?.data?.message || t('access.devices.updateError'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -317,7 +325,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
   };
 
   const formatDate = (date: string | null) => {
-    if (!date) return 'N/A';
+    if (!date) return t('common.na');
     return new Date(date).toLocaleString();
   };
 
@@ -330,13 +338,13 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <CardTitle className="text-xl text-foreground flex items-center gap-2">
             <Cpu className="h-5 w-5" />
-            Devices
+            {t('access.devices.title')}
           </CardTitle>
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search devices..."
+                placeholder={t('access.devices.searchPlaceholder')}
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
                 className="pl-9 w-[200px]"
@@ -351,14 +359,16 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
             </Button>
             <Button onClick={openAdd} className="gap-2">
               <Plus className="h-4 w-4" />
-              Add Device
+              {t('access.devices.add')}
             </Button>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 mt-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Home</span>
+            <span className="text-xs text-muted-foreground">
+              {t('common.home')}
+            </span>
             <Select
               value={homeFilter}
               onValueChange={(v) => {
@@ -367,10 +377,10 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
               }}
             >
               <SelectTrigger className="w-40">
-                <SelectValue placeholder="All homes" />
+                <SelectValue placeholder={t('common.allHomes')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All homes</SelectItem>
+                <SelectItem value="all">{t('common.allHomes')}</SelectItem>
                 {homeIds.map((id) => (
                   <SelectItem key={id} value={id}>
                     {homes[id]?.name}
@@ -380,7 +390,9 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
             </Select>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Type</span>
+            <span className="text-xs text-muted-foreground">
+              {t('access.devices.filterType')}
+            </span>
             <Select
               value={protocolFilter}
               onValueChange={(v) => {
@@ -389,10 +401,12 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
               }}
             >
               <SelectTrigger className="w-35">
-                <SelectValue placeholder="All types" />
+                <SelectValue placeholder={t('access.devices.allTypes')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="all">
+                  {t('access.devices.allTypes')}
+                </SelectItem>
                 {PROTOCOL_CATALOG.map((p) => (
                   <SelectItem key={p.protocol} value={p.protocol}>
                     {p.label}
@@ -411,7 +425,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                 setPage(1);
               }}
             >
-              Clear filters
+              {t('common.clearFilters')}
             </Button>
           )}
         </div>
@@ -419,7 +433,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
         {selectedIds.length > 0 && (
           <div className="flex items-center gap-2 mt-4 p-2 bg-muted/50 rounded-lg">
             <span className="text-sm text-muted-foreground">
-              {selectedIds.length} selected
+              {t('common.selected', { count: selectedIds.length })}
             </span>
             <Button
               variant="outline"
@@ -428,7 +442,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
               className="gap-1"
             >
               <ToggleRight className="h-4 w-4" />
-              Enable
+              {t('common.enable')}
             </Button>
             <Button
               variant="outline"
@@ -437,7 +451,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
               className="gap-1"
             >
               <ToggleLeft className="h-4 w-4" />
-              Disable
+              {t('common.disable')}
             </Button>
           </div>
         )}
@@ -450,7 +464,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
           </div>
         ) : devices.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            No devices found
+            {t('access.devices.empty')}
           </div>
         ) : (
           <>
@@ -484,7 +498,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Name
+                      {t('common.name')}
                       {sortBy === 'name' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -511,7 +525,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Category
+                      {t('common.category')}
                       {sortBy === 'category' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -538,7 +552,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Type
+                      {t('common.type')}
                       {sortBy === 'protocol' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -565,7 +579,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Home
+                      {t('common.home')}
                       {sortBy === 'home' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -592,7 +606,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Status
+                      {t('common.status')}
                       {sortBy === 'disabled' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -619,7 +633,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Updated At
+                      {t('common.updatedAt')}
                       {sortBy === 'updated_at' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -631,7 +645,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                       )}
                     </div>
                   </TableHead>
-                  <TableHead className="w-16">Actions</TableHead>
+                  <TableHead className="w-16">{t('common.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -678,7 +692,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                         <Badge
                           variant={device.disabled ? 'destructive' : 'success'}
                         >
-                          {device.disabled ? 'Disabled' : 'Enabled'}
+                          {device.disabled ? t('common.disabled') : t('common.enabled')}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground">
@@ -702,14 +716,14 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                         >
                           <DropdownMenuItem onClick={() => openEdit(device)}>
                             <Pencil className="h-4 w-4" />
-                            Edit
+                            {t('common.edit')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             variant="destructive"
                             onClick={() => openDelete(device)}
                           >
                             <Trash2 className="h-4 w-4" />
-                            Delete
+                            {t('common.delete')}
                           </DropdownMenuItem>
                         </DropdownMenu>
                       </TableCell>
@@ -722,49 +736,49 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Model
+                                  {t('access.devices.model')}
                                 </span>
                                 <p className="font-medium">
-                                  {device.model || 'N/A'}
+                                  {device.model || t('common.na')}
                                 </p>
                               </div>
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Category
+                                  {t('common.category')}
                                 </span>
                                 <p className="font-medium">
-                                  {device.category || 'N/A'}
+                                  {device.category || t('common.na')}
                                 </p>
                               </div>
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Description
+                                  {t('common.description')}
                                 </span>
                                 <p className="font-medium">
-                                  {device.description || 'No description'}
+                                  {device.description || t('common.noDescription')}
                                 </p>
                               </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-border pt-4">
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Home Name
+                                  {t('access.devices.homeName')}
                                 </span>
                                 <p className="font-medium">
-                                  {device.home?.name || 'N/A'}
+                                  {device.home?.name || t('common.na')}
                                 </p>
                               </div>
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Status
+                                  {t('common.status')}
                                 </span>
                                 <p className="font-medium">
-                                  {device.disabled ? 'Disabled' : 'Enabled'}
+                                  {device.disabled ? t('common.disabled') : t('common.enabled')}
                                 </p>
                               </div>
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Created At
+                                  {t('common.createdAt')}
                                 </span>
                                 <p className="font-medium">
                                   {formatDate(device.created_at)}
@@ -783,10 +797,12 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
             <div className="flex items-center justify-between mt-4">
               <div className="flex items-center gap-4">
                 <span className="text-sm text-muted-foreground">
-                  Total: {meta.itemCount} items
+                  {t('access.table.totalItems', { count: meta.itemCount })}
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Show:</span>
+                  <span className="text-sm text-muted-foreground">
+                    {t('access.table.show')}
+                  </span>
                   <select
                     value={take}
                     onChange={(e) => {
@@ -820,7 +836,10 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-sm">
-                  Page {meta.page} of {meta.pageCount}
+                  {t('access.table.pageOf', {
+                    page: meta.page,
+                    pageCount: meta.pageCount,
+                  })}
                 </span>
                 <Button
                   variant="outline"
@@ -847,16 +866,16 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
         <DialogContent onClose={() => setShowAddModal(false)}>
           <DialogHeader>
-            <DialogTitle>Add New Device</DialogTitle>
-            <DialogDescription>
-              Create a new device to track in your system.
-            </DialogDescription>
+            <DialogTitle>{t('access.devices.addTitle')}</DialogTitle>
+            <DialogDescription>{t('access.devices.addDesc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Name *</label>
+              <label className="text-sm font-medium">
+                {t('access.form.nameRequired')}
+              </label>
               <Input
-                placeholder="Living Room Light"
+                placeholder={t('access.devices.namePlaceholder')}
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
@@ -864,9 +883,11 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Unique ID *</label>
+              <label className="text-sm font-medium">
+                {t('access.devices.uniqueIdRequired')}
+              </label>
               <Input
-                placeholder="0x00158d0001234567"
+                placeholder={t('access.devices.uniqueIdPlaceholder')}
                 value={formData.unique_id}
                 onChange={(e) =>
                   setFormData({ ...formData, unique_id: e.target.value })
@@ -874,9 +895,11 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Category</label>
+              <label className="text-sm font-medium">
+                {t('common.category')}
+              </label>
               <Input
-                placeholder="light, sensor, switch..."
+                placeholder={t('access.devices.categoryPlaceholder')}
                 value={formData.category}
                 onChange={(e) =>
                   setFormData({ ...formData, category: e.target.value })
@@ -884,9 +907,11 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
+              <label className="text-sm font-medium">
+                {t('common.description')}
+              </label>
               <Input
-                placeholder="Optional description"
+                placeholder={t('access.form.optionalDescription')}
                 value={formData.description}
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
@@ -894,7 +919,9 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Home *</label>
+              <label className="text-sm font-medium">
+                {t('access.devices.homeRequired')}
+              </label>
               <select
                 value={formData.home_id}
                 onChange={(e) =>
@@ -902,7 +929,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                 }
                 className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
               >
-                <option value="">Select a home...</option>
+                <option value="">{t('access.devices.selectHome')}</option>
                 {homeIds.map((id) => (
                   <option key={id} value={id}>
                     {homes[id]?.name}
@@ -921,7 +948,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                 className="rounded border-border"
               />
               <label htmlFor="add-disabled" className="text-sm font-medium">
-                Disabled
+                {t('access.form.disabledLabel')}
               </label>
             </div>
           </div>
@@ -939,11 +966,11 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                 setModalError(null);
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleAddDevice} disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Add Device
+              {t('access.devices.add')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -952,14 +979,16 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
         <DialogContent onClose={() => setShowEditModal(false)}>
           <DialogHeader>
-            <DialogTitle>Edit Device</DialogTitle>
-            <DialogDescription>Update device information.</DialogDescription>
+            <DialogTitle>{t('access.devices.editTitle')}</DialogTitle>
+            <DialogDescription>{t('access.devices.editDesc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Name *</label>
+              <label className="text-sm font-medium">
+                {t('access.form.nameRequired')}
+              </label>
               <Input
-                placeholder="Living Room Light"
+                placeholder={t('access.devices.namePlaceholder')}
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
@@ -967,9 +996,11 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Category</label>
+              <label className="text-sm font-medium">
+                {t('common.category')}
+              </label>
               <Input
-                placeholder="light, sensor, switch..."
+                placeholder={t('access.devices.categoryPlaceholder')}
                 value={formData.category}
                 onChange={(e) =>
                   setFormData({ ...formData, category: e.target.value })
@@ -977,9 +1008,11 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
+              <label className="text-sm font-medium">
+                {t('common.description')}
+              </label>
               <Input
-                placeholder="Optional description"
+                placeholder={t('access.form.optionalDescription')}
                 value={formData.description}
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
@@ -987,7 +1020,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Home</label>
+              <label className="text-sm font-medium">{t('common.home')}</label>
               <select
                 value={formData.home_id}
                 onChange={(e) =>
@@ -995,7 +1028,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                 }
                 className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
               >
-                <option value="">Select a home...</option>
+                <option value="">{t('access.devices.selectHome')}</option>
                 {homeIds.map((id) => (
                   <option key={id} value={id}>
                     {homes[id]?.name}
@@ -1014,7 +1047,7 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                 className="rounded border-border"
               />
               <label htmlFor="edit-disabled" className="text-sm font-medium">
-                Disabled
+                {t('access.form.disabledLabel')}
               </label>
             </div>
           </div>
@@ -1032,11 +1065,11 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                 setModalError(null);
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleEditDevice} disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Save Changes
+              {t('access.form.saveChanges')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1045,10 +1078,9 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
       <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
         <DialogContent onClose={() => setShowDeleteModal(false)}>
           <DialogHeader>
-            <DialogTitle>Delete Device</DialogTitle>
+            <DialogTitle>{t('access.devices.deleteTitle')}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{deleteTarget?.name}"? This
-              action cannot be undone.
+              {t('common.confirmDelete', { name: deleteTarget?.name })}
             </DialogDescription>
           </DialogHeader>
           {modalError && (
@@ -1065,10 +1097,10 @@ export default function DevicesTable({ onDataChange }: DevicesTableProps) {
                 setModalError(null);
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
-              Delete
+              {t('common.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>

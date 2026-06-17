@@ -1,5 +1,6 @@
 import { KeyRound, Loader2 } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../../store/useAuthStore';
 import {
   usePricingStore,
@@ -21,6 +22,7 @@ import ProviderRow from './ProviderRow';
  * greyed out in the tariff selector.
  */
 const MarketProvidersSection = forwardRef<HTMLDivElement>((_props, ref) => {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   const { fetchProviders, fetchAdminProviders, saveProviderCredentials } =
     usePricingStore();
@@ -73,10 +75,11 @@ const MarketProvidersSection = forwardRef<HTMLDivElement>((_props, ref) => {
           <KeyRound className="h-8 w-8 text-primary" />
         </div>
         <div>
-          <CardTitle className="text-xl">Market price providers</CardTitle>
+          <CardTitle className="text-xl">
+            {t('settings.providers.title')}
+          </CardTitle>
           <CardDescription>
-            API tokens used to fetch hourly market prices (PVPC, ENTSO-E…) for
-            dynamic tariffs.
+            {t('settings.providers.description')}
           </CardDescription>
         </div>
       </CardHeader>
@@ -87,7 +90,9 @@ const MarketProvidersSection = forwardRef<HTMLDivElement>((_props, ref) => {
           </div>
         ) : providers.length === 0 ? (
           <div className="flex flex-col items-center justify-center p-6 border border-dashed border-border rounded-lg">
-            <p className="text-muted-foreground">No providers available</p>
+            <p className="text-muted-foreground">
+              {t('settings.providers.noProviders')}
+            </p>
           </div>
         ) : isAdmin ? (
           providers.map((p) => (
@@ -102,12 +107,14 @@ const MarketProvidersSection = forwardRef<HTMLDivElement>((_props, ref) => {
               >
                 <p className="font-medium">{p.label}</p>
                 <Badge variant={p.enabled ? 'success' : 'warning'}>
-                  {p.enabled ? 'Configured' : 'Not configured'}
+                  {p.enabled
+                    ? t('settings.providers.configured')
+                    : t('settings.providers.notConfigured')}
                 </Badge>
               </div>
             ))}
             <p className="text-xs text-muted-foreground">
-              Only administrators can manage provider tokens.
+              {t('settings.providers.onlyAdmins')}
             </p>
           </>
         )}

@@ -1,19 +1,13 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { TouPeriod } from '../../store/usePricingStore';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']; // 0=Sunday .. 6=Saturday
-const DAY_TITLES = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-];
+// 0=Sunday .. 6=Saturday → common.weekdayLong keys
+const DAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
 
 interface TouPeriodsEditorProps {
   periods: TouPeriod[];
@@ -37,7 +31,7 @@ function segments(p: TouPeriod): Array<[number, number]> {
   ];
 }
 
-function findOverlap(periods: TouPeriod[]): string | null {
+function findOverlap(periods: TouPeriod[]): { a: string; b: string } | null {
   for (let i = 0; i < periods.length; i++) {
     for (let j = i + 1; j < periods.length; j++) {
       const a = periods[i];
@@ -46,7 +40,10 @@ function findOverlap(periods: TouPeriod[]): string | null {
       for (const [as, ae] of segments(a)) {
         for (const [bs, be] of segments(b)) {
           if (as < be && bs < ae) {
-            return `"${a.label || `#${i + 1}`}" overlaps "${b.label || `#${j + 1}`}" — the first matching period wins`;
+            return {
+              a: a.label || `#${i + 1}`,
+              b: b.label || `#${j + 1}`,
+            };
           }
         }
       }
@@ -60,6 +57,7 @@ export default function TouPeriodsEditor({
   onChange,
   disabled,
 }: TouPeriodsEditorProps) {
+  const { t } = useTranslation();
   const overlap = useMemo(() => findOverlap(periods), [periods]);
 
   const update = (index: number, patch: Partial<TouPeriod>) => {
@@ -79,7 +77,7 @@ export default function TouPeriodsEditor({
     onChange([
       ...periods,
       {
-        label: `Period ${periods.length + 1}`,
+        label: t('settings.touEditor.periodName', { n: periods.length + 1 }),
         days: [1, 2, 3, 4, 5],
         start: '00:00',
         end: '08:00',
@@ -99,7 +97,7 @@ export default function TouPeriodsEditor({
             value={period.label}
             onChange={(e) => update(index, { label: e.target.value })}
             disabled={disabled}
-            placeholder="Label"
+            placeholder={t('settings.touEditor.labelPlaceholder')}
             className="h-8 w-36 text-sm"
           />
           <div className="flex gap-0.5">
@@ -107,7 +105,7 @@ export default function TouPeriodsEditor({
               <button
                 key={day}
                 type="button"
-                title={DAY_TITLES[day]}
+                title={t(`common.weekdayLong.${DAY_KEYS[day]}`)}
                 disabled={disabled}
                 onClick={() => toggleDay(index, day)}
                 className={`w-7 h-7 text-xs rounded-md border transition-colors ${
@@ -145,7 +143,7 @@ export default function TouPeriodsEditor({
               disabled={disabled}
               className="h-8 w-24 text-sm"
             />
-            <span className="text-xs text-muted-foreground">/kWh</span>
+            <span className="text-xs text-muted-foreground">{'/kWh'}</span>
           </div>
           <Button
             variant="ghost"
@@ -167,9 +165,13 @@ export default function TouPeriodsEditor({
           onClick={addPeriod}
         >
           <Plus className="w-4 h-4 mr-1" />
-          Add period
+          {t('settings.touEditor.addPeriod')}
         </Button>
-        {overlap && <p className="text-xs text-amber-500">{overlap}</p>}
+        {overlap && (
+          <p className="text-xs text-amber-500">
+            {t('settings.touEditor.overlap', { a: overlap.a, b: overlap.b })}
+          </p>
+        )}
       </div>
     </div>
   );

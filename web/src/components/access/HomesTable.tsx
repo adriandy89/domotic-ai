@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Table,
   TableBody,
@@ -92,6 +93,7 @@ interface HomesTableProps {
 }
 
 export default function HomesTable({ onDataChange }: HomesTableProps) {
+  const { t } = useTranslation();
   const getStoredPageSize = () => {
     const stored = localStorage.getItem('homesTable_pageSize');
     if (stored) {
@@ -208,7 +210,9 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       onDataChange?.();
     } catch (error: any) {
       console.error('Failed to delete home:', error);
-      setModalError(error.response?.data?.message || 'Failed to delete home');
+      setModalError(
+        error.response?.data?.message || t('access.homes.deleteError'),
+      );
     }
   };
 
@@ -228,7 +232,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       onDataChange?.();
     } catch (error: any) {
       console.error('Failed to add home:', error);
-      setModalError(error.response?.data?.message || 'Failed to add home');
+      setModalError(error.response?.data?.message || t('access.homes.addError'));
     } finally {
       setSubmitting(false);
     }
@@ -251,7 +255,9 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       onDataChange?.();
     } catch (error: any) {
       console.error('Failed to edit home:', error);
-      setModalError(error.response?.data?.message || 'Failed to update home');
+      setModalError(
+        error.response?.data?.message || t('access.homes.updateError'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -317,7 +323,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
   };
 
   const formatDate = (date: string | null) => {
-    if (!date) return 'N/A';
+    if (!date) return t('common.na');
     return new Date(date).toLocaleString();
   };
 
@@ -327,13 +333,13 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <CardTitle className="text-xl text-foreground flex items-center gap-2">
             <Home className="h-5 w-5" />
-            Homes
+            {t('access.homes.title')}
           </CardTitle>
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search homes..."
+                placeholder={t('access.homes.searchPlaceholder')}
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
                 className="pl-9 w-[200px]"
@@ -344,7 +350,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
             </Button>
             <Button onClick={openAdd} className="gap-2">
               <Plus className="h-4 w-4" />
-              Add Home
+              {t('access.homes.add')}
             </Button>
           </div>
         </div>
@@ -352,7 +358,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
         {selectedIds.length > 0 && (
           <div className="flex items-center gap-2 mt-4 p-2 bg-muted/50 rounded-lg">
             <span className="text-sm text-muted-foreground">
-              {selectedIds.length} selected
+              {t('common.selected', { count: selectedIds.length })}
             </span>
             <Button
               variant="outline"
@@ -361,7 +367,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
               className="gap-1"
             >
               <ToggleRight className="h-4 w-4" />
-              Enable
+              {t('common.enable')}
             </Button>
             <Button
               variant="outline"
@@ -370,7 +376,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
               className="gap-1"
             >
               <ToggleLeft className="h-4 w-4" />
-              Disable
+              {t('common.disable')}
             </Button>
           </div>
         )}
@@ -383,7 +389,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
           </div>
         ) : homes.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            No homes found
+            {t('access.homes.empty')}
           </div>
         ) : (
           <>
@@ -416,7 +422,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Name
+                      {t('common.name')}
                       {sortBy === 'name' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -443,7 +449,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Connection
+                      {t('access.homes.columnConnection')}
                       {sortBy === 'connected' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -470,7 +476,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Status
+                      {t('common.status')}
                       {sortBy === 'disabled' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -497,7 +503,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Last Update
+                      {t('common.lastUpdate')}
                       {sortBy === 'last_update' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -509,7 +515,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                       )}
                     </div>
                   </TableHead>
-                  <TableHead className="w-16">Actions</TableHead>
+                  <TableHead className="w-16">{t('common.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -544,12 +550,12 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                           {home.connected ? (
                             <Badge variant="success" className="gap-1">
                               <Wifi className="h-3 w-3" />
-                              Connected
+                              {t('common.connected')}
                             </Badge>
                           ) : (
                             <Badge variant="destructive" className="gap-1">
                               <WifiOff className="h-3 w-3" />
-                              Disconnected
+                              {t('common.disconnected')}
                             </Badge>
                           )}
                         </div>
@@ -558,7 +564,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                         <Badge
                           variant={home.disabled ? 'destructive' : 'success'}
                         >
-                          {home.disabled ? 'Disabled' : 'Enabled'}
+                          {home.disabled ? t('common.disabled') : t('common.enabled')}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
@@ -582,18 +588,18 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                         >
                           <DropdownMenuItem onClick={() => openEdit(home)}>
                             <Pencil className="h-4 w-4" />
-                            Edit
+                            {t('common.edit')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => openLink(home)}>
                             <Users className="h-4 w-4" />
-                            Link Users
+                            {t('access.homes.linkUsers')}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             variant="destructive"
                             onClick={() => openDelete(home)}
                           >
                             <Trash2 className="h-4 w-4" />
-                            Delete
+                            {t('common.delete')}
                           </DropdownMenuItem>
                         </DropdownMenu>
                       </TableCell>
@@ -607,15 +613,15 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Description
+                                  {t('common.description')}
                                 </span>
                                 <p className="font-medium">
-                                  {home.description || 'No description'}
+                                  {home.description || t('common.noDescription')}
                                 </p>
                               </div>
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Created At
+                                  {t('common.createdAt')}
                                 </span>
                                 <p className="font-medium">
                                   {formatDate(home.created_at)}
@@ -623,7 +629,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                               </div>
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Updated At
+                                  {t('common.updatedAt')}
                                 </span>
                                 <p className="font-medium">
                                   {formatDate(home.updated_at)}
@@ -642,12 +648,12 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
 
                             <div className="border-t border-border pt-4">
                               <h4 className="text-lg font-semibold mb-4 text-foreground">
-                                MQTT Configuration
+                                {t('access.homes.mqttConfig')}
                               </h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div className="bg-background/50 p-3 rounded-lg border border-border">
                                   <span className="text-xs text-muted-foreground uppercase">
-                                    Host
+                                    {t('access.homes.fieldHost')}
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
@@ -696,7 +702,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                 </div>
                                 <div className="bg-background/50 p-3 rounded-lg border border-border">
                                   <span className="text-xs text-muted-foreground uppercase">
-                                    Username
+                                    {t('access.homes.fieldUsername')}
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
@@ -752,7 +758,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                 </div>
                                 <div className="bg-background/50 p-3 rounded-lg border border-border">
                                   <span className="text-xs text-muted-foreground uppercase">
-                                    Password
+                                    {t('access.homes.fieldPassword')}
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
@@ -808,7 +814,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                 </div>
                                 <div className="bg-background/50 p-3 rounded-lg border border-border">
                                   <span className="text-xs text-muted-foreground uppercase">
-                                    Client ID
+                                    {t('access.homes.fieldClientId')}
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
@@ -864,7 +870,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                 </div>
                                 <div className="bg-background/50 p-3 rounded-lg border border-border md:col-span-2">
                                   <span className="text-xs text-muted-foreground uppercase">
-                                    Base Topic
+                                    {t('access.homes.fieldBaseTopic')}
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
@@ -923,12 +929,12 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
 
                             <div className="border-t border-border pt-4">
                               <h4 className="text-lg font-semibold mb-4 text-foreground">
-                                MCP Configuration
+                                {t('access.homes.mcpConfig')}
                               </h4>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div className="bg-background/50 p-3 rounded-lg border border-border">
                                   <span className="text-xs text-muted-foreground uppercase">
-                                    Host
+                                    {t('access.homes.fieldHost')}
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
@@ -980,7 +986,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                 </div>
                                 <div className="bg-background/50 p-3 rounded-lg border border-border">
                                   <span className="text-xs text-muted-foreground uppercase">
-                                    Username
+                                    {t('access.homes.fieldUsername')}
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
@@ -1036,7 +1042,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                 </div>
                                 <div className="bg-background/50 p-3 rounded-lg border border-border">
                                   <span className="text-xs text-muted-foreground uppercase">
-                                    Password
+                                    {t('access.homes.fieldPassword')}
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
@@ -1092,7 +1098,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                 </div>
                                 <div className="bg-background/50 p-3 rounded-lg border border-border">
                                   <span className="text-xs text-muted-foreground uppercase">
-                                    Client ID
+                                    {t('access.homes.fieldClientId')}
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
@@ -1150,7 +1156,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                 </div>
                                 <div className="bg-background/50 p-3 rounded-lg border border-border md:col-span-2">
                                   <span className="text-xs text-muted-foreground uppercase">
-                                    Base Topic
+                                    {t('access.homes.fieldBaseTopic')}
                                   </span>
                                   <div className="flex items-center justify-between">
                                     <p className="font-mono text-sm">
@@ -1218,10 +1224,12 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
             <div className="flex items-center justify-between mt-4">
               <div className="flex items-center gap-4">
                 <span className="text-sm text-muted-foreground">
-                  Total: {meta.itemCount} items
+                  {t('access.table.totalItems', { count: meta.itemCount })}
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Show:</span>
+                  <span className="text-sm text-muted-foreground">
+                    {t('access.table.show')}
+                  </span>
                   <select
                     value={take}
                     onChange={(e) => {
@@ -1255,7 +1263,10 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-sm">
-                  Page {meta.page} of {meta.pageCount}
+                  {t('access.table.pageOf', {
+                    page: meta.page,
+                    pageCount: meta.pageCount,
+                  })}
                 </span>
                 <Button
                   variant="outline"
@@ -1283,16 +1294,16 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
         <DialogContent onClose={() => setShowAddModal(false)}>
           <DialogHeader>
-            <DialogTitle>Add New Home</DialogTitle>
-            <DialogDescription>
-              Create a new home to manage devices and users.
-            </DialogDescription>
+            <DialogTitle>{t('access.homes.addTitle')}</DialogTitle>
+            <DialogDescription>{t('access.homes.addDesc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Name *</label>
+              <label className="text-sm font-medium">
+                {t('access.form.nameRequired')}
+              </label>
               <Input
-                placeholder="My Home"
+                placeholder={t('access.homes.namePlaceholder')}
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
@@ -1300,9 +1311,11 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
+              <label className="text-sm font-medium">
+                {t('common.description')}
+              </label>
               <Input
-                placeholder="Optional description"
+                placeholder={t('access.form.optionalDescription')}
                 value={formData.description}
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
@@ -1320,7 +1333,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                 className="h-4 w-4 rounded border-border"
               />
               <label htmlFor="disabled_add" className="text-sm font-medium">
-                Disabled
+                {t('access.form.disabledLabel')}
               </label>
             </div>
           </div>
@@ -1338,11 +1351,11 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                 setModalError(null);
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleAddHome} disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Add Home
+              {t('access.homes.add')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1352,14 +1365,16 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
         <DialogContent onClose={() => setShowEditModal(false)}>
           <DialogHeader>
-            <DialogTitle>Edit Home</DialogTitle>
-            <DialogDescription>Update home information.</DialogDescription>
+            <DialogTitle>{t('access.homes.editTitle')}</DialogTitle>
+            <DialogDescription>{t('access.homes.editDesc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Name *</label>
+              <label className="text-sm font-medium">
+                {t('access.form.nameRequired')}
+              </label>
               <Input
-                placeholder="My Home"
+                placeholder={t('access.homes.namePlaceholder')}
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
@@ -1367,9 +1382,11 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
+              <label className="text-sm font-medium">
+                {t('common.description')}
+              </label>
               <Input
-                placeholder="Optional description"
+                placeholder={t('access.form.optionalDescription')}
                 value={formData.description}
                 onChange={(e) =>
                   setFormData({ ...formData, description: e.target.value })
@@ -1387,7 +1404,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                 className="h-4 w-4 rounded border-border"
               />
               <label htmlFor="disabled_edit" className="text-sm font-medium">
-                Disabled
+                {t('access.form.disabledLabel')}
               </label>
             </div>
           </div>
@@ -1405,11 +1422,11 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                 setModalError(null);
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleEditHome} disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Save Changes
+              {t('access.form.saveChanges')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1419,10 +1436,9 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
         <DialogContent onClose={() => setShowDeleteModal(false)}>
           <DialogHeader>
-            <DialogTitle>Delete Home</DialogTitle>
+            <DialogTitle>{t('access.homes.deleteTitle')}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{deleteTarget?.name}"? This
-              action cannot be undone.
+              {t('common.confirmDelete', { name: deleteTarget?.name })}
             </DialogDescription>
           </DialogHeader>
           {modalError && (
@@ -1439,10 +1455,10 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                 setModalError(null);
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
-              Delete
+              {t('common.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1458,7 +1474,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
             fetchHomes();
             onDataChange?.();
           }}
-          title={`Link Users to "${linkTarget.name}"`}
+          title={t('access.homes.linkTitle', { name: linkTarget.name })}
           entityId={linkTarget.id}
           fetchUrl={`/homes/${linkTarget.id}/users`}
           saveUrl="/homes/users/link"

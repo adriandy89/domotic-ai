@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Table,
   TableBody,
@@ -90,6 +91,7 @@ interface UsersTableProps {
 }
 
 export default function UsersTable({ onDataChange }: UsersTableProps) {
+  const { t } = useTranslation();
   const getStoredPageSize = () => {
     const stored = localStorage.getItem('usersTable_pageSize');
     if (stored) {
@@ -201,7 +203,9 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       onDataChange?.();
     } catch (error: any) {
       console.error('Failed to delete user:', error);
-      setModalError(error.response?.data?.message || 'Failed to delete user');
+      setModalError(
+        error.response?.data?.message || t('access.users.deleteError'),
+      );
     }
   };
 
@@ -233,7 +237,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       onDataChange?.();
     } catch (error: any) {
       console.error('Failed to add user:', error);
-      setModalError(error.response?.data?.message || 'Failed to add user');
+      setModalError(error.response?.data?.message || t('access.users.addError'));
     } finally {
       setSubmitting(false);
     }
@@ -266,7 +270,9 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       onDataChange?.();
     } catch (error: any) {
       console.error('Failed to edit user:', error);
-      setModalError(error.response?.data?.message || 'Failed to update user');
+      setModalError(
+        error.response?.data?.message || t('access.users.updateError'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -363,7 +369,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
   };
 
   const formatDate = (date: string | null) => {
-    if (!date) return 'N/A';
+    if (!date) return t('common.na');
     return new Date(date).toLocaleString();
   };
 
@@ -384,13 +390,13 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <CardTitle className="text-xl text-foreground flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Users
+            {t('access.users.title')}
           </CardTitle>
           <div className="flex items-center gap-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search users..."
+                placeholder={t('access.users.searchPlaceholder')}
                 value={search}
                 onChange={(e) => handleSearch(e.target.value)}
                 className="pl-9 w-[200px]"
@@ -401,7 +407,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
             </Button>
             <Button onClick={openAdd} className="gap-2">
               <Plus className="h-4 w-4" />
-              Add User
+              {t('access.users.add')}
             </Button>
           </div>
         </div>
@@ -409,7 +415,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
         {selectedIds.length > 0 && (
           <div className="flex items-center gap-2 mt-4 p-2 bg-muted/50 rounded-lg">
             <span className="text-sm text-muted-foreground">
-              {selectedIds.length} selected
+              {t('common.selected', { count: selectedIds.length })}
             </span>
             <Button
               variant="outline"
@@ -418,7 +424,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
               className="gap-1"
             >
               <ToggleRight className="h-4 w-4" />
-              Enable
+              {t('common.enable')}
             </Button>
             <Button
               variant="outline"
@@ -427,7 +433,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
               className="gap-1"
             >
               <ToggleLeft className="h-4 w-4" />
-              Disable
+              {t('common.disable')}
             </Button>
           </div>
         )}
@@ -440,7 +446,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
           </div>
         ) : users.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
-            No users found
+            {t('access.users.empty')}
           </div>
         ) : (
           <>
@@ -474,7 +480,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Name
+                      {t('common.name')}
                       {sortBy === 'name' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -501,7 +507,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Email
+                      {t('access.users.columnEmail')}
                       {sortBy === 'email' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -528,7 +534,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Role
+                      {t('access.users.columnRole')}
                       {sortBy === 'role' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -555,7 +561,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      Status
+                      {t('common.status')}
                       {sortBy === 'is_active' ? (
                         sortOrder === 'asc' ? (
                           <ChevronUp className="h-4 w-4" />
@@ -567,7 +573,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                       )}
                     </div>
                   </TableHead>
-                  <TableHead className="w-16">Actions</TableHead>
+                  <TableHead className="w-16">{t('common.actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -581,7 +587,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                         {user.is_org_admin ? (
                           <span
                             className="h-4 w-4 text-primary"
-                            aria-label="Organization Admin - Protected"
+                            aria-label={t('access.users.orgAdminAria')}
                           >
                             <Shield className="h-4 w-4" />
                           </span>
@@ -613,7 +619,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                           {user.name}
                           {user.is_org_admin && (
                             <Badge variant="default" className="text-xs">
-                              Org Admin
+                              {t('access.users.orgAdmin')}
                             </Badge>
                           )}
                         </div>
@@ -630,7 +636,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                         <Badge
                           variant={user.is_active ? 'success' : 'destructive'}
                         >
-                          {user.is_active ? 'Enabled' : 'Disabled'}
+                          {user.is_active ? t('common.enabled') : t('common.disabled')}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -653,22 +659,22 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                             >
                               <DropdownMenuItem onClick={() => openEdit(user)}>
                                 <Pencil className="h-4 w-4" />
-                                Edit Profile
+                                {t('access.users.editProfile')}
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => openLink(user)}>
                                 <Home className="h-4 w-4" />
-                                Link Homes
+                                {t('access.users.linkHomes')}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={() => handleGenerateTelegramCode(user)}
                               >
                                 <MessageCircle className="h-4 w-4" />
-                                Telegram
+                                {t('access.users.telegram')}
                               </DropdownMenuItem>
                             </DropdownMenu>
                           ) : (
                             <span className="text-xs text-muted-foreground">
-                              Protected
+                              {t('access.users.protected')}
                             </span>
                           )
                         ) : (
@@ -689,24 +695,24 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                           >
                             <DropdownMenuItem onClick={() => openEdit(user)}>
                               <Pencil className="h-4 w-4" />
-                              Edit
+                              {t('common.edit')}
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => openLink(user)}>
                               <Home className="h-4 w-4" />
-                              Link Homes
+                              {t('access.users.linkHomes')}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleGenerateTelegramCode(user)}
                             >
                               <MessageCircle className="h-4 w-4" />
-                              Telegram Link
+                              {t('access.users.telegramLink')}
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               variant="destructive"
                               onClick={() => openDelete(user)}
                             >
                               <Trash2 className="h-4 w-4" />
-                              Delete
+                              {t('common.delete')}
                             </DropdownMenuItem>
                           </DropdownMenu>
                         )}
@@ -720,27 +726,27 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Email
+                                  {t('access.users.columnEmail')}
                                 </span>
                                 <p className="font-medium">{user.email}</p>
                               </div>
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Phone
+                                  {t('access.users.phone')}
                                 </span>
                                 <p className="font-medium">
-                                  {user.phone || 'N/A'}
+                                  {user.phone || t('common.na')}
                                 </p>
                               </div>
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Role
+                                  {t('access.users.columnRole')}
                                 </span>
                                 <p className="font-medium">{user.role}</p>
                               </div>
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Channels
+                                  {t('access.users.channels')}
                                 </span>
                                 <div className="flex flex-wrap gap-1 mt-1">
                                   {user.channels && user.channels.length > 0 ? (
@@ -755,7 +761,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                                     ))
                                   ) : (
                                     <span className="text-muted-foreground text-sm">
-                                      None
+                                      {t('common.none')}
                                     </span>
                                   )}
                                 </div>
@@ -764,7 +770,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border pt-4">
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Created At
+                                  {t('common.createdAt')}
                                 </span>
                                 <p className="font-medium">
                                   {formatDate(user.created_at)}
@@ -772,7 +778,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                               </div>
                               <div>
                                 <span className="text-sm text-muted-foreground">
-                                  Updated At
+                                  {t('common.updatedAt')}
                                 </span>
                                 <p className="font-medium">
                                   {formatDate(user.updated_at)}
@@ -791,10 +797,12 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
             <div className="flex items-center justify-between mt-4">
               <div className="flex items-center gap-4">
                 <span className="text-sm text-muted-foreground">
-                  Total: {meta.itemCount} items
+                  {t('access.table.totalItems', { count: meta.itemCount })}
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Show:</span>
+                  <span className="text-sm text-muted-foreground">
+                    {t('access.table.show')}
+                  </span>
                   <select
                     value={take}
                     onChange={(e) => {
@@ -828,7 +836,10 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <span className="text-sm">
-                  Page {meta.page} of {meta.pageCount}
+                  {t('access.table.pageOf', {
+                    page: meta.page,
+                    pageCount: meta.pageCount,
+                  })}
                 </span>
                 <Button
                   variant="outline"
@@ -855,16 +866,16 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
         <DialogContent onClose={() => setShowAddModal(false)}>
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
-            <DialogDescription>
-              Create a new user account in your organization.
-            </DialogDescription>
+            <DialogTitle>{t('access.users.addTitle')}</DialogTitle>
+            <DialogDescription>{t('access.users.addDesc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Name *</label>
+              <label className="text-sm font-medium">
+                {t('access.form.nameRequired')}
+              </label>
               <Input
-                placeholder="John Doe"
+                placeholder={t('access.users.namePlaceholder')}
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
@@ -872,10 +883,12 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Email *</label>
+              <label className="text-sm font-medium">
+                {t('access.users.emailRequired')}
+              </label>
               <Input
                 type="email"
-                placeholder="john@example.com"
+                placeholder={t('access.users.emailPlaceholder')}
                 value={formData.email}
                 onChange={(e) =>
                   setFormData({ ...formData, email: e.target.value })
@@ -883,7 +896,9 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Password *</label>
+              <label className="text-sm font-medium">
+                {t('access.users.passwordRequired')}
+              </label>
               <Input
                 type="password"
                 placeholder="••••••••"
@@ -894,9 +909,11 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Phone</label>
+              <label className="text-sm font-medium">
+                {t('access.users.phone')}
+              </label>
               <Input
-                placeholder="34666555444"
+                placeholder={t('access.users.phonePlaceholder')}
                 value={formData.phone}
                 onChange={(e) =>
                   setFormData({ ...formData, phone: e.target.value })
@@ -904,7 +921,9 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Role</label>
+              <label className="text-sm font-medium">
+                {t('access.users.role')}
+              </label>
               <select
                 value={formData.role}
                 onChange={(e) =>
@@ -912,9 +931,9 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                 }
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
-                <option value="USER">User</option>
-                <option value="MANAGER">Manager</option>
-                <option value="ADMIN">Admin</option>
+                <option value="USER">{t('access.users.roleUser')}</option>
+                <option value="MANAGER">{t('access.users.roleManager')}</option>
+                <option value="ADMIN">{t('access.users.roleAdmin')}</option>
               </select>
             </div>
             <div className="flex items-center gap-2">
@@ -928,13 +947,13 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                 className="h-4 w-4 rounded border-border"
               />
               <label htmlFor="is_active_add" className="text-sm font-medium">
-                Active
+                {t('common.active')}
               </label>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium">
-                Notification Channels
+                {t('access.users.notificationChannels')}
               </label>
               <div className="flex flex-wrap gap-4 pt-2">
                 {Object.values(NotificationChannel).map((channel) => (
@@ -976,11 +995,11 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                 setModalError(null);
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleAddUser} disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Add User
+              {t('access.users.add')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -989,14 +1008,16 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
         <DialogContent onClose={() => setShowEditModal(false)}>
           <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
-            <DialogDescription>Update user information.</DialogDescription>
+            <DialogTitle>{t('access.users.editTitle')}</DialogTitle>
+            <DialogDescription>{t('access.users.editDesc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Name *</label>
+              <label className="text-sm font-medium">
+                {t('access.form.nameRequired')}
+              </label>
               <Input
-                placeholder="John Doe"
+                placeholder={t('access.users.namePlaceholder')}
                 value={formData.name}
                 onChange={(e) =>
                   setFormData({ ...formData, name: e.target.value })
@@ -1004,9 +1025,11 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Phone</label>
+              <label className="text-sm font-medium">
+                {t('access.users.phone')}
+              </label>
               <Input
-                placeholder="34666555444"
+                placeholder={t('access.users.phonePlaceholder')}
                 value={formData.phone}
                 onChange={(e) =>
                   setFormData({ ...formData, phone: e.target.value })
@@ -1014,7 +1037,9 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Role</label>
+              <label className="text-sm font-medium">
+                {t('access.users.role')}
+              </label>
               <select
                 value={formData.role}
                 onChange={(e) =>
@@ -1023,9 +1048,9 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                 disabled={editTarget?.is_org_admin}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <option value="USER">User</option>
-                <option value="MANAGER">Manager</option>
-                <option value="ADMIN">Admin</option>
+                <option value="USER">{t('access.users.roleUser')}</option>
+                <option value="MANAGER">{t('access.users.roleManager')}</option>
+                <option value="ADMIN">{t('access.users.roleAdmin')}</option>
               </select>
             </div>
             <div className="flex items-center gap-2">
@@ -1040,13 +1065,13 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                 className="h-4 w-4 rounded border-border disabled:opacity-50 disabled:cursor-not-allowed"
               />
               <label htmlFor="is_active_edit" className="text-sm font-medium">
-                Active
+                {t('common.active')}
               </label>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium">
-                Notification Channels
+                {t('access.users.notificationChannels')}
               </label>
               <div className="flex flex-wrap gap-4 pt-2">
                 {Object.values(NotificationChannel).map((channel) => (
@@ -1088,11 +1113,11 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                 setModalError(null);
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleEditUser} disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Save Changes
+              {t('access.form.saveChanges')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1101,10 +1126,9 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
       <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
         <DialogContent onClose={() => setShowDeleteModal(false)}>
           <DialogHeader>
-            <DialogTitle>Delete User</DialogTitle>
+            <DialogTitle>{t('access.users.deleteTitle')}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{deleteTarget?.name}"? This
-              action cannot be undone.
+              {t('common.confirmDelete', { name: deleteTarget?.name })}
             </DialogDescription>
           </DialogHeader>
           {modalError && (
@@ -1121,10 +1145,10 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                 setModalError(null);
               }}
             >
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
-              Delete
+              {t('common.delete')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1138,21 +1162,21 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-primary" />
-              Connect Telegram
+              {t('access.users.telegram_modal.title')}
             </DialogTitle>
             <DialogDescription>
-              Link your account to receive notifications.
+              {t('access.users.telegram_modal.desc')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="flex flex-col items-center justify-center py-6 space-y-6">
             <div className="w-full space-y-2">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                Verification Code
+                {t('access.users.telegram_modal.verificationCode')}
               </label>
               <div className="flex items-center gap-2">
                 <div className="flex-1 text-center text-2xl font-mono font-bold tracking-widest bg-muted/50 border border-border p-4 rounded-lg select-all">
-                  <span className="text-lg">/verify </span> {telegramCode}
+                  <span className="text-lg">{'/verify '}</span> {telegramCode}
                 </div>
                 <Button
                   variant="outline"
@@ -1164,7 +1188,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                       // Could add a toast here
                     }
                   }}
-                  title="Copy Code"
+                  title={t('access.users.telegram_modal.copyCode')}
                 >
                   <Copy className="h-5 w-5" />
                 </Button>
@@ -1172,15 +1196,21 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
             </div>
 
             <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg text-sm text-blue-800 dark:text-blue-200 w-full">
-              <p className="font-semibold mb-1">Instructions:</p>
+              <p className="font-semibold mb-1">
+                {t('access.users.telegram_modal.instructions')}
+              </p>
               <ol className="list-decimal list-inside space-y-1 opacity-90">
-                <li>Open the Telegram bot</li>
+                <li>{t('access.users.telegram_modal.step1')}</li>
                 <li>
-                  Click <strong>Start</strong> or send <code>/start</code>
+                  {t('access.users.telegram_modal.step2Pre')}{' '}
+                  <strong>{'Start'}</strong>{' '}
+                  {t('access.users.telegram_modal.step2Mid')}{' '}
+                  <code>{'/start'}</code>
                 </li>
-                <li>Copy the verification code above</li>
+                <li>{t('access.users.telegram_modal.step3')}</li>
                 <li>
-                  Send the command: <code>/verify {telegramCode}</code>
+                  {t('access.users.telegram_modal.step4')}{' '}
+                  <code>{`/verify ${telegramCode}`}</code>
                 </li>
               </ol>
             </div>
@@ -1192,7 +1222,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
               onClick={() => setShowTelegramModal(false)}
               className="sm:flex-1"
             >
-              Close
+              {t('common.close')}
             </Button>
             {botLink && (
               <Button
@@ -1200,7 +1230,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
                 className="sm:flex-1 gap-2 bg-[#229ED9] hover:bg-[#1f8rbc] text-white"
               >
                 <ExternalLink className="h-4 w-4" />
-                Open Telegram Bot
+                {t('access.users.telegram_modal.openBot')}
               </Button>
             )}
           </DialogFooter>
@@ -1217,7 +1247,7 @@ export default function UsersTable({ onDataChange }: UsersTableProps) {
             fetchUsers();
             onDataChange?.();
           }}
-          title={`Link Homes to "${linkTarget.name}"`}
+          title={t('access.users.linkTitle', { name: linkTarget.name })}
           entityId={linkTarget.id}
           fetchUrl={`/users/${linkTarget.id}/homes`}
           saveUrl="/users/homes/link"

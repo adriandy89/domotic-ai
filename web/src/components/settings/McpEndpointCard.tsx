@@ -1,5 +1,6 @@
 import { Copy, Eye, EyeOff, KeyRound, Loader2, Plug, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   Card,
   CardContent,
@@ -43,6 +44,7 @@ function formatDate(value: string | null) {
 }
 
 export default function McpEndpointCard() {
+  const { t } = useTranslation();
   const [tokens, setTokens] = useState<McpTokenRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export default function McpEndpointCard() {
       const res = await api.get<McpTokenRow[]>('/users/me/mcp/tokens');
       setTokens(res.data);
     } catch {
-      setError('Could not load MCP tokens');
+      setError(t('settings.mcp.loadError'));
     } finally {
       setLoading(false);
     }
@@ -90,7 +92,7 @@ export default function McpEndpointCard() {
       setShowSecret(false);
       setTokens((prev) => [res.data.record, ...prev]);
     } catch {
-      setError('Could not create token');
+      setError(t('settings.mcp.createError'));
     } finally {
       setCreating(false);
     }
@@ -107,7 +109,7 @@ export default function McpEndpointCard() {
       );
       setRevokeTarget(null);
     } catch {
-      setError('Could not revoke token');
+      setError(t('settings.mcp.revokeError'));
     } finally {
       setRevokingId(null);
     }
@@ -128,30 +130,29 @@ export default function McpEndpointCard() {
           <Plug className="h-8 w-8 text-primary" />
         </div>
         <div>
-          <CardTitle className="text-xl">MCP Endpoint</CardTitle>
-          <CardDescription>
-            Connect Claude Desktop, Cursor or any MCP-compatible client to your
-            smart home with a personal token.
-          </CardDescription>
+          <CardTitle className="text-xl">{t('settings.mcp.title')}</CardTitle>
+          <CardDescription>{t('settings.mcp.description')}</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="space-y-5">
         {/* Endpoint URL block */}
         <div className="space-y-2">
-          <Label>Endpoint URL</Label>
+          <Label>{t('settings.mcp.endpointUrl')}</Label>
           <div className="flex gap-2">
             <Input value={ENDPOINT_URL} readOnly className="font-mono text-sm" />
             <Button
               variant="outline"
               size="icon"
               onClick={() => copy(ENDPOINT_URL, 'endpoint')}
-              title="Copy endpoint URL"
+              title={t('settings.mcp.copyEndpoint')}
             >
               <Copy className="h-4 w-4" />
             </Button>
           </div>
           {copiedField === 'endpoint' && (
-            <p className="text-xs text-muted-foreground">Copied.</p>
+            <p className="text-xs text-muted-foreground">
+              {t('settings.mcp.copied')}
+            </p>
           )}
         </div>
 
@@ -161,11 +162,10 @@ export default function McpEndpointCard() {
             <div>
               <h3 className="text-base font-medium flex items-center gap-2">
                 <KeyRound className="h-4 w-4 text-muted-foreground" />
-                Personal tokens
+                {t('settings.mcp.personalTokens')}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Each token authenticates one client. Revoke any token to
-                disconnect that client immediately.
+                {t('settings.mcp.tokensHint')}
               </p>
             </div>
             <Button
@@ -176,7 +176,7 @@ export default function McpEndpointCard() {
                 setIsCreateOpen(true);
               }}
             >
-              <Plus className="h-4 w-4 mr-1" /> New token
+              <Plus className="h-4 w-4 mr-1" /> {t('settings.mcp.newToken')}
             </Button>
           </div>
 
@@ -188,12 +188,13 @@ export default function McpEndpointCard() {
 
           {loading ? (
             <div className="flex items-center justify-center p-6 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading…
+              <Loader2 className="h-4 w-4 animate-spin mr-2" />{' '}
+              {t('common.loading')}
             </div>
           ) : activeTokens.length === 0 ? (
             <div className="flex flex-col items-center justify-center p-6 border border-dashed border-border rounded-lg">
               <p className="text-muted-foreground mb-3 text-sm">
-                You have no active MCP tokens.
+                {t('settings.mcp.noTokens')}
               </p>
               <Button
                 variant="outline"
@@ -204,32 +205,40 @@ export default function McpEndpointCard() {
                   setIsCreateOpen(true);
                 }}
               >
-                Create your first token
+                {t('settings.mcp.createFirst')}
               </Button>
             </div>
           ) : (
             <div className="rounded-lg border border-border/50 divide-y divide-border/50 bg-background/50">
-              {activeTokens.map((t) => (
+              {activeTokens.map((row) => (
                 <div
-                  key={t.id}
+                  key={row.id}
                   className="flex flex-col md:flex-row md:items-center justify-between gap-2 p-3"
                 >
                   <div className="space-y-0.5">
-                    <p className="font-medium text-sm">{t.name}</p>
+                    <p className="font-medium text-sm">{row.name}</p>
                     <p className="font-mono text-xs text-muted-foreground">
-                      {t.token_prefix}…
+                      {row.token_prefix}…
                     </p>
                   </div>
                   <div className="flex flex-col md:flex-row md:items-center md:gap-6 gap-1 text-xs text-muted-foreground">
-                    <span>Last used: {formatDate(t.last_used_at)}</span>
-                    <span>Created: {formatDate(t.created_at)}</span>
+                    <span>
+                      {t('settings.mcp.lastUsed', {
+                        date: formatDate(row.last_used_at),
+                      })}
+                    </span>
+                    <span>
+                      {t('settings.mcp.created', {
+                        date: formatDate(row.created_at),
+                      })}
+                    </span>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon"
                     className="text-destructive hover:text-destructive"
-                    onClick={() => setRevokeTarget(t)}
-                    title="Revoke"
+                    onClick={() => setRevokeTarget(row)}
+                    title={t('settings.mcp.revoke')}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -242,27 +251,29 @@ export default function McpEndpointCard() {
         {/* Setup instructions */}
         <details className="rounded-lg border border-border/50 bg-background/50 p-3">
           <summary className="cursor-pointer text-sm font-medium">
-            Setup instructions
+            {t('settings.mcp.setupInstructions')}
           </summary>
           <div className="space-y-3 mt-3 text-sm">
             <div>
               <p className="text-muted-foreground mb-1">
-                <strong>URL-only clients</strong> (Claude.ai custom connector,
-                n8n, agent webhooks): paste this URL — the token travels as a
-                query param.
+                <Trans
+                  i18nKey="settings.mcp.setupUrlOnly"
+                  components={{ b: <strong /> }}
+                />
               </p>
               <pre className="bg-muted/40 p-3 rounded text-xs overflow-x-auto">
 {`${ENDPOINT_URL}?token=YOUR_TOKEN`}
               </pre>
               <p className="text-xs text-muted-foreground mt-1">
-                The token ends up in server logs and browser history. Prefer
-                the Bearer header below for Claude Desktop / Cursor.
+                {t('settings.mcp.setupUrlOnlyNote')}
               </p>
             </div>
             <div>
               <p className="text-muted-foreground mb-1">
-                <strong>Claude Desktop / Cursor</strong> via{' '}
-                <code className="text-xs">mcp-remote</code>:
+                <Trans
+                  i18nKey="settings.mcp.setupDesktop"
+                  components={{ b: <strong />, code: <code className="text-xs" /> }}
+                />
               </p>
               <pre className="bg-muted/40 p-3 rounded text-xs overflow-x-auto">
 {`"mcpServers": {
@@ -277,11 +288,15 @@ export default function McpEndpointCard() {
             </div>
             <div>
               <p className="text-muted-foreground mb-1">
-                <strong>MCP Inspector</strong>: select <em>Streamable HTTP</em>,
-                point it at <code className="text-xs">{ENDPOINT_URL}</code> and
-                either set header{' '}
-                <code className="text-xs">Authorization: Bearer …</code> or
-                append <code className="text-xs">?token=…</code> to the URL.
+                <Trans
+                  i18nKey="settings.mcp.setupInspector"
+                  values={{ url: ENDPOINT_URL }}
+                  components={{
+                    b: <strong />,
+                    em: <em />,
+                    code: <code className="text-xs" />,
+                  }}
+                />
               </p>
             </div>
           </div>
@@ -292,31 +307,33 @@ export default function McpEndpointCard() {
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Create MCP token</DialogTitle>
-            <DialogDescription>
-              Give the token a recognisable name (the client it's for).
-            </DialogDescription>
+            <DialogTitle>{t('settings.mcp.createTitle')}</DialogTitle>
+            <DialogDescription>{t('settings.mcp.createDesc')}</DialogDescription>
           </DialogHeader>
           <div className="grid gap-2 py-2">
-            <Label htmlFor="mcp-name">Name</Label>
+            <Label htmlFor="mcp-name">{t('common.name')}</Label>
             <Input
               id="mcp-name"
               value={createName}
               onChange={(e) => setCreateName(e.target.value)}
-              placeholder="e.g. Claude Desktop"
+              placeholder={t('settings.mcp.namePlaceholder')}
               autoFocus
               maxLength={80}
             />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               onClick={handleCreate}
               disabled={creating || !createName.trim()}
             >
-              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Create'}
+              {creating ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                t('common.create')
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -329,14 +346,13 @@ export default function McpEndpointCard() {
       >
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Token created</DialogTitle>
+            <DialogTitle>{t('settings.mcp.tokenCreated')}</DialogTitle>
             <DialogDescription>
-              Copy and store this token now. We won't show it again — you'll
-              only be able to revoke it and create a new one.
+              {t('settings.mcp.tokenCreatedDesc')}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-2 py-2">
-            <Label>Token</Label>
+            <Label>{t('settings.mcp.tokenLabel')}</Label>
             <div className="relative">
               <Input
                 readOnly
@@ -349,7 +365,11 @@ export default function McpEndpointCard() {
                   type="button"
                   onClick={() => setShowSecret((v) => !v)}
                   className="p-1.5 rounded text-muted-foreground hover:text-foreground"
-                  aria-label={showSecret ? 'Hide token' : 'Show token'}
+                  aria-label={
+                    showSecret
+                      ? t('settings.mcp.hideToken')
+                      : t('settings.mcp.showToken')
+                  }
                 >
                   {showSecret ? (
                     <EyeOff className="h-4 w-4" />
@@ -363,17 +383,19 @@ export default function McpEndpointCard() {
                     revealToken && copy(revealToken, 'reveal')
                   }
                   className="p-1.5 rounded text-muted-foreground hover:text-foreground"
-                  aria-label="Copy token"
+                  aria-label={t('settings.mcp.copyToken')}
                 >
                   <Copy className="h-4 w-4" />
                 </button>
               </div>
             </div>
             {copiedField === 'reveal' && (
-              <p className="text-xs text-muted-foreground">Copied.</p>
+              <p className="text-xs text-muted-foreground">
+                {t('settings.mcp.copied')}
+              </p>
             )}
 
-            <Label className="mt-3">URL with token (for URL-only clients)</Label>
+            <Label className="mt-3">{t('settings.mcp.urlWithToken')}</Label>
             <div className="relative">
               <Input
                 readOnly
@@ -394,27 +416,29 @@ export default function McpEndpointCard() {
                     )
                   }
                   className="p-1.5 rounded text-muted-foreground hover:text-foreground"
-                  aria-label="Copy URL"
+                  aria-label={t('settings.mcp.copyUrl')}
                 >
                   <Copy className="h-4 w-4" />
                 </button>
               </div>
             </div>
             {copiedField === 'reveal-url' && (
-              <p className="text-xs text-muted-foreground">Copied.</p>
+              <p className="text-xs text-muted-foreground">
+                {t('settings.mcp.copied')}
+              </p>
             )}
             <p className="text-xs text-muted-foreground">
-              Paste this directly into Claude.ai custom connectors, n8n, or
-              any client that only accepts a URL.
+              {t('settings.mcp.urlPasteHint')}
             </p>
 
             <p className="text-xs text-amber-600 dark:text-amber-400">
-              Treat this token like a password. Anyone with it can act on your
-              smart home.
+              {t('settings.mcp.treatLikePassword')}
             </p>
           </div>
           <DialogFooter>
-            <Button onClick={() => setRevealToken(null)}>I've saved it</Button>
+            <Button onClick={() => setRevealToken(null)}>
+              {t('settings.mcp.savedIt')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -426,15 +450,18 @@ export default function McpEndpointCard() {
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Revoke token</DialogTitle>
+            <DialogTitle>{t('settings.mcp.revokeTitle')}</DialogTitle>
             <DialogDescription>
-              The client using <strong>{revokeTarget?.name}</strong> will be
-              disconnected on its next request. This cannot be undone.
+              <Trans
+                i18nKey="settings.mcp.revokeDesc"
+                values={{ name: revokeTarget?.name }}
+                components={{ b: <strong /> }}
+              />
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRevokeTarget(null)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button
               variant="destructive"
@@ -444,7 +471,7 @@ export default function McpEndpointCard() {
               {revokingId === revokeTarget?.id ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                'Revoke'
+                t('settings.mcp.revoke')
               )}
             </Button>
           </DialogFooter>

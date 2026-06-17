@@ -1,5 +1,6 @@
 import { Bot, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '../ui/button';
@@ -114,6 +115,7 @@ function maskApiKey(key?: string): string {
 }
 
 export default function AiConfigCard() {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
 
   const [loading, setLoading] = useState(false);
@@ -169,24 +171,24 @@ export default function AiConfigCard() {
   }, [isAdmin]);
 
   const validationError = useMemo(() => {
-    if (!editingAiConfig.model.trim()) return 'Model is required.';
+    if (!editingAiConfig.model.trim()) return t('settings.ai.modelRequired');
     if (
       editingAiConfig.provider === 'openrouter' &&
       !editingAiConfig.model.includes('/')
     ) {
-      return 'OpenRouter model must include vendor prefix, e.g. "anthropic/claude-haiku-4.5".';
+      return t('settings.ai.openrouterPrefix');
     }
     if (!editingAiConfig.apiKey && !aiConfig?.apiKey) {
-      return 'API key is required.';
+      return t('settings.ai.apiKeyRequired');
     }
     if (
       editingAiConfig.temperature !== undefined &&
       (editingAiConfig.temperature < 0 || editingAiConfig.temperature > 2)
     ) {
-      return 'Temperature must be between 0 and 2.';
+      return t('settings.ai.temperatureRange');
     }
     return null;
-  }, [editingAiConfig, aiConfig]);
+  }, [editingAiConfig, aiConfig, t]);
 
   const handleProviderChange = (next: AiProvider) => {
     const meta = PROVIDER_META[next];
@@ -229,7 +231,7 @@ export default function AiConfigCard() {
       console.error('Failed to update AI config', error);
       const message =
         (error as { response?: { data?: { message?: string } } })?.response
-          ?.data?.message || 'Failed to update AI configuration.';
+          ?.data?.message || t('settings.ai.updateFailed');
       setAiSaveError(message);
     } finally {
       setLoading(false);
@@ -245,10 +247,8 @@ export default function AiConfigCard() {
           <Bot className="h-8 w-8 text-primary" />
         </div>
         <div>
-          <CardTitle className="text-xl">AI Configuration</CardTitle>
-          <CardDescription>
-            Configure the AI provider for your organization.
-          </CardDescription>
+          <CardTitle className="text-xl">{t('settings.ai.title')}</CardTitle>
+          <CardDescription>{t('settings.ai.description')}</CardDescription>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -264,14 +264,16 @@ export default function AiConfigCard() {
                 </span>
               </div>
               <p className="text-sm text-muted-foreground font-mono">
-                {maskApiKey(aiConfig.apiKey)}
+                {aiConfig.apiKey
+                  ? maskApiKey(aiConfig.apiKey)
+                  : t('settings.ai.notSet')}
               </p>
               <div className="flex items-center gap-2">
                 <span
                   className={`h-2 w-2 rounded-full ${aiConfig.enabled ? 'bg-green-500' : 'bg-red-500'}`}
                 />
                 <span className="text-xs text-muted-foreground">
-                  {aiConfig.enabled ? 'Enabled' : 'Disabled'}
+                  {aiConfig.enabled ? t('common.enabled') : t('common.disabled')}
                 </span>
               </div>
             </div>
@@ -283,13 +285,13 @@ export default function AiConfigCard() {
                 setIsAiConfigOpen(true);
               }}
             >
-              Edit
+              {t('common.edit')}
             </Button>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center p-6 border border-dashed border-border rounded-lg">
             <p className="text-muted-foreground mb-4">
-              No AI configuration found
+              {t('settings.ai.noConfig')}
             </p>
             <Button
               onClick={() => {
@@ -298,7 +300,7 @@ export default function AiConfigCard() {
                 setIsAiConfigOpen(true);
               }}
             >
-              Configure AI
+              {t('settings.ai.configure')}
             </Button>
           </div>
         )}
@@ -315,17 +317,16 @@ export default function AiConfigCard() {
         >
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>AI Configuration</DialogTitle>
+              <DialogTitle>{t('settings.ai.title')}</DialogTitle>
               <DialogDescription>
-                Pick a provider and model. Each organization brings its own API
-                key.
+                {t('settings.ai.dialogDesc')}
               </DialogDescription>
             </DialogHeader>
 
             <div className="grid gap-4 py-2">
               {/* Provider */}
               <div className="grid gap-2">
-                <Label htmlFor="provider">Provider</Label>
+                <Label htmlFor="provider">{t('settings.ai.provider')}</Label>
                 <Select
                   value={editingAiConfig.provider}
                   onValueChange={(value) =>
@@ -333,7 +334,7 @@ export default function AiConfigCard() {
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select provider" />
+                    <SelectValue placeholder={t('settings.ai.selectProvider')} />
                   </SelectTrigger>
                   <SelectContent>
                     {SUPPORTED_PROVIDERS.map((p) => (
@@ -347,7 +348,7 @@ export default function AiConfigCard() {
 
               {/* Model — combobox-ish: dropdown with suggestions + free text */}
               <div className="grid gap-2">
-                <Label htmlFor="model">Model</Label>
+                <Label htmlFor="model">{t('settings.ai.model')}</Label>
                 <Input
                   id="model"
                   list="ai-model-suggestions"
@@ -373,14 +374,14 @@ export default function AiConfigCard() {
               {/* API key */}
               <div className="grid gap-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="apiKey">API Key</Label>
+                  <Label htmlFor="apiKey">{t('settings.ai.apiKey')}</Label>
                   <a
                     href={PROVIDER_META[editingAiConfig.provider].apiKeyUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-primary hover:underline flex items-center gap-1"
                   >
-                    Get a key <ExternalLink className="h-3 w-3" />
+                    {t('settings.ai.getKey')} <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>
                 <div className="relative">
@@ -396,7 +397,9 @@ export default function AiConfigCard() {
                     }
                     placeholder={
                       aiConfig?.apiKey
-                        ? `Current: ${maskApiKey(aiConfig.apiKey)} (leave empty to keep)`
+                        ? t('settings.ai.currentKeyPlaceholder', {
+                            key: maskApiKey(aiConfig.apiKey),
+                          })
                         : PROVIDER_META[editingAiConfig.provider]
                             .apiKeyPlaceholder
                     }
@@ -404,7 +407,11 @@ export default function AiConfigCard() {
                   />
                   <button
                     type="button"
-                    aria-label={showApiKey ? 'Hide key' : 'Show key'}
+                    aria-label={
+                      showApiKey
+                        ? t('settings.ai.hideKey')
+                        : t('settings.ai.showKey')
+                    }
                     onClick={() => setShowApiKey((v) => !v)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground"
                   >
@@ -424,7 +431,9 @@ export default function AiConfigCard() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-2">
                   <Label htmlFor="temperature">
-                    Temperature ({editingAiConfig.temperature ?? 0.4})
+                    {t('settings.ai.temperature', {
+                      value: editingAiConfig.temperature ?? 0.4,
+                    })}
                   </Label>
                   <Input
                     id="temperature"
@@ -444,7 +453,7 @@ export default function AiConfigCard() {
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="maxTokens">Max output tokens</Label>
+                  <Label htmlFor="maxTokens">{t('settings.ai.maxTokens')}</Label>
                   <Input
                     id="maxTokens"
                     type="number"
@@ -460,7 +469,7 @@ export default function AiConfigCard() {
                           : undefined,
                       })
                     }
-                    placeholder="optional"
+                    placeholder={t('common.optional')}
                   />
                 </div>
               </div>
@@ -468,10 +477,9 @@ export default function AiConfigCard() {
               {/* Enabled */}
               <div className="flex items-center justify-between rounded-lg border border-border/50 bg-background/50 p-3">
                 <div>
-                  <Label htmlFor="ai-enabled">Enable AI Assistant</Label>
+                  <Label htmlFor="ai-enabled">{t('settings.ai.enableAi')}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Disabling stops the chat assistant for the whole
-                    organization.
+                    {t('settings.ai.enableAiHint')}
                   </p>
                 </div>
                 <Switch
@@ -496,13 +504,13 @@ export default function AiConfigCard() {
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setIsAiConfigOpen(false)}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button
                 onClick={handleUpdateAiConfig}
                 disabled={loading || !!validationError}
               >
-                {loading ? 'Saving...' : 'Save Configuration'}
+                {loading ? t('common.saving') : t('settings.ai.saveConfig')}
               </Button>
             </DialogFooter>
           </DialogContent>

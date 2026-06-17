@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Bar,
   BarChart,
@@ -35,6 +36,7 @@ interface PriceCurveCardProps {
  * a flat line carries no information.
  */
 export default function PriceCurveCard({ homeId }: PriceCurveCardProps) {
+  const { t } = useTranslation();
   const { fetchPriceCurve } = usePricingStore();
   // Keyed by home so switching homes shows nothing instead of a stale curve,
   // without a synchronous reset inside the effect. The current hour is
@@ -94,13 +96,15 @@ export default function PriceCurveCard({ homeId }: PriceCurveCardProps) {
     <Card className="bg-card/40 border-border">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">
-          Electricity price — today{curve.tomorrow_published ? ' & tomorrow' : ''}
+          {curve.tomorrow_published
+            ? t('reports.priceCurve.titleTodayTomorrow')
+            : t('reports.priceCurve.titleToday')}
         </CardTitle>
         {curve.current_price != null && (
           <span className="text-sm text-muted-foreground">
-            now:{' '}
+            {t('reports.priceCurve.now')}{' '}
             <strong className="text-foreground">
-              {formatCurrency(curve.current_price, curve.currency, 4)}/kWh
+              {`${formatCurrency(curve.current_price, curve.currency, 4)}/kWh`}
             </strong>
           </span>
         )}
@@ -127,7 +131,7 @@ export default function PriceCurveCard({ homeId }: PriceCurveCardProps) {
               labelFormatter={(ts) => fullLabel(String(ts))}
               formatter={(value) => [
                 `${formatCurrency(Number(value), curve.currency, 4)}/kWh`,
-                'Price',
+                t('reports.priceCurve.price'),
               ]}
             />
             {currentTs && <ReferenceLine x={currentTs} stroke={AXIS_TICK} strokeDasharray="4 2" />}
@@ -147,20 +151,20 @@ export default function PriceCurveCard({ homeId }: PriceCurveCardProps) {
           <div className="flex gap-3 text-xs text-muted-foreground">
             <span>
               <span className="inline-block w-2.5 h-2.5 rounded-sm mr-1" style={{ background: CHEAP }} />
-              cheap
+              {t('reports.priceCurve.cheap')}
             </span>
             <span>
               <span className="inline-block w-2.5 h-2.5 rounded-sm mr-1" style={{ background: MID }} />
-              mid
+              {t('reports.priceCurve.mid')}
             </span>
             <span>
               <span className="inline-block w-2.5 h-2.5 rounded-sm mr-1" style={{ background: EXPENSIVE }} />
-              expensive
+              {t('reports.priceCurve.expensive')}
             </span>
           </div>
           {!curve.tomorrow_published && curve.mode === 'dynamic' && (
             <p className="text-xs text-muted-foreground">
-              Tomorrow's prices publish around 20:30 CET.
+              {t('reports.priceCurve.tomorrowNote')}
             </p>
           )}
         </div>

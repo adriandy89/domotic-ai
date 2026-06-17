@@ -7,6 +7,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { useHomesStore } from '../../../store/useHomesStore';
 import {
@@ -37,28 +38,29 @@ import {
 import TouPeriodsEditor from '../TouPeriodsEditor';
 import PricePreview from './PricePreview';
 
+// label/hint resolved via i18n (settings.tariff.modes.*) at render time.
 const MODE_OPTIONS: {
   value: TariffMode;
-  label: string;
-  hint: string;
+  labelKey: string;
+  hintKey: string;
   icon: typeof Coins;
 }[] = [
   {
     value: 'fixed',
-    label: 'Fixed price',
-    hint: 'One €/kWh price for every hour',
+    labelKey: 'settings.tariff.modes.fixedLabel',
+    hintKey: 'settings.tariff.modes.fixedHint',
     icon: Coins,
   },
   {
     value: 'tou',
-    label: 'Time of use',
-    hint: 'Manual periods (e.g. Spanish 2.0TD P1/P2/P3)',
+    labelKey: 'settings.tariff.modes.touLabel',
+    hintKey: 'settings.tariff.modes.touHint',
     icon: Clock3,
   },
   {
     value: 'dynamic',
-    label: 'Dynamic (market)',
-    hint: 'Hourly prices from a public API (PVPC, ENTSO-E…)',
+    labelKey: 'settings.tariff.modes.dynamicLabel',
+    hintKey: 'settings.tariff.modes.dynamicHint',
     icon: TrendingUp,
   },
 ];
@@ -71,6 +73,7 @@ interface TariffSectionProps {
 export default function TariffSection({
   onConfigureProviders,
 }: TariffSectionProps) {
+  const { t } = useTranslation();
   const { user } = useAuthStore();
   const { homes, homeIds, selectedHomeId } = useHomesStore();
   const { fetchProviders, fetchTariff, updateTariff } = usePricingStore();
@@ -137,11 +140,11 @@ export default function TariffSection({
     setError(null);
 
     if (mode === 'tou' && periods.length === 0) {
-      setError('Add at least one period (or load the 2.0TD preset).');
+      setError(t('settings.tariff.errorNoPeriods'));
       return;
     }
     if (mode === 'dynamic' && (!provider || !zone)) {
-      setError('Pick a provider and zone.');
+      setError(t('settings.tariff.errorPickProviderZone'));
       return;
     }
 
@@ -163,7 +166,10 @@ export default function TariffSection({
       setPreviewKey((k) => k + 1);
       setTimeout(() => setSaved(false), 2500);
     } else {
-      setError(usePricingStore.getState().error ?? 'Failed to save tariff');
+      setError(
+        usePricingStore.getState().error ??
+          t('settings.tariff.errorSaveFailed'),
+      );
     }
   }
 
@@ -174,9 +180,11 @@ export default function TariffSection({
           <Zap className="h-8 w-8 text-primary" />
         </div>
         <div>
-          <CardTitle className="text-xl">Electricity tariff</CardTitle>
+          <CardTitle className="text-xl">
+            {t('settings.tariff.title')}
+          </CardTitle>
           <CardDescription>
-            How energy consumption is priced in reports and the monthly email.
+            {t('settings.tariff.description')}
           </CardDescription>
         </div>
       </CardHeader>
@@ -184,14 +192,14 @@ export default function TariffSection({
         <div className="flex flex-wrap items-end gap-3">
           <div className="w-56">
             <Label className="text-xs text-muted-foreground block mb-1">
-              Home
+              {t('common.home')}
             </Label>
             <Select
               value={homeId ?? ''}
               onValueChange={(value) => setSelectedId(value || null)}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Pick a home…">
+                <SelectValue placeholder={t('settings.tariff.pickHome')}>
                   {homeId ? homes[homeId]?.name : null}
                 </SelectValue>
               </SelectTrigger>
@@ -224,13 +232,13 @@ export default function TariffSection({
             >
               <p className="text-sm font-medium flex items-center gap-1.5">
                 <option.icon className="h-4 w-4 text-primary" />
-                {option.label}
+                {t(option.labelKey)}
                 {mode === option.value && (
                   <Check className="h-3.5 w-3.5 ml-auto text-primary" />
                 )}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {option.hint}
+                {t(option.hintKey)}
               </p>
             </button>
           ))}
@@ -240,7 +248,7 @@ export default function TariffSection({
           <div className="flex flex-wrap gap-3">
             <div>
               <Label className="text-xs text-muted-foreground block mb-1">
-                Price per kWh
+                {t('settings.tariff.pricePerKwh')}
               </Label>
               <Input
                 type="number"
@@ -254,7 +262,7 @@ export default function TariffSection({
             </div>
             <div>
               <Label className="text-xs text-muted-foreground block mb-1">
-                Currency
+                {t('settings.tariff.currency')}
               </Label>
               <Input
                 value={currency}
@@ -272,7 +280,7 @@ export default function TariffSection({
             <div className="flex flex-wrap items-end gap-3">
               <div>
                 <Label className="text-xs text-muted-foreground block mb-1">
-                  Timezone
+                  {t('settings.tariff.timezone')}
                 </Label>
                 <Input
                   value={timezone}
@@ -283,7 +291,7 @@ export default function TariffSection({
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground block mb-1">
-                  Default price (no period match)
+                  {t('settings.tariff.defaultPrice')}
                 </Label>
                 <Input
                   type="number"
@@ -292,13 +300,13 @@ export default function TariffSection({
                   value={defaultPrice}
                   onChange={(e) => setDefaultPrice(e.target.value)}
                   disabled={!canEdit}
-                  placeholder="optional"
+                  placeholder={t('common.optional')}
                   className="w-32"
                 />
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground block mb-1">
-                  Currency
+                  {t('settings.tariff.currency')}
                 </Label>
                 <Input
                   value={currency}
@@ -319,7 +327,7 @@ export default function TariffSection({
                   setCurrency('EUR');
                 }}
               >
-                Load Spanish 2.0TD preset
+                {t('settings.tariff.loadPreset')}
               </Button>
             </div>
             <TouPeriodsEditor
@@ -335,7 +343,7 @@ export default function TariffSection({
             <div className="flex flex-wrap items-end gap-3">
               <div className="w-64">
                 <Label className="text-xs text-muted-foreground block mb-1">
-                  Provider
+                  {t('settings.tariff.provider')}
                 </Label>
                 <Select
                   value={provider}
@@ -346,7 +354,7 @@ export default function TariffSection({
                   disabled={!canEdit}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Pick a provider…">
+                    <SelectValue placeholder={t('settings.tariff.pickProvider')}>
                       {selectedProvider?.label ?? null}
                     </SelectValue>
                   </SelectTrigger>
@@ -360,7 +368,9 @@ export default function TariffSection({
                         <span className="flex items-center gap-2">
                           {p.label}
                           {!p.enabled && (
-                            <Badge variant="warning">Not configured</Badge>
+                            <Badge variant="warning">
+                              {t('settings.tariff.notConfigured')}
+                            </Badge>
                           )}
                         </span>
                       </SelectItem>
@@ -370,7 +380,7 @@ export default function TariffSection({
               </div>
               <div className="w-56">
                 <Label className="text-xs text-muted-foreground block mb-1">
-                  Zone
+                  {t('settings.tariff.zone')}
                 </Label>
                 <Select
                   value={zone}
@@ -378,7 +388,7 @@ export default function TariffSection({
                   disabled={!canEdit || !selectedProvider}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Pick a zone…">
+                    <SelectValue placeholder={t('settings.tariff.pickZone')}>
                       {selectedProvider?.zones.find((z) => z.id === zone)
                         ?.label ?? null}
                     </SelectValue>
@@ -394,7 +404,7 @@ export default function TariffSection({
               </div>
               <div>
                 <Label className="text-xs text-muted-foreground block mb-1">
-                  Fallback price per kWh
+                  {t('settings.tariff.fallbackPrice')}
                 </Label>
                 <Input
                   type="number"
@@ -411,26 +421,23 @@ export default function TariffSection({
             {hasUnconfiguredProviders &&
               (isAdmin ? (
                 <p className="text-xs text-muted-foreground">
-                  Some providers need an API token before they can be selected.{' '}
+                  {t('settings.tariff.providersNeedToken')}{' '}
                   <button
                     type="button"
                     onClick={onConfigureProviders}
                     className="text-primary hover:underline"
                   >
-                    Configure providers below
+                    {t('settings.tariff.configureProvidersBelow')}
                   </button>
                 </p>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Greyed-out providers need an API token — ask an administrator
-                  to configure them in Settings → Energy.
+                  {t('settings.tariff.providersNeedTokenUser')}
                 </p>
               ))}
 
             <p className="text-xs text-muted-foreground">
-              Hourly market prices (energy term, taxes excluded). Hours without
-              published data fall back to the fixed price above and are flagged
-              as estimates.
+              {t('settings.tariff.marketHint')}
             </p>
           </div>
         )}
@@ -448,11 +455,11 @@ export default function TariffSection({
             ) : saved ? (
               <Check className="w-4 h-4 mr-1 text-green-500" />
             ) : null}
-            {saved ? 'Saved' : 'Save tariff'}
+            {saved ? t('common.saved') : t('settings.tariff.save')}
           </Button>
         ) : (
           <p className="text-xs text-muted-foreground">
-            Only managers can change the tariff configuration.
+            {t('settings.tariff.onlyManagers')}
           </p>
         )}
 

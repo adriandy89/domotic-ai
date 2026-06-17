@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Loader2, X, Search, Check } from 'lucide-react';
@@ -36,6 +37,7 @@ export function LinkDialog({
   itemLabelKey,
   itemsKey,
 }: LinkDialogProps) {
+  const { t } = useTranslation();
   const [items, setItems] = useState<LinkItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [originalLinked, setOriginalLinked] = useState<Set<string>>(new Set());
@@ -67,7 +69,7 @@ export function LinkDialog({
       setOriginalLinked(new Set(linked));
     } catch (err) {
       console.error('Failed to fetch items:', err);
-      setError('Failed to load data');
+      setError(t('access.link.loadError'));
     } finally {
       setLoading(false);
     }
@@ -118,7 +120,7 @@ export function LinkDialog({
       onClose();
     } catch (err) {
       console.error('Failed to save links:', err);
-      setError('Failed to save changes');
+      setError(t('access.link.saveError'));
     } finally {
       setSaving(false);
     }
@@ -169,7 +171,7 @@ export function LinkDialog({
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder={t('common.search')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
@@ -187,7 +189,7 @@ export function LinkDialog({
               <div className="text-center py-8 text-destructive">{error}</div>
             ) : filteredItems.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                No items found
+                {t('access.link.noItems')}
               </div>
             ) : (
               <div className="space-y-2">
@@ -226,8 +228,8 @@ export function LinkDialog({
                       className="text-xs"
                     >
                       {item.disabled || item.is_active === false
-                        ? 'Disabled'
-                        : 'Enabled'}
+                        ? t('common.disabled')
+                        : t('common.enabled')}
                     </Badge>
                   </label>
                 ))}
@@ -238,16 +240,16 @@ export function LinkDialog({
           {/* Footer */}
           <div className="flex items-center justify-between p-4 border-t border-border">
             <div className="text-sm text-muted-foreground">
-              {selectedIds.size} selected
+              {t('common.selected', { count: selectedIds.size })}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={onClose}>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <Button onClick={handleSave} disabled={saving || !hasChanges()}>
                 {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 <Check className="h-4 w-4 mr-2" />
-                Save
+                {t('common.save')}
               </Button>
             </div>
           </div>

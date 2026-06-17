@@ -1,0 +1,196 @@
+export const reports = {
+  title: 'Reports',
+  subtitle: 'Trends, totals and exports across devices and homes.',
+  tabs: {
+    energy: 'Energy',
+    climate: 'Climate',
+    security: 'Security',
+    devices: 'Devices',
+    automations: 'Automations',
+    aiUsage: 'AI usage',
+    airQuality: 'Air quality',
+    custom: 'Custom',
+  },
+
+  // Shared selectors at the top of each report.
+  filters: {
+    sensor: 'Sensor',
+    activity: 'Activity',
+    exportCsv: 'Export CSV',
+  },
+  deviceSelector: {
+    placeholder: 'Select device',
+    noMatch: 'No matching devices',
+    pickEnergyMeter: 'Pick an energy meter',
+    pickClimateSensor: 'Pick a climate sensor',
+    pickAirSensor: 'Pick an air quality sensor',
+    pickDevice: 'Pick a device',
+  },
+
+  energy: {
+    energyUsed: 'Energy used',
+    period: 'period',
+    estimatedCost: 'Estimated cost*',
+    energyCost: 'Energy cost',
+    avgPower: 'Avg power',
+    acrossPeriod: 'across period',
+    peakPower: 'Peak power',
+    maxInPeriod: 'max in period',
+    dynamicMode: 'dynamic market price',
+    touMode: 'time-of-use tariff',
+    avgPriceSubtitle: '{{mode}} · avg {{price}}/kWh',
+    flatPriceSubtitle: '@ {{price}}/kWh',
+    setTariff: 'Set the tariff in Settings',
+    powerOverTime: 'Power over time',
+    energyConsumption: 'Energy consumption',
+    energyCostChart: 'Energy cost',
+    energyCostEstimate: 'Energy cost (estimate)',
+    topConsumers: 'Top consumers',
+    noMeters: 'No energy meters with data in this period.',
+    fallbackNote:
+      '* {{hours}} h had no market price and used the home’s fixed fallback price.',
+    totalSamples: 'Total samples: {{count}}',
+    series: { power: 'Power', energy: 'Energy', cost: 'Cost' },
+  },
+
+  climate: {
+    avgTemperature: 'Avg temperature',
+    minMax: 'Min / Max',
+    avgHumidity: 'Avg humidity',
+    timeInComfort: 'Time in comfort',
+    tempHumidity: 'Temperature & humidity',
+    comfortMin: 'comfort min',
+    comfortMax: 'comfort max',
+    series: { temperature: 'Temperature', humidity: 'Humidity' },
+  },
+
+  security: {
+    activityOptions: {
+      contact_open: 'Door / window opens',
+      occupancy: 'Occupancy',
+      presence: 'Presence',
+      motion: 'Motion',
+      vibration: 'Vibration',
+      smoke: 'Smoke',
+      water_leak: 'Water leak',
+      tamper: 'Tamper',
+    },
+    eventsInPeriod: 'Events in period',
+    lastEvent: 'Last event',
+    daysWithoutAlarm: 'Days without alarm',
+    eventsOverTime: 'Events over time',
+    heatmap: 'Heatmap (day × hour)',
+    series: { events: 'Events' },
+  },
+
+  devicesHealth: {
+    lowBattery: 'Low battery',
+    lowBatterySub: '< 20%',
+    weakSignal: 'Weak signal',
+    weakSignalSub: 'LQI < 40',
+    silent: 'Silent',
+    silentSub: 'no data ≥ 4h',
+    lowUptime: 'Low uptime (30d)',
+    lowUptimeSub: '< 90%',
+    devices: 'Devices ({{count}})',
+    sort: 'Sort:',
+    sortBy: {
+      battery: 'Battery',
+      lqi: 'LQI',
+      lastSeen: 'Last seen',
+      uptime: 'Uptime',
+      name: 'Name',
+    },
+    noDevices: 'No devices in this organization.',
+    columns: {
+      name: 'Name',
+      battery: 'Battery',
+      trend: 'Trend (30d)',
+      lqi: 'LQI',
+      uptime: 'Uptime 30d',
+      lastSeen: 'Last seen',
+    },
+    daysLeft: '~{{days}}d left',
+    never: 'never',
+  },
+
+  automations: {
+    ruleExecutions: 'Rule executions',
+    ruleErrors: 'Rule errors',
+    commandsSent: 'Commands sent',
+    commandFailures: 'Command failures',
+    ruleFirings: 'Rule firings per day',
+    commandsBySource: 'Commands by source',
+    topRules: 'Top rules',
+    mostCommanded: 'Most commanded devices',
+    noExecutions: 'No rule executions yet.',
+    noCommands: 'No commands sent yet.',
+    series: {
+      conditionsMet: 'Conditions met',
+      executed: 'Executed',
+      api: 'API',
+      ai: 'AI',
+      rule: 'Rule',
+      schedule: 'Schedule',
+      executions: 'Executions',
+      commands: 'Commands',
+    },
+  },
+
+  aiUsage: {
+    totalTokens: 'Total tokens',
+    tokensBreakdown: '{{prompt}} prompt · {{completion}} completion',
+    conversations: 'Conversations',
+    toolCalls: 'Tool calls',
+    latencyP95: 'Latency p95',
+    avgLatency: 'avg {{ms}} ms',
+    tokensPerDay: 'Tokens per day',
+    byProvider: 'By provider',
+    topModels: 'Top models',
+    noUsage: 'No AI usage yet.',
+    columns: {
+      provider: 'Provider',
+      tokens: 'Tokens',
+      calls: 'Calls',
+      avgLatency: 'Avg latency',
+    },
+    errorsNote:
+      'AI calls failed during this period. Check the logs of the ai-service for details.',
+    series: { tokens: 'Tokens', calls: 'Calls' },
+  },
+
+  airQuality: {
+    goodLeq: 'good ≤ {{value}} {{unit}}',
+    good: 'good',
+    warn: 'warn',
+  },
+
+  custom: {
+    pickToChart: 'Pick a device to chart any of its variables',
+    variables: 'Variables',
+    noNumericVariables: 'This device reports no numeric variables',
+    stateHistory: 'State history',
+  },
+
+  priceCurve: {
+    titleToday: 'Electricity price — today',
+    titleTodayTomorrow: 'Electricity price — today & tomorrow',
+    now: 'now:',
+    price: 'Price',
+    cheap: 'cheap',
+    mid: 'mid',
+    expensive: 'expensive',
+    tomorrowNote: 'Tomorrow’s prices publish around 20:30 CET.',
+  },
+
+  providerPrices: {
+    title: 'Market prices by provider',
+    empty:
+      'No market-priced homes in scope. Set a dynamic tariff (PVPC / ENTSO-E) in Settings → Energy to compare provider prices here.',
+    subtitle:
+      'Hourly market price over the selected period · {{currency}}/kWh',
+    noPrices: 'No published prices for this period yet.',
+  },
+};
+
+export type ReportsNS = typeof reports;

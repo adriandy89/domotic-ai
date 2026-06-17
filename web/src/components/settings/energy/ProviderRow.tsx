@@ -1,5 +1,6 @@
 import { Check, ExternalLink, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { AdminPricingProvider } from '../../../store/usePricingStore';
 import { Badge } from '../../ui/badge';
 import { Button } from '../../ui/button';
@@ -24,11 +25,14 @@ const PROVIDER_HELP: Record<
 
 const STATUS_BADGE: Record<
   AdminPricingProvider['token_status'],
-  { variant: 'success' | 'warning' | 'destructive'; label: string }
+  { variant: 'success' | 'warning' | 'destructive'; labelKey: string }
 > = {
-  configured: { variant: 'success', label: 'Configured' },
-  not_configured: { variant: 'warning', label: 'Not configured' },
-  rejected: { variant: 'destructive', label: 'Token rejected' },
+  configured: { variant: 'success', labelKey: 'settings.providers.configured' },
+  not_configured: {
+    variant: 'warning',
+    labelKey: 'settings.providers.notConfigured',
+  },
+  rejected: { variant: 'destructive', labelKey: 'settings.providerRow.rejected' },
 };
 
 interface ProviderRowProps {
@@ -37,6 +41,7 @@ interface ProviderRowProps {
 }
 
 export default function ProviderRow({ provider, onSave }: ProviderRowProps) {
+  const { t } = useTranslation();
   const [token, setToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -57,7 +62,7 @@ export default function ProviderRow({ provider, onSave }: ProviderRowProps) {
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } else {
-      setError('Failed to save the token. Try again.');
+      setError(t('settings.providerRow.saveFailed'));
     }
   }
 
@@ -70,22 +75,21 @@ export default function ProviderRow({ provider, onSave }: ProviderRowProps) {
             {provider.source}
           </p>
         </div>
-        <Badge variant={badge.variant}>{badge.label}</Badge>
+        <Badge variant={badge.variant}>{t(badge.labelKey)}</Badge>
       </div>
 
       {provider.token_status === 'rejected' && (
         <p className="text-sm text-red-500 bg-red-500/10 p-2 rounded">
-          The saved token was rejected by the provider. Save a new one to
-          re-enable it.
+          {t('settings.providerRow.rejectedNote')}
         </p>
       )}
 
       {provider.token_status === 'configured' && provider.token_masked && (
         <p className="text-sm text-muted-foreground">
-          Active token{' '}
+          {t('settings.providerRow.activeToken')}{' '}
           <span className="font-mono">{provider.token_masked}</span>
           {provider.token_origin === 'env' && (
-            <span> · from environment variable</span>
+            <span>{t('settings.providerRow.fromEnv')}</span>
           )}
         </p>
       )}
@@ -95,7 +99,7 @@ export default function ProviderRow({ provider, onSave }: ProviderRowProps) {
           htmlFor={`token-${provider.source}`}
           className="text-xs text-muted-foreground"
         >
-          API token
+          {t('settings.providerRow.apiToken')}
         </Label>
         <div className="flex flex-wrap gap-2">
           <div className="relative flex-1 min-w-56">
@@ -106,14 +110,20 @@ export default function ProviderRow({ provider, onSave }: ProviderRowProps) {
               onChange={(e) => setToken(e.target.value)}
               placeholder={
                 provider.token_masked
-                  ? `Current: ${provider.token_masked} (enter new to replace)`
-                  : 'Paste token…'
+                  ? t('settings.providerRow.currentTokenPlaceholder', {
+                      token: provider.token_masked,
+                    })
+                  : t('settings.providerRow.pasteToken')
               }
               className="pr-10"
             />
             <button
               type="button"
-              aria-label={showToken ? 'Hide token' : 'Show token'}
+              aria-label={
+                showToken
+                  ? t('settings.providerRow.hideToken')
+                  : t('settings.providerRow.showToken')
+              }
               onClick={() => setShowToken((v) => !v)}
               className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-muted-foreground hover:text-foreground"
             >
@@ -130,7 +140,7 @@ export default function ProviderRow({ provider, onSave }: ProviderRowProps) {
             ) : saved ? (
               <Check className="w-4 h-4 mr-1 text-green-500" />
             ) : null}
-            {saved ? 'Saved' : 'Save token'}
+            {saved ? t('common.saved') : t('settings.providerRow.saveToken')}
           </Button>
         </div>
       </div>

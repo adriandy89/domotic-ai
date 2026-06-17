@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   bucketForRange,
   KPICard,
@@ -51,6 +52,7 @@ function bandColor(
 }
 
 export default function AirQualityReportPage() {
+  const { t } = useTranslation();
   const { devices } = useDevicesStore();
   const { homes, homeIds } = useHomesStore();
   const { fetchSeries, fetchAggregate } = useReportsStore();
@@ -111,14 +113,14 @@ export default function AirQualityReportPage() {
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="text-xs text-muted-foreground block mb-1">
-            Home
+            {t('common.home')}
           </label>
           <select
             value={homeId ?? ''}
             onChange={(e) => setHomeId(e.target.value || null)}
             className="h-9 px-3 rounded-md border border-border bg-background/50 text-sm"
           >
-            <option value="">All homes</option>
+            <option value="">{t('common.allHomes')}</option>
             {homeIds.map((id) => (
               <option key={id} value={id}>
                 {homes[id]?.name}
@@ -128,14 +130,14 @@ export default function AirQualityReportPage() {
         </div>
         <div>
           <label className="text-xs text-muted-foreground block mb-1">
-            Sensor
+            {t('reports.filters.sensor')}
           </label>
           <DeviceSelector
             value={deviceId}
             onChange={setDeviceId}
             hasProperty="co2"
             homeId={homeId}
-            placeholder="Pick an air quality sensor"
+            placeholder={t('reports.deviceSelector.pickAirSensor')}
           />
         </div>
         <RangeSelector value={range} onChange={setRange} />
@@ -150,7 +152,10 @@ export default function AirQualityReportPage() {
               key={m.metric}
               label={m.label}
               value={formatWithUnit(value, thr.unit, 0)}
-              subtitle={`good ≤ ${thr.good} ${thr.unit}`}
+              subtitle={t('reports.airQuality.goodLeq', {
+                value: thr.good,
+                unit: thr.unit,
+              })}
               accentColor={bandColor(value, thr)}
               icon={<Wind className="w-4 h-4" />}
             />
@@ -188,8 +193,16 @@ export default function AirQualityReportPage() {
                   ]}
                   yUnit={thr.unit}
                   referenceLines={[
-                    { value: thr.good, label: 'good', color: '#10b981' },
-                    { value: thr.warn, label: 'warn', color: '#ef4444' },
+                    {
+                      value: thr.good,
+                      label: t('reports.airQuality.good'),
+                      color: '#10b981',
+                    },
+                    {
+                      value: thr.warn,
+                      label: t('reports.airQuality.warn'),
+                      color: '#ef4444',
+                    },
                   ]}
                   height={220}
                   type="area"

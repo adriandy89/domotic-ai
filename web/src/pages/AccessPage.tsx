@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Card,
   CardContent,
@@ -43,6 +44,7 @@ interface Statistics {
 }
 
 export default function AccessPage() {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('homes');
   const [stats, setStats] = useState<Statistics | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -138,37 +140,28 @@ export default function AccessPage() {
 
   const summaryCards = [
     {
-      title: 'Homes',
+      tab: 'homes',
       icon: Home,
       value: stats?.homes?.totalHomes ?? '-',
-      subtitle: stats?.homes
-        ? `${stats.homes.enabledHomes} enabled`
-        : 'Loading...',
+      enabledCount: stats?.homes?.enabledHomes ?? null,
       color: 'text-cyan-400',
       bgColor: 'bg-cyan-500/10',
-      tab: 'homes',
     },
     {
-      title: 'Devices',
+      tab: 'devices',
       icon: Cpu,
       value: stats?.devices?.totalDevices ?? '-',
-      subtitle: stats?.devices
-        ? `${stats.devices.enabledDevices} enabled`
-        : 'Loading...',
+      enabledCount: stats?.devices?.enabledDevices ?? null,
       color: 'text-emerald-400',
       bgColor: 'bg-emerald-500/10',
-      tab: 'devices',
     },
     {
-      title: 'Users',
+      tab: 'users',
       icon: Users,
       value: stats?.users?.totalUsers ?? '-',
-      subtitle: stats?.users
-        ? `${stats.users.enabledUsers} enabled`
-        : 'Loading...',
+      enabledCount: stats?.users?.enabledUsers ?? null,
       color: 'text-purple-400',
       bgColor: 'bg-purple-500/10',
-      tab: 'users',
     },
   ];
 
@@ -178,11 +171,9 @@ export default function AccessPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-foreground">
-            Access
+            {t('access.title')}
           </h2>
-          <p className="text-muted-foreground">
-            Manage homes, devices, and users in your system
-          </p>
+          <p className="text-muted-foreground">{t('access.subtitle')}</p>
         </div>
       </div>
 
@@ -190,7 +181,7 @@ export default function AccessPage() {
       <div className="grid gap-4 md:grid-cols-3">
         {summaryCards.map((item) => (
           <Card
-            key={item.title}
+            key={item.tab}
             className={`bg-card/40 border-border cursor-pointer hover:border-primary/30 transition-all duration-300 ${
               activeTab === item.tab
                 ? 'border-primary/50 shadow-[0_0_10px_rgba(var(--primary),0.1)]'
@@ -200,7 +191,7 @@ export default function AccessPage() {
           >
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
-                {item.title}
+                {t(`access.tabs.${item.tab}`)}
               </CardTitle>
               <div className={`p-2 rounded-lg ${item.bgColor}`}>
                 <item.icon className={`h-4 w-4 ${item.color}`} />
@@ -215,7 +206,9 @@ export default function AccessPage() {
                     {item.value}
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {item.subtitle}
+                    {item.enabledCount != null
+                      ? t('access.summary.enabled', { count: item.enabledCount })
+                      : t('common.loading')}
                   </p>
                 </>
               )}
@@ -229,15 +222,15 @@ export default function AccessPage() {
         <TabsList className="bg-muted/50">
           <TabsTrigger value="homes" className="gap-2">
             <Home className="h-4 w-4" />
-            Homes
+            {t('access.tabs.homes')}
           </TabsTrigger>
           <TabsTrigger value="devices" className="gap-2">
             <Cpu className="h-4 w-4" />
-            Devices
+            {t('access.tabs.devices')}
           </TabsTrigger>
           <TabsTrigger value="users" className="gap-2">
             <Users className="h-4 w-4" />
-            Users
+            {t('access.tabs.users')}
           </TabsTrigger>
         </TabsList>
 

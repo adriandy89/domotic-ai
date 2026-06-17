@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Select,
   SelectContent,
@@ -24,11 +25,14 @@ interface DeviceSelectorProps {
 export default function DeviceSelector({
   value,
   onChange,
-  placeholder = 'Select device',
+  placeholder,
   hasProperty,
   homeId,
 }: DeviceSelectorProps) {
+  const { t } = useTranslation();
   const { devices } = useDevicesStore();
+  const resolvedPlaceholder =
+    placeholder ?? t('reports.deviceSelector.placeholder');
 
   const list = useMemo(() => {
     return Object.values(devices)
@@ -41,14 +45,14 @@ export default function DeviceSelector({
   return (
     <Select value={value ?? ''} onValueChange={onChange}>
       <SelectTrigger className="w-[260px]">
-        <SelectValue placeholder={placeholder}>
+        <SelectValue placeholder={resolvedPlaceholder}>
           {value ? devices[value]?.name : null}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {list.length === 0 ? (
           <div className="px-2 py-1.5 text-sm text-muted-foreground">
-            No matching devices
+            {t('reports.deviceSelector.noMatch')}
           </div>
         ) : (
           list.map((d) => (

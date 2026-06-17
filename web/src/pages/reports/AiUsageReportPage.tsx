@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   BarChartCmp,
   KPICard,
@@ -21,6 +22,7 @@ import { Bot, Clock, MessageSquare, Wrench } from 'lucide-react';
 import { formatNumber } from '../../lib/format';
 
 export default function AiUsageReportPage() {
+  const { t } = useTranslation();
   const { fetchAiUsage } = useReportsStore();
   const [range, setRange] = useState<RangeValue>(presetRange('30d'));
   const [report, setReport] = useState<AiUsageReport | null>(null);
@@ -37,28 +39,33 @@ export default function AiUsageReportPage() {
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <KPICard
-          label="Total tokens"
+          label={t('reports.aiUsage.totalTokens')}
           value={formatNumber(report?.totals.total_tokens, 0)}
-          subtitle={`${formatNumber(report?.totals.prompt_tokens, 0)} prompt · ${formatNumber(report?.totals.completion_tokens, 0)} completion`}
+          subtitle={t('reports.aiUsage.tokensBreakdown', {
+            prompt: formatNumber(report?.totals.prompt_tokens, 0),
+            completion: formatNumber(report?.totals.completion_tokens, 0),
+          })}
           accentColor="#8b5cf6"
           icon={<Bot className="w-4 h-4" />}
         />
         <KPICard
-          label="Conversations"
+          label={t('reports.aiUsage.conversations')}
           value={String(report?.totals.conversations ?? 0)}
           accentColor="#22d3ee"
           icon={<MessageSquare className="w-4 h-4" />}
         />
         <KPICard
-          label="Tool calls"
+          label={t('reports.aiUsage.toolCalls')}
           value={formatNumber(report?.totals.tool_calls, 0)}
           accentColor="#10b981"
           icon={<Wrench className="w-4 h-4" />}
         />
         <KPICard
-          label="Latency p95"
+          label={t('reports.aiUsage.latencyP95')}
           value={`${formatNumber(report?.totals.p95_latency_ms, 0)} ms`}
-          subtitle={`avg ${formatNumber(report?.totals.avg_latency_ms, 0)} ms`}
+          subtitle={t('reports.aiUsage.avgLatency', {
+            ms: formatNumber(report?.totals.avg_latency_ms, 0),
+          })}
           accentColor="#f59e0b"
           inverse
           icon={<Clock className="w-4 h-4" />}
@@ -67,7 +74,9 @@ export default function AiUsageReportPage() {
 
       <Card className="bg-card/40 border-border">
         <CardHeader>
-          <CardTitle className="text-lg">Tokens per day</CardTitle>
+          <CardTitle className="text-lg">
+            {t('reports.aiUsage.tokensPerDay')}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <TimeSeriesChart
@@ -77,8 +86,16 @@ export default function AiUsageReportPage() {
               calls: d.calls,
             }))}
             series={[
-              { key: 'tokens', label: 'Tokens', color: '#8b5cf6' },
-              { key: 'calls', label: 'Calls', color: '#22d3ee' },
+              {
+                key: 'tokens',
+                label: t('reports.aiUsage.series.tokens'),
+                color: '#8b5cf6',
+              },
+              {
+                key: 'calls',
+                label: t('reports.aiUsage.series.calls'),
+                color: '#22d3ee',
+              },
             ]}
             type="area"
             height={260}
@@ -89,21 +106,31 @@ export default function AiUsageReportPage() {
       <div className="grid gap-4 grid-cols-1 lg:grid-cols-2">
         <Card className="bg-card/40 border-border">
           <CardHeader>
-            <CardTitle className="text-lg">By provider</CardTitle>
+            <CardTitle className="text-lg">
+              {t('reports.aiUsage.byProvider')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {(report?.by_provider ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
-                No AI usage yet.
+                {t('reports.aiUsage.noUsage')}
               </p>
             ) : (
               <table className="w-full text-sm">
                 <thead className="text-xs text-muted-foreground border-b border-border/50">
                   <tr>
-                    <th className="text-left py-2 px-2">Provider</th>
-                    <th className="text-right py-2 px-2">Tokens</th>
-                    <th className="text-right py-2 px-2">Calls</th>
-                    <th className="text-right py-2 px-2">Avg latency</th>
+                    <th className="text-left py-2 px-2">
+                      {t('reports.aiUsage.columns.provider')}
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      {t('reports.aiUsage.columns.tokens')}
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      {t('reports.aiUsage.columns.calls')}
+                    </th>
+                    <th className="text-right py-2 px-2">
+                      {t('reports.aiUsage.columns.avgLatency')}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -120,7 +147,7 @@ export default function AiUsageReportPage() {
                         {p.calls}
                       </td>
                       <td className="py-2 px-2 text-right tabular-nums text-muted-foreground">
-                        {p.avg_latency_ms} ms
+                        {`${p.avg_latency_ms} ms`}
                       </td>
                     </tr>
                   ))}
@@ -132,12 +159,14 @@ export default function AiUsageReportPage() {
 
         <Card className="bg-card/40 border-border">
           <CardHeader>
-            <CardTitle className="text-lg">Top models</CardTitle>
+            <CardTitle className="text-lg">
+              {t('reports.aiUsage.topModels')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             {(report?.by_model ?? []).length === 0 ? (
               <p className="text-sm text-muted-foreground py-4 text-center">
-                No AI usage yet.
+                {t('reports.aiUsage.noUsage')}
               </p>
             ) : (
               <BarChartCmp
@@ -147,7 +176,11 @@ export default function AiUsageReportPage() {
                 }))}
                 xKey="name"
                 series={[
-                  { key: 'tokens', label: 'Tokens', color: '#8b5cf6' },
+                  {
+                    key: 'tokens',
+                    label: t('reports.aiUsage.series.tokens'),
+                    color: '#8b5cf6',
+                  },
                 ]}
                 layout="vertical"
                 height={Math.max(180, (report?.by_model.length ?? 0) * 32)}
@@ -160,8 +193,8 @@ export default function AiUsageReportPage() {
       {report && report.totals.errors > 0 && (
         <Card className="bg-destructive/10 border-destructive/30">
           <CardContent className="p-4 text-sm">
-            <strong>{report.totals.errors}</strong> AI calls failed during this
-            period. Check the logs of the ai-service for details.
+            <strong>{report.totals.errors}</strong>{' '}
+            {t('reports.aiUsage.errorsNote')}
           </CardContent>
         </Card>
       )}

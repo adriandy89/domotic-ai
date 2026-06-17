@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Zap } from 'lucide-react';
 import { TimeSeriesChart, type SeriesDef, type SeriesPoint } from '../charts';
 import {
@@ -38,6 +39,7 @@ export default function ProviderPricesCard({
   from,
   to,
 }: ProviderPricesCardProps) {
+  const { t } = useTranslation();
   const { homes, homeIds } = useHomesStore();
   const { fetchProviderPrices, fetchProviders } = usePricingStore();
 
@@ -131,13 +133,12 @@ export default function ProviderPricesCard({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Zap className="h-5 w-5 text-primary" />
-            Market prices by provider
+            {t('reports.providerPrices.title')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground text-center py-8">
-            No market-priced homes in scope. Set a dynamic tariff (PVPC /
-            ENTSO-E) in Settings → Energy to compare provider prices here.
+            {t('reports.providerPrices.empty')}
           </p>
         </CardContent>
       </Card>
@@ -149,11 +150,12 @@ export default function ProviderPricesCard({
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <Zap className="h-5 w-5 text-primary" />
-          Market prices by provider
+          {t('reports.providerPrices.title')}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          Hourly market price over the selected period ·{' '}
-          {view?.currency ?? 'EUR'}/kWh
+          {t('reports.providerPrices.subtitle', {
+            currency: view?.currency ?? 'EUR',
+          })}
         </p>
       </CardHeader>
       <CardContent>
@@ -164,7 +166,7 @@ export default function ProviderPricesCard({
           yUnit={view?.currency ?? 'EUR'}
           height={300}
           isLoading={!view}
-          emptyLabel="No published prices for this period yet."
+          emptyLabel={t('reports.providerPrices.noPrices')}
         />
       </CardContent>
     </Card>

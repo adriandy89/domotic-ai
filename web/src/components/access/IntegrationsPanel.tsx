@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Copy, Check, ExternalLink, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
@@ -25,6 +26,7 @@ export function IntegrationsPanel({
   host,
   port,
 }: IntegrationsPanelProps) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<Protocol>('zigbee');
   const [copied, setCopied] = useState(false);
   const [revealed, setRevealed] = useState(false);
@@ -47,11 +49,10 @@ export function IntegrationsPanel({
   return (
     <div className="border-t border-border pt-4">
       <h4 className="text-lg font-semibold mb-1 text-foreground">
-        Integraciones
+        {t('access.integrations.title')}
       </h4>
       <p className="text-xs text-muted-foreground mb-4">
-        Misma credencial MQTT para todos los protocolos. Copia la configuración y
-        pégala en el bridge oficial o el firmware del dispositivo según corresponda.
+        {t('access.integrations.description')}
       </p>
 
       <div className="flex flex-wrap gap-2 mb-4">
@@ -74,8 +75,9 @@ export function IntegrationsPanel({
               {info.description}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Imagen oficial:{' '}
-              <span className="font-mono">{info.image}</span> · Destino:{' '}
+              {t('access.integrations.officialImage')}{' '}
+              <span className="font-mono">{info.image}</span> ·{' '}
+              {t('access.integrations.target')}{' '}
               <span className="font-mono">{config.target}</span>
             </p>
             <a
@@ -84,7 +86,8 @@ export function IntegrationsPanel({
               rel="noreferrer"
               className="inline-flex items-center gap-1 text-xs text-primary hover:underline mt-1"
             >
-              Documentación <ExternalLink className="h-3 w-3" />
+              {t('access.integrations.documentation')}{' '}
+              <ExternalLink className="h-3 w-3" />
             </a>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -93,26 +96,30 @@ export function IntegrationsPanel({
               variant="ghost"
               onClick={() => setRevealed((v) => !v)}
               aria-pressed={revealed}
-              title={revealed ? 'Ocultar credenciales' : 'Mostrar credenciales'}
+              title={
+                revealed
+                  ? t('access.integrations.hideCredentials')
+                  : t('access.integrations.showCredentials')
+              }
             >
               {revealed ? (
                 <>
-                  <EyeOff className="h-3 w-3 mr-1" /> Ocultar
+                  <EyeOff className="h-3 w-3 mr-1" /> {t('access.integrations.hide')}
                 </>
               ) : (
                 <>
-                  <Eye className="h-3 w-3 mr-1" /> Mostrar
+                  <Eye className="h-3 w-3 mr-1" /> {t('access.integrations.show')}
                 </>
               )}
             </Button>
             <Button size="sm" variant="ghost" onClick={copy}>
               {copied ? (
                 <>
-                  <Check className="h-3 w-3 mr-1" /> Copiado
+                  <Check className="h-3 w-3 mr-1" /> {t('common.copied')}
                 </>
               ) : (
                 <>
-                  <Copy className="h-3 w-3 mr-1" /> Copiar
+                  <Copy className="h-3 w-3 mr-1" /> {t('common.copy')}
                 </>
               )}
             </Button>
@@ -134,14 +141,16 @@ export function IntegrationsPanel({
               onClick={() => setRevealed(true)}
               className="absolute inset-0 flex items-center justify-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
             >
-              <Eye className="h-4 w-4" /> Mostrar credenciales
+              <Eye className="h-4 w-4" /> {t('access.integrations.showCredentials')}
             </button>
           )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-xs">
           <div>
-            <span className="text-muted-foreground">Base topic: </span>
+            <span className="text-muted-foreground">
+              {t('access.integrations.baseTopic')}{' '}
+            </span>
             <span
               className={`font-mono transition-all duration-200 ${
                 revealed ? '' : 'blur-sm select-none'
@@ -152,7 +161,9 @@ export function IntegrationsPanel({
           </div>
           {config.discoveryPrefix && (
             <div>
-              <span className="text-muted-foreground">Discovery prefix: </span>
+              <span className="text-muted-foreground">
+                {t('access.integrations.discoveryPrefix')}{' '}
+              </span>
               <span
                 className={`font-mono transition-all duration-200 ${
                   revealed ? '' : 'blur-sm select-none'

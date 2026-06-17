@@ -1,5 +1,6 @@
 import { Bell } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/useAuthStore';
 import {
@@ -21,17 +22,8 @@ type UserAttr =
   | 'smokeTrue'
   | 'waterLeakTrue';
 
-const ATTRIBUTE_LABELS: Record<UserAttr, string> = {
-  contactTrue: 'Contact Sensor (Closed)',
-  contactFalse: 'Contact Sensor (Open)',
-  vibrationTrue: 'Vibration Detected',
-  occupancyTrue: 'Occupancy Detected',
-  presenceTrue: 'Presence Detected',
-  smokeTrue: 'Smoke Detected',
-  waterLeakTrue: 'Water Leak Detected',
-};
-
 export default function NotificationsCard() {
+  const { t } = useTranslation();
   const { user, checkSession, updateUser } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +73,7 @@ export default function NotificationsCard() {
       }
     } catch (err) {
       console.error(err);
-      setError('Error updating user attributes');
+      setError(t('settings.notifications.updateError'));
       await checkSession(); // Refetch to reset state
     } finally {
       setLoading(false);
@@ -104,9 +96,11 @@ export default function NotificationsCard() {
           <Bell className="h-8 w-8 text-primary" />
         </div>
         <div>
-          <CardTitle className="text-xl">Notifications</CardTitle>
+          <CardTitle className="text-xl">
+            {t('settings.notifications.title')}
+          </CardTitle>
           <CardDescription>
-            Configure which global sensor events trigger notifications.
+            {t('settings.notifications.description')}
           </CardDescription>
         </div>
       </CardHeader>
@@ -121,7 +115,7 @@ export default function NotificationsCard() {
                 htmlFor={key}
                 className="flex-1 cursor-pointer font-medium"
               >
-                {ATTRIBUTE_LABELS[key as UserAttr]}
+                {t(`settings.notifications.attributes.${key}`)}
               </Label>
               <Switch
                 id={key}
