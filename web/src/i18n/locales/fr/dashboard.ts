@@ -43,4 +43,37 @@ export const dashboard: DashboardNS = {
   battery: {
     title: 'Alertes de batterie faible',
   },
+  weather: {
+    title: 'Météo extérieure par maison',
+    subtitle: 'Conditions météorologiques actuelles sur les sites de vos maisons',
+    conditions: {
+      clearSky: 'Ciel dégagé',
+      mainlyClear: 'Généralement clair',
+      partlyCloudy: 'Partiellement nuageux',
+      overcast: 'Couvert',
+      foggy: 'Brouillard',
+      depositingRimeFog: 'Brouillard givrant',
+      lightDrizzle: 'Bruine légère',
+      moderateDrizzle: 'Bruine modérée',
+      denseDrizzle: 'Bruine dense',
+      slightRain: 'Pluie légère',
+      moderateRain: 'Pluie modérée',
+      heavyRain: 'Pluie forte',
+      lightFreezingRain: 'Pluie verglaçante légère',
+      heavyFreezingRain: 'Pluie verglaçante forte',
+      slightSnowFall: 'Chute de neige légère',
+      moderateSnowFall: 'Chute de neige modérée',
+      heavySnowFall: 'Chute de neige forte',
+      snowGrains: 'Neige en grains',
+      slightRainShowers: 'Averses de pluie légères',
+      moderateRainShowers: 'Averses de pluie modérées',
+      violentRainShowers: 'Averses de pluie violentes',
+      slightSnowShowers: 'Averses de neige légères',
+      heavySnowShowers: 'Averses de neige fortes',
+      thunderstorm: 'Orage',
+      thunderstormSlightHail: 'Orage avec grêle légère',
+      thunderstormHeavyHail: 'Orage avec grêle forte',
+      unknown: 'Inconnu'
+    }
+  }
 };

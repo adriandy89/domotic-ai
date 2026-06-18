@@ -26,6 +26,7 @@ import { hasExpose } from '../lib/device-capabilities';
 import { sseService } from '../lib/sse';
 import { formatNumber } from '../lib/format';
 import ElectricityPricesCard from '../components/dashboard/ElectricityPricesCard';
+import HomesWeatherCard from '../components/dashboard/HomesWeatherCard';
 
 export default function DashboardPage() {
   const { t } = useTranslation();
@@ -362,10 +363,13 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
+      </div>
 
+      {/* Dynamic Bottom Section: Battery & Weather */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* BATTERY HEALTH (Only if issues exist) */}
         {lowBatteryDevices.length > 0 && (
-          <Card className="bg-card/40 col-span-1 md:col-span-2 lg:col-span-3 border-amber-500/30">
+          <Card className="bg-card/40 border-amber-500/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg text-amber-500">
                 <Battery className="h-5 w-5" />
@@ -373,7 +377,7 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {lowBatteryDevices.map((item) => (
                   <div
                     key={item.device.id}
@@ -393,6 +397,9 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* HOMES WEATHER CARD */}
+        <HomesWeatherCard />
       </div>
 
       {/* ELECTRICITY PRICES (renders only when a home has a tariff) */}

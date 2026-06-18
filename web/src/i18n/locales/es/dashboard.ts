@@ -43,4 +43,37 @@ export const dashboard: DashboardNS = {
   battery: {
     title: 'Avisos de batería baja',
   },
+  weather: {
+    title: 'Clima Exterior por Hogar',
+    subtitle: 'Condiciones climáticas actuales en las ubicaciones de tus hogares',
+    conditions: {
+      clearSky: 'Despejado',
+      mainlyClear: 'Mayormente despejado',
+      partlyCloudy: 'Parcialmente nublado',
+      overcast: 'Nublado',
+      foggy: 'Niebla',
+      depositingRimeFog: 'Niebla escarchada',
+      lightDrizzle: 'Llovizna ligera',
+      moderateDrizzle: 'Llovizna moderada',
+      denseDrizzle: 'Llovizna densa',
+      slightRain: 'Lluvia ligera',
+      moderateRain: 'Lluvia moderada',
+      heavyRain: 'Lluvia fuerte',
+      lightFreezingRain: 'Lluvia helada ligera',
+      heavyFreezingRain: 'Lluvia helada fuerte',
+      slightSnowFall: 'Nevada ligera',
+      moderateSnowFall: 'Nevada moderada',
+      heavySnowFall: 'Nevada fuerte',
+      snowGrains: 'Aguanieve',
+      slightRainShowers: 'Chubascos ligeros',
+      moderateRainShowers: 'Chubascos moderados',
+      violentRainShowers: 'Chubascos violentos',
+      slightSnowShowers: 'Chubascos de nieve ligeros',
+      heavySnowShowers: 'Chubascos de nieve fuertes',
+      thunderstorm: 'Tormenta eléctrica',
+      thunderstormSlightHail: 'Tormenta con granizo ligero',
+      thunderstormHeavyHail: 'Tormenta con granizo fuerte',
+      unknown: 'Desconocido'
+    }
+  }
 };

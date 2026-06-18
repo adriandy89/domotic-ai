@@ -41,6 +41,39 @@ export const dashboard = {
   battery: {
     title: 'Low Battery Warnings',
   },
+  weather: {
+    title: 'Outside Weather by Home',
+    subtitle: 'Current weather conditions at your homes locations',
+    conditions: {
+      clearSky: 'Clear sky',
+      mainlyClear: 'Mainly clear',
+      partlyCloudy: 'Partly cloudy',
+      overcast: 'Overcast',
+      foggy: 'Foggy',
+      depositingRimeFog: 'Depositing rime fog',
+      lightDrizzle: 'Light drizzle',
+      moderateDrizzle: 'Moderate drizzle',
+      denseDrizzle: 'Dense drizzle',
+      slightRain: 'Slight rain',
+      moderateRain: 'Moderate rain',
+      heavyRain: 'Heavy rain',
+      lightFreezingRain: 'Light freezing rain',
+      heavyFreezingRain: 'Heavy freezing rain',
+      slightSnowFall: 'Slight snow fall',
+      moderateSnowFall: 'Moderate snow fall',
+      heavySnowFall: 'Heavy snow fall',
+      snowGrains: 'Snow grains',
+      slightRainShowers: 'Slight rain showers',
+      moderateRainShowers: 'Moderate rain showers',
+      violentRainShowers: 'Violent rain showers',
+      slightSnowShowers: 'Slight snow showers',
+      heavySnowShowers: 'Heavy snow showers',
+      thunderstorm: 'Thunderstorm',
+      thunderstormSlightHail: 'Thunderstorm with slight hail',
+      thunderstormHeavyHail: 'Thunderstorm with heavy hail',
+      unknown: 'Unknown'
+    }
+  }
 };
 
 export type DashboardNS = typeof dashboard;
