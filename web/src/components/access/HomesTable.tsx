@@ -23,6 +23,7 @@ import {
 import { DropdownMenu, DropdownMenuItem } from '../ui/dropdown-menu';
 import { LinkDialog } from './LinkDialog';
 import { IntegrationsPanel } from './IntegrationsPanel';
+import { HomeLocationMap } from './HomeLocationMap';
 import {
   Home,
   Plus,
@@ -69,6 +70,10 @@ interface HomeData {
   attributes: Record<string, unknown>;
   icon: string | null;
   image: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  address: string | null;
+  timezone: string | null;
 }
 
 interface MqttConfig {
@@ -137,6 +142,10 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
     name: '',
     description: '',
     disabled: false,
+    latitude: null as number | null,
+    longitude: null as number | null,
+    address: null as string | null,
+    timezone: null as string | null,
   });
   const [submitting, setSubmitting] = useState(false);
   const [modalError, setModalError] = useState<string | null>(null);
@@ -223,11 +232,15 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
     try {
       await api.post('/homes', {
         name: formData.name,
-        description: formData.description,
+        ...(formData.description ? { description: formData.description } : {}),
         disabled: formData.disabled,
+        ...(formData.latitude !== null && { latitude: formData.latitude }),
+        ...(formData.longitude !== null && { longitude: formData.longitude }),
+        ...(formData.address ? { address: formData.address } : {}),
+        ...(formData.timezone ? { timezone: formData.timezone } : {}),
       });
       setShowAddModal(false);
-      setFormData({ name: '', description: '', disabled: false });
+      setFormData({ name: '', description: '', disabled: false, latitude: null, longitude: null, address: null, timezone: null });
       fetchHomes();
       onDataChange?.();
     } catch (error: any) {
@@ -245,12 +258,16 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
     try {
       await api.put(`/homes/${editTarget.id}`, {
         name: formData.name,
-        description: formData.description,
+        ...(formData.description ? { description: formData.description } : {}),
         disabled: formData.disabled,
+        ...(formData.latitude !== null && { latitude: formData.latitude }),
+        ...(formData.longitude !== null && { longitude: formData.longitude }),
+        ...(formData.address ? { address: formData.address } : {}),
+        ...(formData.timezone ? { timezone: formData.timezone } : {}),
       });
       setShowEditModal(false);
       setEditTarget(null);
-      setFormData({ name: '', description: '', disabled: false });
+      setFormData({ name: '', description: '', disabled: false, latitude: null, longitude: null, address: null, timezone: null });
       fetchHomes();
       onDataChange?.();
     } catch (error: any) {
@@ -269,6 +286,10 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       name: home.name,
       description: home.description || '',
       disabled: home.disabled,
+      latitude: home.latitude ?? null,
+      longitude: home.longitude ?? null,
+      address: home.address ?? null,
+      timezone: home.timezone ?? null,
     });
     setShowEditModal(true);
     setOpenMenuId(null);
@@ -291,6 +312,10 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       name: '',
       description: '',
       disabled: false,
+      latitude: null,
+      longitude: null,
+      address: null,
+      timezone: null,
     });
     setModalError(null);
     setShowAddModal(true);
@@ -1292,49 +1317,60 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
 
       {/* Add Home Modal */}
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-        <DialogContent onClose={() => setShowAddModal(false)}>
+        <DialogContent onClose={() => setShowAddModal(false)} className="sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('access.homes.addTitle')}</DialogTitle>
             <DialogDescription>{t('access.homes.addDesc')}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                {t('access.form.nameRequired')}
-              </label>
-              <Input
-                placeholder={t('access.homes.namePlaceholder')}
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {t('access.form.nameRequired')}
+                </label>
+                <Input
+                  placeholder={t('access.homes.namePlaceholder')}
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {t('common.description')}
+                </label>
+                <Input
+                  placeholder={t('access.form.optionalDescription')}
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="disabled_add"
+                  checked={formData.disabled}
+                  onChange={(e) =>
+                    setFormData({ ...formData, disabled: e.target.checked })
+                  }
+                  className="h-4 w-4 rounded border-border"
+                />
+                <label htmlFor="disabled_add" className="text-sm font-medium">
+                  {t('access.form.disabledLabel')}
+                </label>
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                {t('common.description')}
-              </label>
-              <Input
-                placeholder={t('access.form.optionalDescription')}
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
+            <div className="min-h-[300px]">
+              <HomeLocationMap
+                latitude={formData.latitude}
+                longitude={formData.longitude}
+                address={formData.address}
+                timezone={formData.timezone}
+                onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
               />
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="disabled_add"
-                checked={formData.disabled}
-                onChange={(e) =>
-                  setFormData({ ...formData, disabled: e.target.checked })
-                }
-                className="h-4 w-4 rounded border-border"
-              />
-              <label htmlFor="disabled_add" className="text-sm font-medium">
-                {t('access.form.disabledLabel')}
-              </label>
             </div>
           </div>
           {modalError && (
@@ -1363,49 +1399,60 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
 
       {/* Edit Home Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent onClose={() => setShowEditModal(false)}>
+        <DialogContent onClose={() => setShowEditModal(false)} className="sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t('access.homes.editTitle')}</DialogTitle>
             <DialogDescription>{t('access.homes.editDesc')}</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                {t('access.form.nameRequired')}
-              </label>
-              <Input
-                placeholder={t('access.homes.namePlaceholder')}
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-              />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {t('access.form.nameRequired')}
+                </label>
+                <Input
+                  placeholder={t('access.homes.namePlaceholder')}
+                  value={formData.name}
+                  onChange={(e) =>
+                    setFormData({ ...formData, name: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {t('common.description')}
+                </label>
+                <Input
+                  placeholder={t('access.form.optionalDescription')}
+                  value={formData.description}
+                  onChange={(e) =>
+                    setFormData({ ...formData, description: e.target.value })
+                  }
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="disabled_edit"
+                  checked={formData.disabled}
+                  onChange={(e) =>
+                    setFormData({ ...formData, disabled: e.target.checked })
+                  }
+                  className="h-4 w-4 rounded border-border"
+                />
+                <label htmlFor="disabled_edit" className="text-sm font-medium">
+                  {t('access.form.disabledLabel')}
+                </label>
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                {t('common.description')}
-              </label>
-              <Input
-                placeholder={t('access.form.optionalDescription')}
-                value={formData.description}
-                onChange={(e) =>
-                  setFormData({ ...formData, description: e.target.value })
-                }
+            <div className="min-h-[300px]">
+              <HomeLocationMap
+                latitude={formData.latitude}
+                longitude={formData.longitude}
+                address={formData.address}
+                timezone={formData.timezone}
+                onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
               />
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="disabled_edit"
-                checked={formData.disabled}
-                onChange={(e) =>
-                  setFormData({ ...formData, disabled: e.target.checked })
-                }
-                className="h-4 w-4 rounded border-border"
-              />
-              <label htmlFor="disabled_edit" className="text-sm font-medium">
-                {t('access.form.disabledLabel')}
-              </label>
             </div>
           </div>
           {modalError && (

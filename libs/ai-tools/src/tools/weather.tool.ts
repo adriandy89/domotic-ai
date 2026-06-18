@@ -12,7 +12,10 @@ export const weatherTool = createTool({
   inputSchema: z.object({
     location: z
       .string()
-      .describe('City name or location (e.g., "Madrid", "New York", "Tokyo")'),
+      .optional()
+      .describe('City name or location (e.g., "Madrid", "New York", "Tokyo"). Can be omitted if providing latitude and longitude.'),
+    latitude: z.number().optional().describe('Latitude of the location'),
+    longitude: z.number().optional().describe('Longitude of the location'),
   }),
   outputSchema: z.object({
     temperature: z.number().describe('Current temperature in Celsius'),
@@ -24,36 +27,52 @@ export const weatherTool = createTool({
     location: z.string().describe('Resolved location name'),
   }),
   execute: async (inputData, context) => {
-    const { location } = inputData;
+    const { location, latitude: inputLat, longitude: inputLon } = inputData;
 
-    console.log(`[WeatherTool] Fetching weather for: ${location}`);
+    console.log(`[WeatherTool] Fetching weather for location: ${location || 'Coordinates'} (${inputLat}, ${inputLon})`);
 
     const userId: string | undefined = context?.requestContext?.get('userId');
     if (!userId) throw new Error('User ID is required for device operations');
 
     try {
-      // 1. Obtener coordenadas de la ciudad usando Geocoding API
-      const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json`;
-      const geocodingResponse = await fetch(geocodingUrl);
+      let latitude = inputLat;
+      let longitude = inputLon;
+      let resolvedLocation = location || 'Requested Coordinates';
 
-      if (!geocodingResponse.ok) {
-        throw new Error(`Geocoding API error: ${geocodingResponse.statusText}`);
-      }
+      // 1. Obtener coordenadas de la ciudad usando Geocoding API solo si no tenemos coordenadas
+      if (latitude === undefined || longitude === undefined) {
+        if (!location) {
+          throw new Error('You must provide either a location name or latitude and longitude coordinates.');
+        }
+        
+        const geocodingUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(location)}&count=1&language=en&format=json`;
+        const geocodingResponse = await fetch(geocodingUrl);
 
-      const geocodingData = await geocodingResponse.json();
+        if (!geocodingResponse.ok) {
+          throw new Error(`Geocoding API error: ${geocodingResponse.statusText}`);
+        }
 
-      if (!geocodingData.results?.[0]) {
-        throw new Error(
-          `Location '${location}' not found. Please provide a valid city name.`,
+        const geocodingData = await geocodingResponse.json();
+
+        if (!geocodingData.results?.[0]) {
+          throw new Error(
+            `Location '${location}' not found. Please provide a valid city name.`,
+          );
+        }
+
+        latitude = geocodingData.results[0].latitude;
+        longitude = geocodingData.results[0].longitude;
+        const { name, country } = geocodingData.results[0];
+        resolvedLocation = country ? `${name}, ${country}` : name;
+
+        console.log(
+          `[WeatherTool] Resolved location: ${resolvedLocation} (${latitude}, ${longitude})`,
+        );
+      } else {
+        console.log(
+          `[WeatherTool] Using provided coordinates: (${latitude}, ${longitude})`,
         );
       }
-
-      const { latitude, longitude, name, country } = geocodingData.results[0];
-      const resolvedLocation = country ? `${name}, ${country}` : name;
-
-      console.log(
-        `[WeatherTool] Resolved location: ${resolvedLocation} (${latitude}, ${longitude})`,
-      );
 
       // 2. Obtener datos del clima usando Open-Meteo API
       const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,wind_gusts_10m,weather_code&timezone=auto`;

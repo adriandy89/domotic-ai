@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   Length,
+  IsNumber,
 } from 'class-validator';
 
 export class CreateHomeDto {
@@ -66,6 +67,44 @@ export class CreateHomeDto {
   @IsOptional()
   @IsObject()
   readonly attributes?: object;
+
+  @ApiProperty({
+    description: 'timezone',
+    example: 'Europe/Madrid',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 64)
+  readonly timezone?: string;
+
+  @ApiProperty({
+    description: 'address',
+    example: 'Calle Falsa 123',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, 512)
+  readonly address?: string;
+
+  @ApiProperty({
+    description: 'latitude',
+    example: 40.4168,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  readonly latitude?: number;
+
+  @ApiProperty({
+    description: 'longitude',
+    example: -3.7038,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  readonly longitude?: number;
 
   @ApiProperty({
     description: `Enable/Disable home`,

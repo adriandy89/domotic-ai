@@ -8,15 +8,18 @@ export interface Home {
   id: string;
   unique_id: string;
   name: string;
-  description: string;
-  attributes: Record<string, unknown>;
+  description: string | null;
   disabled: boolean;
+  connected: boolean;
+  timezone?: string | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   created_at: string;
-  updated_at: string;
+  updated_at: string | null;
   last_update: string;
   icon: string;
   image: string | null;
-  connected: boolean;
   // Reports / energy-cost configuration (populated by the API).
   currency?: string;
   kwh_price?: number | string | null;

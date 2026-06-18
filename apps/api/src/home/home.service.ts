@@ -39,6 +39,10 @@ export class HomeService {
     tariff_config: true,
     kwh_price: true,
     currency: true,
+    address: true,
+    timezone: true,
+    latitude: true,
+    longitude: true,
   };
 
   constructor(

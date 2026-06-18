@@ -41,6 +41,18 @@ export class HomeDto {
   readonly attributes?: object;
 
   @ApiProperty()
+  readonly timezone?: string;
+
+  @ApiProperty()
+  readonly address?: string;
+
+  @ApiProperty()
+  readonly latitude?: number;
+
+  @ApiProperty()
+  readonly longitude?: number;
+
+  @ApiProperty()
   readonly disabled?: boolean;
 
   @ApiProperty()

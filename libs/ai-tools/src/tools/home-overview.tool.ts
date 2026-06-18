@@ -113,6 +113,10 @@ export const homeOverviewTool = createTool({
               disabled: true,
               connected: true,
               last_update: true,
+              address: true,
+              latitude: true,
+              longitude: true,
+              timezone: true,
               devices: {
                 where: { disabled: false },
                 select: {
@@ -162,6 +166,10 @@ export const homeOverviewTool = createTool({
           disabled: home.disabled,
           connected: home.connected,
           lastUpdate: home.last_update,
+          address: home.address,
+          latitude: home.latitude,
+          longitude: home.longitude,
+          timezone: home.timezone,
         },
         deviceCount: devices.length,
         onlineCount,

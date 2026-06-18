@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../../lib/api';
 import { cn } from '../../lib/utils';
 import { useAuthStore } from '../../store/useAuthStore';
+import { useHomesStore } from '../../store/useHomesStore';
 import { Button } from '../ui/button';
 
 interface ChatMessage {
@@ -131,6 +132,7 @@ const clearConversation = (userId: string) => {
 export default function AIChatbox() {
   const { user } = useAuthStore();
   const [isOpen, setIsOpen] = useState(false);
+  const { homes, selectedHomeId, homeIds } = useHomesStore();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -213,8 +215,16 @@ export default function AIChatbox() {
     setIsLoading(true);
 
     try {
-      const payload: { message: string; conversationId?: string } = {
+      // Determine the best timezone to send
+      let tz: string | undefined = undefined;
+      const effectiveHomeId = selectedHomeId || homeIds[0];
+      if (effectiveHomeId && homes[effectiveHomeId]?.timezone) {
+        tz = homes[effectiveHomeId].timezone!;
+      }
+
+      const payload: { message: string; conversationId?: string; timeZone?: string } = {
         message: trimmedInput,
+        timeZone: tz,
       };
       if (conversationId) {
         payload.conversationId = conversationId;

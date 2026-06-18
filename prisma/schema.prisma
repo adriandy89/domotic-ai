@@ -45,6 +45,10 @@ model Home {
   description     String?      @db.VarChar(512)
   icon            String?      @db.VarChar(512)
   image           String?      @db.VarChar(512)
+  timezone        String?      @db.VarChar(64)
+  address         String?      @db.VarChar(512)
+  latitude        Float?
+  longitude       Float?
   attributes      Json?        @db.JsonB
   disabled        Boolean?     @default(false)
   connected       Boolean?     @default(false)
