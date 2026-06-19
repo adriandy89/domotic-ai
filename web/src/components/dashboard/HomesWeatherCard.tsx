@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { useTranslation } from 'react-i18next';
 import { useHomesStore } from '../../store/useHomesStore';
+import { useWeatherStore } from '../../store/useWeatherStore';
 import {
   Cloud,
   CloudDrizzle,
@@ -15,13 +16,6 @@ import {
   ThermometerSun,
 } from 'lucide-react';
 import { formatNumber } from '../../lib/format';
-
-interface WeatherData {
-  homeId: string;
-  name: string;
-  temperature: number;
-  weatherCode: number;
-}
 
 // Map WMO weather codes to lucide icons and descriptions
 const getWeatherInfo = (code: number) => {
@@ -60,48 +54,28 @@ const getWeatherInfo = (code: number) => {
 export default function HomesWeatherCard({ className }: { className?: string }) {
   const { t } = useTranslation();
   const { homes, homeIds } = useHomesStore();
-  const [weatherData, setWeatherData] = useState<WeatherData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const weatherByHome = useWeatherStore((s) => s.weatherByHome);
+  const loading = useWeatherStore((s) => s.loading);
+  const fetchWeather = useWeatherStore((s) => s.fetchWeather);
 
   // Filter homes that have coordinates
   const homesWithLocation = homeIds
     .map((id) => homes[id])
-    .filter((home) => home?.latitude !== undefined && home?.longitude !== undefined && home.latitude !== null && home.longitude !== null);
+    .filter(
+      (home) =>
+        home?.latitude !== undefined &&
+        home?.longitude !== undefined &&
+        home.latitude !== null &&
+        home.longitude !== null,
+    );
 
+  // Cached in the store (15 min TTL) and refreshed by the dashboard poller, so
+  // navigating back here does not re-hit the API.
+  const homeIdsKey = homeIds.join(',');
   useEffect(() => {
-    if (homesWithLocation.length === 0) {
-      setLoading(false);
-      return;
-    }
-
-    const fetchWeather = async () => {
-      setLoading(true);
-      try {
-        const promises = homesWithLocation.map(async (home) => {
-          const res = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${home.latitude}&longitude=${home.longitude}&current=temperature_2m,weather_code`
-          );
-          if (!res.ok) throw new Error('Weather API failed');
-          const data = await res.json();
-          return {
-            homeId: home.id,
-            name: home.name,
-            temperature: data.current.temperature_2m,
-            weatherCode: data.current.weather_code,
-          };
-        });
-
-        const results = await Promise.all(promises);
-        setWeatherData(results);
-      } catch (error) {
-        console.error('Failed to fetch weather for homes', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchWeather();
-  }, [homeIds.join(',')]); // re-run if homes change
+    fetchWeather(homesWithLocation);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [homeIdsKey, fetchWeather]);
 
   // Don't render anything if no homes have coordinates
   if (homesWithLocation.length === 0) {
@@ -128,12 +102,14 @@ export default function HomesWeatherCard({ className }: { className?: string }) 
           </div>
         ) : (
           <div className="grid grid-cols-1 @md:grid-cols-2 gap-4">
-            {weatherData.map((data) => {
-              const info = getWeatherInfo(data.weatherCode);
+            {homesWithLocation.map((home) => {
+              const w = weatherByHome[home.id];
+              if (!w) return null;
+              const info = getWeatherInfo(w.weatherCode);
               const Icon = info.icon;
               return (
                 <div
-                  key={data.homeId}
+                  key={home.id}
                   className="flex items-center justify-between p-4 rounded-lg bg-background/40 border border-border/50 hover:bg-background/60 transition-colors"
                 >
                   <div className="flex flex-col gap-1 overflow-hidden">
@@ -141,9 +117,9 @@ export default function HomesWeatherCard({ className }: { className?: string }) 
                       <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       <span
                         className="text-sm font-semibold truncate text-foreground"
-                        title={data.name}
+                        title={home.name}
                       >
-                        {data.name}
+                        {home.name}
                       </span>
                     </div>
                     <span
@@ -156,7 +132,7 @@ export default function HomesWeatherCard({ className }: { className?: string }) 
                   <div className="flex items-center gap-3 pl-2">
                     <Icon className={`h-8 w-8 ${info.color}`} />
                     <span className="text-xl font-bold text-foreground">
-                      {formatNumber(data.temperature, 1)}°
+                      {formatNumber(w.temperature, 1)}°
                     </span>
                   </div>
                 </div>

@@ -160,7 +160,7 @@ export default function SchedulesPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchSchedules}
+              onClick={() => fetchSchedules(true)}
               className="mt-2"
             >
               {t('common.tryAgain')}

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { shouldFetch, trackInflight, invalidateAll } from '../lib/staleness';
 import { useDevicesStore } from './useDevicesStore';
 import type { Device } from './useDevicesStore';
 
@@ -44,7 +45,7 @@ interface HomesState {
   selectedHomeId: string | null;
 
   // Actions
-  fetchHomes: () => Promise<void>;
+  fetchHomes: (force?: boolean) => Promise<void>;
   updateHome: (homeId: string, updates: Partial<Home>) => void;
   setSelectedHome: (homeId: string | null) => void;
   getSelectedHome: () => Home | undefined;
@@ -59,47 +60,49 @@ export const useHomesStore = create<HomesState>((set, get) => ({
   error: null,
   selectedHomeId: null,
 
-  fetchHomes: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await api.get<HomeWithDevices[]>('/homes/me');
-      const homesWithDevices = response.data;
+  fetchHomes: async (force = false) => {
+    // Loaded once at auth; HomesTable etc. re-call on mount — skip if fresh.
+    if (!shouldFetch('homes', 60_000, force)) return;
+    if (get().homeIds.length === 0) set({ isLoading: true, error: null });
+    const p = (async () => {
+      try {
+        const response = await api.get<HomeWithDevices[]>('/homes/me');
+        const homesWithDevices = response.data;
 
-      // Separate homes and devices
-      const homesMap: Record<string, Home> = {};
-      const homeIds: string[] = [];
-      const allDevices: Device[] = [];
+        // Separate homes and devices
+        const homesMap: Record<string, Home> = {};
+        const homeIds: string[] = [];
+        const allDevices: Device[] = [];
 
-      homesWithDevices.forEach((homeWithDevices) => {
-        const { devices, ...home } = homeWithDevices;
-        homesMap[home.id] = home;
-        homeIds.push(home.id);
-        allDevices.push(...devices);
-      });
+        homesWithDevices.forEach((homeWithDevices) => {
+          const { devices, ...home } = homeWithDevices;
+          homesMap[home.id] = home;
+          homeIds.push(home.id);
+          allDevices.push(...devices);
+        });
 
-      // Set devices in the devices store
-      useDevicesStore.getState().setDevices(allDevices);
+        // Set devices in the devices store
+        useDevicesStore.getState().setDevices(allDevices);
 
-      // Fetch last data for all devices
-      useDevicesStore.getState().fetchDevicesData();
+        // Fetch last data for all devices (respects its own TTL).
+        useDevicesStore.getState().fetchDevicesData();
 
-      set({
-        homes: homesMap,
-        homeIds,
-        isLoading: false,
-        // Auto-select first home if none selected
-        selectedHomeId:
-          get().selectedHomeId || (homeIds.length > 0 ? homeIds[0] : null),
-      });
-    } catch (error: any) {
-      console.error('Failed to fetch homes', error);
-      set({
-        homes: {},
-        homeIds: [],
-        isLoading: false,
-        error: 'Failed to fetch homes',
-      });
-    }
+        set({
+          homes: homesMap,
+          homeIds,
+          isLoading: false,
+          error: null,
+          // Auto-select first home if none selected
+          selectedHomeId:
+            get().selectedHomeId || (homeIds.length > 0 ? homeIds[0] : null),
+        });
+      } catch (error: any) {
+        console.error('Failed to fetch homes', error);
+        // Keep any existing data on a background revalidation failure.
+        set({ isLoading: false, error: 'Failed to fetch homes' });
+      }
+    })();
+    await trackInflight('homes', p);
   },
 
   updateHome: (homeId: string, updates: Partial<Home>) => {
@@ -130,6 +133,8 @@ export const useHomesStore = create<HomesState>((set, get) => ({
   },
 
   clearHomes: () => {
+    // Logout / auth change: drop all freshness so a re-login refetches cleanly.
+    invalidateAll();
     set({ homes: {}, homeIds: [], selectedHomeId: null, error: null });
     // Also clear devices
     useDevicesStore.getState().clearDevices();

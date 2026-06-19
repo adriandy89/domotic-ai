@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
-import { useHomesStore } from './useHomesStore';
+import { shouldFetch, trackInflight } from '../lib/staleness';
+import { useHomesStore, type Home } from './useHomesStore';
 
 export type TariffMode = 'fixed' | 'tou' | 'dynamic';
 
@@ -100,6 +101,54 @@ export interface CostSeries {
   totals: CostSeriesTotals;
 }
 
+// ---- Dashboard "current price per home" (data only; UI labels live in the card) ----
+
+export type PriceTone = 'cheap' | 'mid' | 'expensive';
+
+export interface PriceRow {
+  homeId: string;
+  name: string;
+  type: 'DYNAMIC' | 'TOU' | 'FIXED';
+  detail: string | null;
+  price: number | null;
+  currency: string;
+  tone: PriceTone | null;
+  estimate: boolean;
+}
+
+const SHORT_PROVIDER: Record<string, string> = {
+  esios_pvpc: 'PVPC',
+  entsoe: 'ENTSO-E',
+};
+
+/** A home shows a price when it has a usable tariff source. */
+export function eligibleTariffType(
+  home: Home | undefined,
+): 'DYNAMIC' | 'TOU' | 'FIXED' | null {
+  if (!home) return null;
+  if (home.tariff_type === 'DYNAMIC') {
+    const cfg = home.tariff_config as { provider?: string; zone?: string } | null;
+    return cfg?.provider && cfg?.zone ? 'DYNAMIC' : null;
+  }
+  if (home.tariff_type === 'TOU') return 'TOU';
+  if (home.tariff_type === 'FIXED' && Number(home.kwh_price ?? 0) > 0) return 'FIXED';
+  return null;
+}
+
+/** Stable signature of the eligible homes + their tariff config (cache key). */
+export function pricesSignature(homes: Home[]): string {
+  return homes
+    .map((home) => ({ home, type: eligibleTariffType(home) }))
+    .filter((e) => e.type !== null)
+    .map(
+      (e) =>
+        `${e.home.id}:${e.type}:${e.home.kwh_price}:${e.home.currency}:${JSON.stringify(
+          e.home.tariff_config,
+        )}`,
+    )
+    .join('|');
+}
+
 interface CacheEntry<T> {
   data: T;
   expiresAt: number;
@@ -126,6 +175,11 @@ interface PricingState {
   providerPrices: Map<string, CacheEntry<ProviderPriceSeries>>;
   loading: boolean;
   error: string | null;
+
+  // Dashboard "current price per home" cache (survives navigation; 1-min TTL).
+  currentPrices: PriceRow[];
+  currentPricesSig: string;
+  currentPricesLoading: boolean;
 
   fetchProviders: () => Promise<PricingProvider[]>;
   fetchAdminProviders: () => Promise<AdminPricingProvider[]>;
@@ -154,6 +208,7 @@ interface PricingState {
     to: Date;
     bucket?: 'hour' | 'day';
   }) => Promise<CostSeries | null>;
+  refreshCurrentPrices: (homes: Home[], force?: boolean) => Promise<void>;
   invalidate: () => void;
 }
 
@@ -164,6 +219,9 @@ export const usePricingStore = create<PricingState>((set, get) => ({
   providerPrices: new Map(),
   loading: false,
   error: null,
+  currentPrices: [],
+  currentPricesSig: '',
+  currentPricesLoading: false,
 
   fetchProviders: async () => {
     const cached = get().providers;
@@ -278,6 +336,85 @@ export const usePricingStore = create<PricingState>((set, get) => ({
     } catch {
       return null;
     }
+  },
+
+  refreshCurrentPrices: async (homes, force = false) => {
+    const eligible = homes
+      .map((home) => ({ home, type: eligibleTariffType(home) }))
+      .filter(
+        (e): e is { home: Home; type: 'DYNAMIC' | 'TOU' | 'FIXED' } =>
+          e.type !== null,
+      );
+    const sig = pricesSignature(homes);
+
+    if (eligible.length === 0) {
+      set({ currentPrices: [], currentPricesSig: sig, currentPricesLoading: false });
+      return;
+    }
+
+    // Refetch when forced or the tariff config changed; else respect the TTL
+    // and dedupe concurrent calls.
+    const sigChanged = get().currentPricesSig !== sig;
+    if (!shouldFetch('electricity', 60_000, force || sigChanged)) return;
+
+    if (sigChanged || get().currentPrices.length === 0) {
+      set({ currentPricesLoading: true });
+    }
+
+    const p = (async () => {
+      const providers = await get().fetchProviders();
+      const rows = await Promise.all(
+        eligible.map(async ({ home, type }): Promise<PriceRow> => {
+          const base = { homeId: home.id, name: home.name };
+          if (type === 'FIXED') {
+            return {
+              ...base,
+              type,
+              detail: null,
+              price: Number(home.kwh_price ?? 0),
+              currency: home.currency ?? 'USD',
+              tone: null,
+              estimate: false,
+            };
+          }
+          // DYNAMIC / TOU → live price (cached curve) + tercile tone for dynamic.
+          const curve = await get().fetchPriceCurve(home.id);
+          const currency = curve?.currency ?? home.currency ?? 'EUR';
+          let tone: PriceTone | null = null;
+          let price = curve?.current_price ?? null;
+          let estimate = false;
+          if (type === 'DYNAMIC' && curve) {
+            const prices = curve.points
+              .map((pt) => pt.price_kwh)
+              .sort((a, b) => a - b);
+            if (price != null && prices.length > 0) {
+              const t1 = prices[Math.floor(prices.length / 3)] ?? 0;
+              const t2 = prices[Math.floor((prices.length * 2) / 3)] ?? 0;
+              tone = price <= t1 ? 'cheap' : price <= t2 ? 'mid' : 'expensive';
+            }
+            if (price == null) {
+              price = Number(home.kwh_price ?? 0) || null;
+              estimate = price != null;
+            }
+          }
+          const cfg =
+            type === 'DYNAMIC'
+              ? (home.tariff_config as { provider?: string; zone?: string } | null)
+              : null;
+          const detail =
+            type === 'DYNAMIC' && cfg?.provider
+              ? `${SHORT_PROVIDER[cfg.provider] ?? cfg.provider} · ${
+                  providers
+                    .find((pp) => pp.source === cfg.provider)
+                    ?.zones.find((z) => z.id === cfg.zone)?.label ?? cfg.zone
+                }`
+              : null;
+          return { ...base, type, detail, price, currency, tone, estimate };
+        }),
+      );
+      set({ currentPrices: rows, currentPricesSig: sig, currentPricesLoading: false });
+    })();
+    await trackInflight('electricity', p);
   },
 
   fetchProviderPrices: async ({ source, zone, from, to }) => {

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { shouldFetch, trackInflight } from '../lib/staleness';
 
 // Enums matching Prisma schema
 export type RuleType = 'RECURRENT' | 'ONETIME';
@@ -87,7 +88,7 @@ interface RulesState {
   error: string | null;
 
   // Actions
-  fetchRules: () => Promise<void>;
+  fetchRules: (force?: boolean) => Promise<void>;
   getRuleById: (id: string) => Promise<RuleDetail | null>;
   createRule: (data: CreateRuleRequest) => Promise<boolean>;
   updateRule: (id: string, data: CreateRuleRequest) => Promise<boolean>;
@@ -103,15 +104,21 @@ export const useRulesStore = create<RulesState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchRules: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await api.get<Rule[]>('/rules/all/user');
-      set({ rules: response.data || [], isLoading: false });
-    } catch (error: any) {
-      console.error('Failed to fetch rules', error);
-      set({ error: 'Failed to fetch rules', isLoading: false });
-    }
+  fetchRules: async (force = false) => {
+    // Skip if fresh or already in flight; keep showing current data while
+    // revalidating (spinner only on the very first load).
+    if (!shouldFetch('rules', 60_000, force)) return;
+    if (get().rules.length === 0) set({ isLoading: true, error: null });
+    const p = (async () => {
+      try {
+        const response = await api.get<Rule[]>('/rules/all/user');
+        set({ rules: response.data || [], isLoading: false, error: null });
+      } catch (error: any) {
+        console.error('Failed to fetch rules', error);
+        set({ error: 'Failed to fetch rules', isLoading: false });
+      }
+    })();
+    await trackInflight('rules', p);
   },
 
   getRuleById: async (id: string) => {
@@ -137,7 +144,7 @@ export const useRulesStore = create<RulesState>((set, get) => ({
       await api.post('/rules', data);
       set({ isLoading: false });
       // Refresh rules list
-      get().fetchRules();
+      get().fetchRules(true);
       return true;
     } catch (error: any) {
       console.error('Failed to create rule', error);
@@ -152,7 +159,7 @@ export const useRulesStore = create<RulesState>((set, get) => ({
       await api.put(`/rules/${id}`, data);
       set({ isLoading: false });
       // Refresh rules list
-      get().fetchRules();
+      get().fetchRules(true);
       return true;
     } catch (error: any) {
       console.error('Failed to update rule', error);

@@ -135,7 +135,7 @@ export default function RulesPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={fetchRules}
+              onClick={() => fetchRules(true)}
               className="mt-2"
             >
               {t('common.tryAgain')}

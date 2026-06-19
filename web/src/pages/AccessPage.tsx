@@ -14,6 +14,7 @@ import {
 } from '../components/ui/tabs';
 import { Home, Cpu, Users, Loader2 } from 'lucide-react';
 import { api } from '../lib/api';
+import { cachedFetch, peekCache } from '../lib/staleness';
 import HomesTable from '../components/access/HomesTable';
 import DevicesTable from '../components/access/DevicesTable';
 import UsersTable from '../components/access/UsersTable';
@@ -49,79 +50,45 @@ interface Statistics {
 export default function AccessPage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('homes');
-  const [stats, setStats] = useState<Statistics | null>(null);
-  const [loadingStats, setLoadingStats] = useState(true);
+  // Seed from the cross-navigation cache so revisits render instantly.
+  const [stats, setStats] = useState<Statistics | null>(
+    () => peekCache<Statistics>('access:stats') ?? null,
+  );
+  const [loadingStats, setLoadingStats] = useState(
+    () => peekCache('access:stats') == null,
+  );
 
   // Get fetchHomes from global store to refresh after CRUD operations
   const { fetchHomes } = useHomesStore();
 
-  const fetchHomeStats = useCallback(async () => {
+  // Cached (60s) + deduped: navigating back to Access shows counts at once and
+  // only revalidates when stale. `force` after a CRUD write.
+  const loadStats = useCallback(async (force = false) => {
     try {
-      const res = await api.get<HomeStatistics>(
-        '/homes/statistics/organization',
+      const data = await cachedFetch<Statistics>(
+        'access:stats',
+        60_000,
+        async () => {
+          const [homesRes, devicesRes, usersRes] = await Promise.all([
+            api
+              .get<HomeStatistics>('/homes/statistics/organization')
+              .catch(() => ({ data: null })),
+            api
+              .get<DeviceStatistics>('/devices/statistics/organization')
+              .catch(() => ({ data: null })),
+            api
+              .get<UserStatistics>('/users/statistics/organization')
+              .catch(() => ({ data: null })),
+          ]);
+          return {
+            homes: homesRes.data,
+            devices: devicesRes.data,
+            users: usersRes.data,
+          };
+        },
+        { force },
       );
-      setStats((prev) => ({
-        ...prev,
-        homes: res.data,
-        devices: prev?.devices ?? null,
-        users: prev?.users ?? null,
-      }));
-    } catch (error: any) {
-      console.error('Failed to fetch home statistics:', error);
-    }
-  }, []);
-
-  const fetchDeviceStats = useCallback(async () => {
-    try {
-      const res = await api.get<DeviceStatistics>(
-        '/devices/statistics/organization',
-      );
-      setStats((prev) => ({
-        ...prev,
-        devices: res.data,
-        homes: prev?.homes ?? null,
-        users: prev?.users ?? null,
-      }));
-    } catch (error: any) {
-      console.error('Failed to fetch device statistics:', error);
-    }
-  }, []);
-
-  const fetchUserStats = useCallback(async () => {
-    try {
-      const res = await api.get<UserStatistics>(
-        '/users/statistics/organization',
-      );
-      setStats((prev) => ({
-        ...prev,
-        users: res.data,
-        homes: prev?.homes ?? null,
-        devices: prev?.devices ?? null,
-      }));
-    } catch (error: any) {
-      console.error('Failed to fetch user statistics:', error);
-    }
-  }, []);
-
-  const fetchAllStats = useCallback(async () => {
-    setLoadingStats(true);
-    try {
-      const [homesRes, devicesRes, usersRes] = await Promise.all([
-        api
-          .get<HomeStatistics>('/homes/statistics/organization')
-          .catch(() => ({ data: null })),
-        api
-          .get<DeviceStatistics>('/devices/statistics/organization')
-          .catch(() => ({ data: null })),
-        api
-          .get<UserStatistics>('/users/statistics/organization')
-          .catch(() => ({ data: null })),
-      ]);
-      setStats({
-        homes: homesRes.data,
-        devices: devicesRes.data,
-        users: usersRes.data,
-      });
+      setStats(data);
     } catch (error: any) {
       console.error('Failed to fetch statistics:', error);
     } finally {
@@ -129,17 +96,9 @@ export default function AccessPage() {
     }
   }, []);
 
-  // Initial load - fetch all stats
   useEffect(() => {
-    fetchAllStats();
-  }, [fetchAllStats]);
-
-  // Refresh only active tab stats when tab changes
-  useEffect(() => {
-    if (activeTab === 'homes') fetchHomeStats();
-    else if (activeTab === 'devices') fetchDeviceStats();
-    else if (activeTab === 'users') fetchUserStats();
-  }, [activeTab, fetchHomeStats, fetchDeviceStats, fetchUserStats]);
+    loadStats();
+  }, [loadStats]);
 
   const summaryCards = [
     {
@@ -262,8 +221,8 @@ export default function AccessPage() {
         <TabsContent value="homes">
           <HomesTable
             onDataChange={() => {
-              fetchHomeStats();
-              fetchHomes();
+              loadStats(true);
+              fetchHomes(true);
             }}
           />
         </TabsContent>
@@ -271,8 +230,8 @@ export default function AccessPage() {
         <TabsContent value="devices">
           <DevicesTable
             onDataChange={() => {
-              fetchDeviceStats();
-              fetchHomes();
+              loadStats(true);
+              fetchHomes(true);
             }}
           />
         </TabsContent>
@@ -280,8 +239,8 @@ export default function AccessPage() {
         <TabsContent value="users">
           <UsersTable
             onDataChange={() => {
-              fetchUserStats();
-              fetchHomes();
+              loadStats(true);
+              fetchHomes(true);
             }}
           />
         </TabsContent>

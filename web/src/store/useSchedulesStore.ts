@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { shouldFetch, trackInflight } from '../lib/staleness';
 
 export type ScheduleFrequency = 'ONCE' | 'DAILY' | 'CUSTOM';
 export type ScheduleDay =
@@ -73,7 +74,7 @@ interface SchedulesState {
   isLoading: boolean;
   error: string | null;
 
-  fetchSchedules: () => Promise<void>;
+  fetchSchedules: (force?: boolean) => Promise<void>;
   getScheduleById: (id: string) => Promise<ScheduleDetail | null>;
   createSchedule: (data: CreateScheduleRequest) => Promise<boolean>;
   updateSchedule: (id: string, data: CreateScheduleRequest) => Promise<boolean>;
@@ -89,15 +90,20 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
   isLoading: false,
   error: null,
 
-  fetchSchedules: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const response = await api.get<Schedule[]>('/schedules/all/user');
-      set({ schedules: response.data || [], isLoading: false });
-    } catch (error: any) {
-      console.error('Failed to fetch schedules', error);
-      set({ error: 'Failed to fetch schedules', isLoading: false });
-    }
+  fetchSchedules: async (force = false) => {
+    // Skip if fresh or in flight; keep current data while revalidating.
+    if (!shouldFetch('schedules', 60_000, force)) return;
+    if (get().schedules.length === 0) set({ isLoading: true, error: null });
+    const p = (async () => {
+      try {
+        const response = await api.get<Schedule[]>('/schedules/all/user');
+        set({ schedules: response.data || [], isLoading: false, error: null });
+      } catch (error: any) {
+        console.error('Failed to fetch schedules', error);
+        set({ error: 'Failed to fetch schedules', isLoading: false });
+      }
+    })();
+    await trackInflight('schedules', p);
   },
 
   getScheduleById: async (id) => {
@@ -122,7 +128,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
     try {
       await api.post('/schedules', data);
       set({ isLoading: false });
-      get().fetchSchedules();
+      get().fetchSchedules(true);
       return true;
     } catch (error: any) {
       console.error('Failed to create schedule', error);
@@ -136,7 +142,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
     try {
       await api.put(`/schedules/${id}`, data);
       set({ isLoading: false });
-      get().fetchSchedules();
+      get().fetchSchedules(true);
       return true;
     } catch (error: any) {
       console.error('Failed to update schedule', error);

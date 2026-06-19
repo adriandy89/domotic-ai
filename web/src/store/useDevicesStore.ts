@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { shouldFetch, trackInflight, invalidate } from '../lib/staleness';
 import type { Protocol } from '../lib/integration-templates';
 
 export interface DeviceExpose {
@@ -145,8 +146,8 @@ interface DevicesState {
 
   // Actions
   setDevices: (devices: Device[]) => void;
-  fetchDevices: () => Promise<void>;
-  fetchDevicesData: () => Promise<void>;
+  fetchDevices: (force?: boolean) => Promise<void>;
+  fetchDevicesData: (force?: boolean) => Promise<void>;
   updateDevice: (deviceId: string, updates: Partial<Device>) => void;
   updateDeviceAttributes: (
     deviceId: string,
@@ -189,50 +190,52 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
     set({ devices: devicesMap, devicesByHome });
   },
 
-  fetchDevicesData: async () => {
-    set({ isLoadingData: true });
-    try {
-      const response =
-        await api.get<DeviceDataApiResponse>('/devices/data/user');
+  fetchDevicesData: async (force = false) => {
+    // SSE keeps this live; this fetch is the initial load + a periodic resync.
+    if (!shouldFetch('devicesData', 60_000, force)) return;
+    if (Object.keys(get().devicesData).length === 0) set({ isLoadingData: true });
+    const p = (async () => {
+      try {
+        const response =
+          await api.get<DeviceDataApiResponse>('/devices/data/user');
 
-      if (response.data.ok && response.data.lastData) {
-        const devicesDataMap: Record<string, DeviceData> = {};
+        if (response.data.ok && response.data.lastData) {
+          const devicesDataMap: Record<string, DeviceData> = {};
 
-        response.data.lastData.forEach((deviceData) => {
-          devicesDataMap[deviceData.device_id] = deviceData;
-        });
+          response.data.lastData.forEach((deviceData) => {
+            devicesDataMap[deviceData.device_id] = deviceData;
+          });
 
-        set({ devicesData: devicesDataMap, isLoadingData: false });
-      } else {
-        set({ isLoadingData: false });
+          set({ devicesData: devicesDataMap, isLoadingData: false });
+        } else {
+          set({ isLoadingData: false });
+        }
+      } catch (error: any) {
+        console.error('Failed to fetch devices data', error);
+        set({ isLoadingData: false, error: 'Failed to fetch devices data' });
       }
-    } catch (error: any) {
-      console.error('Failed to fetch devices data', error);
-      set({ isLoadingData: false, error: 'Failed to fetch devices data' });
-    }
+    })();
+    await trackInflight('devicesData', p);
   },
 
-  fetchDevices: async () => {
-    set({ isLoading: true });
-    try {
-      // We use the same endpoint as DevicesTable but without pagination to get all devices for the map state
-      // Or if backend supports unpaginated list.
-      // DevicesTable uses /devices?page=...&take=...
-      // If we want all devices, we might need a param or loop.
-      // For now let's assume /devices/all or just /devices with large limit?
-      // Actually, usually store should hold all devices for client side filtering?
-      // Let's assume user has a reasonable amount of devices or use existing logic.
-      // But currently DevicesTable handles fetching.
-      // Let's try to fetch all devices.
-      const response = await api.get<{ data: Device[] }>('/devices?take=1000'); // Temporary large limit
-      if (response.data?.data) {
-        get().setDevices(response.data.data);
+  fetchDevices: async (force = false) => {
+    // Skip if fresh or in flight; keep the current list while revalidating.
+    if (!shouldFetch('devices', 60_000, force)) return;
+    if (Object.keys(get().devices).length === 0) set({ isLoading: true });
+    const p = (async () => {
+      try {
+        // Large limit to hold the full set client-side for filtering/map state.
+        const response = await api.get<{ data: Device[] }>('/devices?take=1000');
+        if (response.data?.data) {
+          get().setDevices(response.data.data);
+        }
+        set({ isLoading: false, error: null });
+      } catch (error: any) {
+        console.error('Failed to fetch devices', error);
+        set({ isLoading: false, error: 'Failed to fetch devices' });
       }
-      set({ isLoading: false });
-    } catch (error: any) {
-      console.error('Failed to fetch devices', error);
-      set({ isLoading: false, error: 'Failed to fetch devices' });
-    }
+    })();
+    await trackInflight('devices', p);
   },
 
   updateDevice: (deviceId: string, updates: Partial<Device>) => {
@@ -333,6 +336,7 @@ export const useDevicesStore = create<DevicesState>((set, get) => ({
   },
 
   clearDevices: () => {
+    invalidate('devices', 'devicesData');
     set({ devices: {}, devicesByHome: {}, devicesData: {}, error: null });
   },
 }));

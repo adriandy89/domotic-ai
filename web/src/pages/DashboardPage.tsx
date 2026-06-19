@@ -27,13 +27,26 @@ import { sseService } from '../lib/sse';
 import { formatNumber } from '../lib/format';
 import ElectricityPricesCard from '../components/dashboard/ElectricityPricesCard';
 import HomesWeatherCard from '../components/dashboard/HomesWeatherCard';
+import { useVisibleInterval } from '../hooks/useVisibleInterval';
+import { useWeatherStore } from '../store/useWeatherStore';
+import { usePricingStore } from '../store/usePricingStore';
 
 export default function DashboardPage() {
   const { t } = useTranslation();
   const { homes, homeIds } = useHomesStore();
   const { devices, devicesData } = useDevicesStore();
 
-  // Data is already fetched on auth - no need to refetch on page navigation
+  // Data is already fetched on auth - no need to refetch on page navigation.
+  // While the dashboard tab is visible, auto-refresh every 1 min (paused when
+  // hidden, catches up on refocus). SSE keeps sensors live; this resyncs them
+  // and revalidates the non-SSE cards (weather, prices), each respecting its
+  // own TTL. No page reload.
+  useVisibleInterval(60_000, () => {
+    const homesList = homeIds.map((id) => homes[id]).filter(Boolean);
+    useDevicesStore.getState().fetchDevicesData(true);
+    useWeatherStore.getState().fetchWeather(homesList);
+    usePricingStore.getState().refreshCurrentPrices(homesList);
+  });
 
   // Calculate summaries from real data
   const totalHomes = homeIds.length;
