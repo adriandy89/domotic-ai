@@ -4,7 +4,7 @@ export const access: AccessNS = {
   title: 'Accès',
   subtitle: 'Gérez les maisons, appareils et utilisateurs de votre système',
   tabs: { homes: 'Maisons', devices: 'Appareils', users: 'Utilisateurs' },
-  summary: { enabled: '{{count}} activés' },
+  summary: { enabled: '{{count}} activés', limit: 'Limite : {{count}}' },
 
   table: {
     show: 'Afficher :',

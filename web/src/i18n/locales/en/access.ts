@@ -2,7 +2,7 @@ export const access = {
   title: 'Access',
   subtitle: 'Manage homes, devices, and users in your system',
   tabs: { homes: 'Homes', devices: 'Devices', users: 'Users' },
-  summary: { enabled: '{{count}} enabled' },
+  summary: { enabled: '{{count}} enabled', limit: 'Limit: {{count}}' },
 
   // Shared table chrome (pagination row).
   table: {

@@ -23,18 +23,21 @@ interface HomeStatistics {
   totalHomes: number;
   enabledHomes: number;
   disabledHomes: number;
+  maxHomes?: number | null;
 }
 
 interface DeviceStatistics {
   totalDevices: number;
   enabledDevices: number;
   disabledDevices: number;
+  maxDevices?: number | null;
 }
 
 interface UserStatistics {
   totalUsers: number;
   enabledUsers: number;
   disabledUsers: number;
+  maxUsers?: number | null;
 }
 
 interface Statistics {
@@ -144,6 +147,7 @@ export default function AccessPage() {
       icon: Home,
       value: stats?.homes?.totalHomes ?? '-',
       enabledCount: stats?.homes?.enabledHomes ?? null,
+      maxValue: stats?.homes?.maxHomes ?? null,
       color: 'text-cyan-400',
       bgColor: 'bg-cyan-500/10',
     },
@@ -152,6 +156,7 @@ export default function AccessPage() {
       icon: Cpu,
       value: stats?.devices?.totalDevices ?? '-',
       enabledCount: stats?.devices?.enabledDevices ?? null,
+      maxValue: stats?.devices?.maxDevices ?? null,
       color: 'text-emerald-400',
       bgColor: 'bg-emerald-500/10',
     },
@@ -160,6 +165,7 @@ export default function AccessPage() {
       icon: Users,
       value: stats?.users?.totalUsers ?? '-',
       enabledCount: stats?.users?.enabledUsers ?? null,
+      maxValue: stats?.users?.maxUsers ?? null,
       color: 'text-purple-400',
       bgColor: 'bg-purple-500/10',
     },
@@ -205,11 +211,30 @@ export default function AccessPage() {
                   <div className="text-2xl font-bold text-card-foreground">
                     {item.value}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {item.enabledCount != null
-                      ? t('access.summary.enabled', { count: item.enabledCount })
-                      : t('common.loading')}
-                  </p>
+                  <div className="mt-1 flex items-end justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {item.enabledCount != null
+                        ? t('access.summary.enabled', {
+                            count: item.enabledCount,
+                          })
+                        : t('common.loading')}
+                    </p>
+                    {item.maxValue != null && (
+                      <span
+                        className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none ${
+                          typeof item.value === 'number' &&
+                          item.value >= item.maxValue
+                            ? 'border-amber-500/30 bg-amber-500/10 text-amber-500'
+                            : 'border-border/60 bg-muted/60 text-muted-foreground'
+                        }`}
+                        title={t('access.summary.limit', {
+                          count: item.maxValue,
+                        })}
+                      >
+                        {t('access.summary.limit', { count: item.maxValue })}
+                      </span>
+                    )}
+                  </div>
                 </>
               )}
             </CardContent>

@@ -48,20 +48,26 @@ export class DeviceService {
   ) {}
 
   async statisticsOrgDevices(organization_id: string) {
-    const [countEnabledDevices, countDisabledDevices] = await Promise.all([
-      this.dbService.device.count({
-        where: { organization_id, disabled: false },
-      }),
-      this.dbService.device.count({
-        where: { organization_id, disabled: true },
-      }),
-    ]);
+    const [countEnabledDevices, countDisabledDevices, organization] =
+      await Promise.all([
+        this.dbService.device.count({
+          where: { organization_id, disabled: false },
+        }),
+        this.dbService.device.count({
+          where: { organization_id, disabled: true },
+        }),
+        this.dbService.organization.findUnique({
+          where: { id: organization_id },
+          select: { max_devices: true },
+        }),
+      ]);
     const totalDevices =
       (countEnabledDevices ?? 0) + (countDisabledDevices ?? 0);
     return {
       totalDevices,
       enabledDevices: countEnabledDevices ?? 0,
       disabledDevices: countDisabledDevices ?? 0,
+      maxDevices: organization?.max_devices ?? null,
     };
   }
 

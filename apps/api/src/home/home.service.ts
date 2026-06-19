@@ -54,19 +54,25 @@ export class HomeService {
   ) {}
 
   async statisticsOrgHomes(organizationId: string) {
-    const [countEnabledHomes, countDisabledHomes] = await Promise.all([
-      this.dbService.home.count({
-        where: { organization_id: organizationId, disabled: false },
-      }),
-      this.dbService.home.count({
-        where: { organization_id: organizationId, disabled: true },
-      }),
-    ]);
+    const [countEnabledHomes, countDisabledHomes, organization] =
+      await Promise.all([
+        this.dbService.home.count({
+          where: { organization_id: organizationId, disabled: false },
+        }),
+        this.dbService.home.count({
+          where: { organization_id: organizationId, disabled: true },
+        }),
+        this.dbService.organization.findUnique({
+          where: { id: organizationId },
+          select: { max_homes: true },
+        }),
+      ]);
     const totalHomes = (countEnabledHomes ?? 0) + (countDisabledHomes ?? 0);
     return {
       totalHomes,
       enabledHomes: countEnabledHomes ?? 0,
       disabledHomes: countDisabledHomes ?? 0,
+      maxHomes: organization?.max_homes ?? null,
     };
   }
 

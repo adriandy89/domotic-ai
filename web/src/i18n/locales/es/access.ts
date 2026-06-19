@@ -4,7 +4,7 @@ export const access: AccessNS = {
   title: 'Acceso',
   subtitle: 'Gestiona hogares, dispositivos y usuarios de tu sistema',
   tabs: { homes: 'Hogares', devices: 'Dispositivos', users: 'Usuarios' },
-  summary: { enabled: '{{count}} habilitados' },
+  summary: { enabled: '{{count}} habilitados', limit: 'Límite: {{count}}' },
 
   table: {
     show: 'Mostrar:',

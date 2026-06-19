@@ -46,19 +46,25 @@ export class UserService {
   ) {}
 
   async statisticsOrgUsers(organizationId: string) {
-    const [countEnabledUsers, countDisabledUsers] = await Promise.all([
-      this.dbService.user.count({
-        where: { organization_id: organizationId, is_active: true },
-      }),
-      this.dbService.user.count({
-        where: { organization_id: organizationId, is_active: false },
-      }),
-    ]);
+    const [countEnabledUsers, countDisabledUsers, organization] =
+      await Promise.all([
+        this.dbService.user.count({
+          where: { organization_id: organizationId, is_active: true },
+        }),
+        this.dbService.user.count({
+          where: { organization_id: organizationId, is_active: false },
+        }),
+        this.dbService.organization.findUnique({
+          where: { id: organizationId },
+          select: { max_users: true },
+        }),
+      ]);
     const totalUsers = (countEnabledUsers ?? 0) + (countDisabledUsers ?? 0);
     return {
       totalUsers,
       enabledUsers: countEnabledUsers ?? 0,
       disabledUsers: countDisabledUsers ?? 0,
+      maxUsers: organization?.max_users ?? null,
     };
   }
 
