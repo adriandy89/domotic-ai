@@ -365,8 +365,10 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      {/* Dynamic Bottom Section: Battery & Weather */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* Bottom section: adaptive grid that collapses around hidden cards.
+          Each card self-hides (battery conditional, weather/electricity return
+          null), so auto-fit lays out only the visible ones with no empty gaps. */}
+      <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(min(100%,22rem),1fr))]">
         {/* BATTERY HEALTH (Only if issues exist) */}
         {lowBatteryDevices.length > 0 && (
           <Card className="bg-card/40 border-amber-500/30">
@@ -375,35 +377,45 @@ export default function DashboardPage() {
                 <Battery className="h-5 w-5" />
                 {t('dashboard.battery.title')}
               </CardTitle>
+              <CardDescription>
+                {t('dashboard.battery.subtitle', {
+                  count: lowBatteryDevices.length,
+                })}
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {lowBatteryDevices.map((item) => (
-                  <div
-                    key={item.device.id}
-                    className="flex items-center justify-between p-2 rounded bg-amber-500/10 border border-amber-500/20"
-                  >
-                    <span className="text-sm font-medium truncate">
-                      {item.device.name}
-                    </span>
-                    <span
-                      className={`text-xs font-bold ${item.battery < 10 ? 'text-red-500' : 'text-amber-500'}`}
+            <CardContent className="@container">
+              <div className="grid grid-cols-1 @sm:grid-cols-2 gap-3">
+                {[...lowBatteryDevices]
+                  .sort((a, b) => a.battery - b.battery)
+                  .map((item) => (
+                    <div
+                      key={item.device.id}
+                      className="flex items-center justify-between p-2 rounded bg-amber-500/10 border border-amber-500/20"
                     >
-                      {item.battery}%
-                    </span>
-                  </div>
-                ))}
+                      <span
+                        className="text-sm font-medium truncate"
+                        title={item.device.name}
+                      >
+                        {item.device.name}
+                      </span>
+                      <span
+                        className={`text-xs font-bold ${item.battery < 10 ? 'text-red-500' : 'text-amber-500'}`}
+                      >
+                        {item.battery}%
+                      </span>
+                    </div>
+                  ))}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* HOMES WEATHER CARD */}
+        {/* HOMES WEATHER CARD (self-hides when no home has coordinates) */}
         <HomesWeatherCard />
-      </div>
 
-      {/* ELECTRICITY PRICES (renders only when a home has a tariff) */}
-      <ElectricityPricesCard />
+        {/* ELECTRICITY PRICES (self-hides when no home has a tariff) */}
+        <ElectricityPricesCard />
+      </div>
     </div>
   );
 }

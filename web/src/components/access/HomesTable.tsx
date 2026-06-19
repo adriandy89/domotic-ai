@@ -50,6 +50,8 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
+  MapPin,
+  Clock,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 
@@ -351,6 +353,90 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
     if (!date) return t('common.na');
     return new Date(date).toLocaleString();
   };
+
+  // Shared body for the Add / Edit home modals. `idSuffix` keeps the
+  // "disabled" checkbox id unique between the two dialogs.
+  const renderHomeForm = (idSuffix: string) => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
+      {/* Left: details + location summary (fills the column so no space is wasted) */}
+      <div className="flex flex-col gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">
+            {t('access.form.nameRequired')}
+          </label>
+          <Input
+            placeholder={t('access.homes.namePlaceholder')}
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">{t('common.description')}</label>
+          <Input
+            placeholder={t('access.form.optionalDescription')}
+            value={formData.description}
+            onChange={(e) =>
+              setFormData({ ...formData, description: e.target.value })
+            }
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id={`disabled_${idSuffix}`}
+            checked={formData.disabled}
+            onChange={(e) =>
+              setFormData({ ...formData, disabled: e.target.checked })
+            }
+            className="h-4 w-4 rounded border-border"
+          />
+          <label htmlFor={`disabled_${idSuffix}`} className="text-sm font-medium">
+            {t('access.form.disabledLabel')}
+          </label>
+        </div>
+
+        {/* Location summary, populated from the map on the right */}
+        <div className="flex-1 flex flex-col gap-3 rounded-lg border border-border/50 bg-muted/40 p-3">
+          <div className="space-y-1">
+            <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <MapPin className="h-3.5 w-3.5" />
+              {t('access.homes.address')}
+            </span>
+            <p className="text-sm leading-snug text-foreground/90">
+              {formData.address || t('access.homes.locationNotSet')}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <Clock className="h-3.5 w-3.5" />
+              {t('access.homes.timezone')}
+            </span>
+            <p className="text-sm leading-snug text-foreground/90">
+              {formData.timezone || t('access.homes.locationNotSet')}
+            </p>
+          </div>
+          {!formData.address && (
+            <p className="mt-auto text-xs text-muted-foreground/80">
+              {t('access.homes.locationHint')}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Right: search + map */}
+      <div className="min-h-[300px]">
+        <HomeLocationMap
+          latitude={formData.latitude}
+          longitude={formData.longitude}
+          address={formData.address}
+          timezone={formData.timezone}
+          onChange={(updates) =>
+            setFormData((prev) => ({ ...prev, ...updates }))
+          }
+        />
+      </div>
+    </div>
+  );
 
   return (
     <Card className="bg-card/40 border-border">
@@ -1322,57 +1408,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
             <DialogTitle>{t('access.homes.addTitle')}</DialogTitle>
             <DialogDescription>{t('access.homes.addDesc')}</DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  {t('access.form.nameRequired')}
-                </label>
-                <Input
-                  placeholder={t('access.homes.namePlaceholder')}
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  {t('common.description')}
-                </label>
-                <Input
-                  placeholder={t('access.form.optionalDescription')}
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="disabled_add"
-                  checked={formData.disabled}
-                  onChange={(e) =>
-                    setFormData({ ...formData, disabled: e.target.checked })
-                  }
-                  className="h-4 w-4 rounded border-border"
-                />
-                <label htmlFor="disabled_add" className="text-sm font-medium">
-                  {t('access.form.disabledLabel')}
-                </label>
-              </div>
-            </div>
-            <div className="min-h-[300px]">
-              <HomeLocationMap
-                latitude={formData.latitude}
-                longitude={formData.longitude}
-                address={formData.address}
-                timezone={formData.timezone}
-                onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
-              />
-            </div>
-          </div>
+          {renderHomeForm('add')}
           {modalError && (
             <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />
@@ -1404,57 +1440,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
             <DialogTitle>{t('access.homes.editTitle')}</DialogTitle>
             <DialogDescription>{t('access.homes.editDesc')}</DialogDescription>
           </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 py-4">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  {t('access.form.nameRequired')}
-                </label>
-                <Input
-                  placeholder={t('access.homes.namePlaceholder')}
-                  value={formData.name}
-                  onChange={(e) =>
-                    setFormData({ ...formData, name: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">
-                  {t('common.description')}
-                </label>
-                <Input
-                  placeholder={t('access.form.optionalDescription')}
-                  value={formData.description}
-                  onChange={(e) =>
-                    setFormData({ ...formData, description: e.target.value })
-                  }
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="disabled_edit"
-                  checked={formData.disabled}
-                  onChange={(e) =>
-                    setFormData({ ...formData, disabled: e.target.checked })
-                  }
-                  className="h-4 w-4 rounded border-border"
-                />
-                <label htmlFor="disabled_edit" className="text-sm font-medium">
-                  {t('access.form.disabledLabel')}
-                </label>
-              </div>
-            </div>
-            <div className="min-h-[300px]">
-              <HomeLocationMap
-                latitude={formData.latitude}
-                longitude={formData.longitude}
-                address={formData.address}
-                timezone={formData.timezone}
-                onChange={(updates) => setFormData((prev) => ({ ...prev, ...updates }))}
-              />
-            </div>
-          </div>
+          {renderHomeForm('edit')}
           {modalError && (
             <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm">
               <AlertCircle className="h-4 w-4 flex-shrink-0" />

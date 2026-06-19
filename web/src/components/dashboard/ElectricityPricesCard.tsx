@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Zap } from 'lucide-react';
 import {
   usePricingStore,
@@ -6,7 +7,13 @@ import {
 } from '../../store/usePricingStore';
 import { useHomesStore, type Home } from '../../store/useHomesStore';
 import { formatCurrency } from '../../lib/format';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '../ui/card';
 
 const SHORT_PROVIDER: Record<string, string> = {
   esios_pvpc: 'PVPC',
@@ -24,7 +31,7 @@ type Tone = 'cheap' | 'mid' | 'expensive';
 interface PriceRow {
   homeId: string;
   name: string;
-  typeLabel: string;
+  type: 'DYNAMIC' | 'TOU' | 'FIXED';
   detail: string | null;
   price: number | null;
   currency: string;
@@ -54,7 +61,12 @@ function eligibleType(
  * tercile (cheap / mid / expensive) against the day's published curve. The card
  * renders nothing when no home has a usable tariff.
  */
-export default function ElectricityPricesCard() {
+export default function ElectricityPricesCard({
+  className,
+}: {
+  className?: string;
+}) {
+  const { t } = useTranslation();
   const { homes, homeIds } = useHomesStore();
   const { fetchProviders, fetchPriceCurve } = usePricingStore();
   const [providers, setProviders] = useState<PricingProvider[]>([]);
@@ -100,7 +112,7 @@ export default function ElectricityPricesCard() {
         if (type === 'FIXED') {
           return {
             ...base,
-            typeLabel: 'Fixed',
+            type,
             detail: null,
             price: Number(home.kwh_price ?? 0),
             currency: home.currency ?? 'USD',
@@ -140,12 +152,10 @@ export default function ElectricityPricesCard() {
                   .find((p) => p.source === cfg.provider)
                   ?.zones.find((z) => z.id === cfg.zone)?.label ?? cfg.zone
               }`
-            : type === 'TOU'
-              ? 'current period'
-              : null;
+            : null;
         return {
           ...base,
-          typeLabel: type === 'DYNAMIC' ? 'Dynamic' : 'Time-of-use',
+          type,
           detail,
           price,
           currency,
@@ -168,53 +178,74 @@ export default function ElectricityPricesCard() {
   const rows = loaded?.sig === signature ? loaded.rows : [];
 
   return (
-    <Card className="bg-card/40 border-border">
+    <Card className={`bg-card/40 border-border ${className || ''}`}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           <Zap className="h-5 w-5 text-amber-400" />
-          Electricity prices · now
+          {t('dashboard.electricity.title')}
         </CardTitle>
+        <CardDescription>{t('dashboard.electricity.subtitle')}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="@container">
         {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-2">Loading prices…</p>
+          <p className="text-sm text-muted-foreground py-2">
+            {t('dashboard.electricity.loading')}
+          </p>
         ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {rows.map((row) => (
-            <div
-              key={row.homeId}
-              className="flex items-center justify-between gap-3 p-3 rounded-lg bg-background/30 border border-border/50"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate" title={row.name}>
-                  {row.name}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  {row.typeLabel}
-                  {row.detail ? ` · ${row.detail}` : ''}
-                </p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {row.tone && (
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded-full"
-                    style={{ background: TONE_DOT[row.tone] }}
-                  />
-                )}
-                <div className="text-right">
-                  <div className="text-sm font-semibold text-card-foreground">
-                    {row.price != null
-                      ? `${formatCurrency(row.price, row.currency, 4)}`
-                      : '—'}
+          <div className="grid grid-cols-1 @sm:grid-cols-2 @2xl:grid-cols-3 gap-3">
+            {rows.map((row) => {
+              const typeLabel = t(
+                `dashboard.electricity.types.${
+                  row.type === 'FIXED'
+                    ? 'fixed'
+                    : row.type === 'DYNAMIC'
+                      ? 'dynamic'
+                      : 'tou'
+                }`,
+              );
+              const detail =
+                row.detail ??
+                (row.type === 'TOU'
+                  ? t('dashboard.electricity.touPeriod')
+                  : null);
+              return (
+                <div
+                  key={row.homeId}
+                  className="flex items-center justify-between gap-3 p-3 rounded-lg bg-background/30 border border-border/50"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate" title={row.name}>
+                      {row.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {typeLabel}
+                      {detail ? ` · ${detail}` : ''}
+                    </p>
                   </div>
-                  <div className="text-[10px] text-muted-foreground leading-tight">
-                    {row.estimate ? 'est. /kWh' : '/kWh'}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {row.tone && (
+                      <span
+                        className="inline-block w-2.5 h-2.5 rounded-full"
+                        style={{ background: TONE_DOT[row.tone] }}
+                      />
+                    )}
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-card-foreground">
+                        {row.price != null
+                          ? `${formatCurrency(row.price, row.currency, 4)}`
+                          : '—'}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground leading-tight">
+                        {row.estimate
+                          ? t('dashboard.electricity.estPerKwh')
+                          : t('dashboard.electricity.perKwh')}
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
         )}
       </CardContent>
     </Card>

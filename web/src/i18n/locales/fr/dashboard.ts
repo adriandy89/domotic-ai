@@ -42,6 +42,21 @@ export const dashboard: DashboardNS = {
   },
   battery: {
     title: 'Alertes de batterie faible',
+    subtitle_one: '{{count}} appareil nécessite un changement de pile',
+    subtitle_other: '{{count}} appareils nécessitent un changement de pile',
+  },
+  electricity: {
+    title: 'Prix de l’électricité · maintenant',
+    subtitle: 'Prix actuel dans chaque maison',
+    loading: 'Chargement des prix…',
+    types: {
+      fixed: 'Fixe',
+      dynamic: 'Dynamique',
+      tou: 'Heures pleines',
+    },
+    touPeriod: 'période actuelle',
+    perKwh: '/kWh',
+    estPerKwh: 'est. /kWh',
   },
   weather: {
     title: 'Météo extérieure par maison',

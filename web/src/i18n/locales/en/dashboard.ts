@@ -40,6 +40,21 @@ export const dashboard = {
   },
   battery: {
     title: 'Low Battery Warnings',
+    subtitle_one: '{{count}} device needs a battery replacement',
+    subtitle_other: '{{count}} devices need a battery replacement',
+  },
+  electricity: {
+    title: 'Electricity prices · now',
+    subtitle: 'Current price at each home',
+    loading: 'Loading prices…',
+    types: {
+      fixed: 'Fixed',
+      dynamic: 'Dynamic',
+      tou: 'Time-of-use',
+    },
+    touPeriod: 'current period',
+    perKwh: '/kWh',
+    estPerKwh: 'est. /kWh',
   },
   weather: {
     title: 'Outside Weather by Home',

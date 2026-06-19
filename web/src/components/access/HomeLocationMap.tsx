@@ -9,7 +9,7 @@ import {
 } from 'react-leaflet';
 import L from 'leaflet';
 import tzlookup from 'tz-lookup';
-import { Search, Loader2, MapPin } from 'lucide-react';
+import { Search, Loader2 } from 'lucide-react';
 import { Input } from '../ui/input';
 import { Button } from '../ui/button';
 import { useTranslation } from 'react-i18next';
@@ -207,21 +207,6 @@ export function HomeLocationMap({
           />
           <MapUpdater center={mapCenter} />
         </MapContainer>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mt-2 p-3 bg-muted/50 rounded-lg border border-border/50">
-        <div className="flex flex-col gap-1.5">
-          <span className="font-medium text-foreground flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted-foreground">
-            <MapPin className="w-3.5 h-3.5" /> Address
-          </span>
-          <span className="text-sm leading-tight text-foreground/90">{address || 'Not set'}</span>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <span className="font-medium text-foreground flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted-foreground">
-            <Search className="w-3.5 h-3.5" /> Timezone
-          </span>
-          <span className="text-sm leading-tight text-foreground/90">{timezone || 'Not set'}</span>
-        </div>
       </div>
     </div>
   );

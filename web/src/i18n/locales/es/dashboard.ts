@@ -42,6 +42,21 @@ export const dashboard: DashboardNS = {
   },
   battery: {
     title: 'Avisos de batería baja',
+    subtitle_one: '{{count}} dispositivo necesita cambio de batería',
+    subtitle_other: '{{count}} dispositivos necesitan cambio de batería',
+  },
+  electricity: {
+    title: 'Precios de electricidad · ahora',
+    subtitle: 'Precio actual en cada hogar',
+    loading: 'Cargando precios…',
+    types: {
+      fixed: 'Fijo',
+      dynamic: 'Dinámico',
+      tou: 'Por tramos',
+    },
+    touPeriod: 'periodo actual',
+    perKwh: '/kWh',
+    estPerKwh: 'aprox. /kWh',
   },
   weather: {
     title: 'Clima Exterior por Hogar',

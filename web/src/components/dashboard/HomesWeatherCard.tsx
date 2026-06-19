@@ -119,15 +119,15 @@ export default function HomesWeatherCard({ className }: { className?: string }) 
           {t('dashboard.weather.subtitle', 'Condiciones climáticas actuales en las ubicaciones de tus hogares')}
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="@container">
         {loading ? (
-          <div className="flex gap-4 animate-pulse">
-            <div className="h-20 flex-1 bg-background/50 rounded-lg"></div>
-            <div className="h-20 flex-1 bg-background/50 rounded-lg hidden sm:block"></div>
-            <div className="h-20 flex-1 bg-background/50 rounded-lg hidden md:block"></div>
+          <div className="grid grid-cols-1 @md:grid-cols-2 gap-4 animate-pulse">
+            {homesWithLocation.map((home) => (
+              <div key={home.id} className="h-20 bg-background/50 rounded-lg" />
+            ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 @md:grid-cols-2 gap-4">
             {weatherData.map((data) => {
               const info = getWeatherInfo(data.weatherCode);
               const Icon = info.icon;
@@ -138,12 +138,18 @@ export default function HomesWeatherCard({ className }: { className?: string }) 
                 >
                   <div className="flex flex-col gap-1 overflow-hidden">
                     <div className="flex items-center gap-1.5">
-                      <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                      <span className="text-sm font-semibold truncate text-foreground">
+                      <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      <span
+                        className="text-sm font-semibold truncate text-foreground"
+                        title={data.name}
+                      >
                         {data.name}
                       </span>
                     </div>
-                    <span className="text-xs text-muted-foreground truncate pl-5">
+                    <span
+                      className="text-xs text-muted-foreground truncate pl-5"
+                      title={t(`dashboard.weather.conditions.${info.labelKey}`)}
+                    >
                       {t(`dashboard.weather.conditions.${info.labelKey}`)}
                     </span>
                   </div>
