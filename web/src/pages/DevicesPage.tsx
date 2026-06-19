@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { Home, Wifi, WifiOff, Search } from 'lucide-react';
 import { useHomesStore } from '../store/useHomesStore';
 import { useDevicesStore, type Device } from '../store/useDevicesStore';
@@ -27,16 +28,36 @@ export default function DevicesPage() {
   const handleCommand = useCallback(
     async (deviceId: string, command: Record<string, unknown>) => {
       try {
-        await api.post('/devices/command/send', {
+        const res = await api.post('/devices/command/send', {
           device_id: deviceId,
           command,
         });
+        // The endpoint returns 200 even when the device layer rejects the
+        // command (`{ ok: false, validationErrors }`). Surface that instead of
+        // failing silently — otherwise a rejected command looks like a no-op.
+        const data = res.data as {
+          ok?: boolean;
+          code?: string;
+          error?: string;
+          validationErrors?: { property: string; message: string }[];
+        };
+        if (data && data.ok === false) {
+          const detail =
+            data.validationErrors?.map((e) => e.message).join(' · ') ||
+            data.error ||
+            data.code ||
+            '';
+          console.error('Command rejected:', deviceId, command, data);
+          toast.error(t('devices.card.commandFailed'), { description: detail });
+          return;
+        }
         console.log('Command sent:', deviceId, command);
       } catch (error: any) {
         console.error('Failed to send command:', error);
+        toast.error(t('devices.card.commandError'));
       }
     },
-    [],
+    [t],
   );
 
   // Rename device

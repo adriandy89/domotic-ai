@@ -290,9 +290,12 @@ export default function DeviceCard({
                 className="space-y-0 max-h-[390px] overflow-y-auto"
                 style={{ scrollbarWidth: 'thin' }}
               >
-                {mainExposes.map((expose) => (
+                {mainExposes.map((expose, i) => (
                   <Feature
-                    key={expose.property || expose.name}
+                    // `light`/`switch` exposes carry no top-level property or
+                    // name (only their sub-features do), so fall back to a
+                    // type+index key to keep it unique.
+                    key={expose.property || expose.name || `${expose.type}-${i}`}
                     expose={expose}
                     value={data[expose.property]}
                     onChange={handleChange}

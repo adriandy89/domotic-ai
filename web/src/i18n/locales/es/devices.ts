@@ -31,6 +31,8 @@ export const devices: DevicesNS = {
     tamperAlert: 'Alerta de manipulación',
     deviceFault: 'Fallo del dispositivo',
     confirmRemove: '¿Seguro que quieres quitar este dispositivo?',
+    commandFailed: 'Comando rechazado por el dispositivo',
+    commandError: 'No se pudo enviar el comando',
   },
   ir: {
     title: 'Aprender nuevo comando IR',
@@ -56,6 +58,7 @@ export const devices: DevicesNS = {
     open: 'Abierto',
     closed: 'Cerrado',
     select: 'Seleccionar...',
+    apply: 'Aplicar',
     currentColor: 'Color actual',
     color: 'Color',
     colorPicker: 'Haz clic para abrir el selector de color',

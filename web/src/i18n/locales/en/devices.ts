@@ -29,6 +29,8 @@ export const devices = {
     tamperAlert: 'Tamper Alert',
     deviceFault: 'Device Fault',
     confirmRemove: 'Are you sure you want to remove this device?',
+    commandFailed: 'Command rejected by the device',
+    commandError: 'Failed to send command',
   },
   ir: {
     title: 'Learn New IR Command',
@@ -54,6 +56,7 @@ export const devices = {
     open: 'Open',
     closed: 'Closed',
     select: 'Select...',
+    apply: 'Apply',
     currentColor: 'Current Color',
     color: 'Color',
     colorPicker: 'Click to open color picker',

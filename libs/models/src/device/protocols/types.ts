@@ -35,6 +35,12 @@ export interface DeviceAction {
   values?: (string | number)[];
   /** Color-only: which composite formats this device accepts ('xy' | 'hs' | 'rgb'). */
   colorFormats?: ('xy' | 'hs' | 'rgb')[];
+  /**
+   * Composite-only: the writable sub-actions of a `composite` expose (e.g. the
+   * siren's `warning`). The command must be sent as a nested object under
+   * `property`, e.g. `{ warning: { mode, strobe, duration } }`.
+   */
+  features?: DeviceAction[];
 }
 
 /**
@@ -73,7 +79,8 @@ export interface ValidationError {
     | 'OUT_OF_RANGE'
     | 'INVALID_ENUM'
     | 'INVALID_BINARY'
-    | 'INVALID_COLOR';
+    | 'INVALID_COLOR'
+    | 'INVALID_COMPOSITE';
   message: string;
 }
 

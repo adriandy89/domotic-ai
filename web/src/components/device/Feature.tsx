@@ -479,21 +479,37 @@ export function ColorFeature({ expose, onChange, data }: FeatureProps) {
   );
 }
 
-// Composite feature with sub-features (switch, light, cover, lock, climate, fan)
-export function CompositeFeature({ expose, onChange, data }: FeatureProps) {
+// Generic `composite` expose (e.g. the siren's `warning`). zigbee2mqtt sets a
+// composite as ONE nested object under its property — publishing the sub-values
+// individually does nothing. So sub-features here only edit local state; the
+// whole composite is published once via the "Apply" button as
+// `{ [property]: { ...subValues } }`. Mirrors web-zigbee2mqtt's FeatureSubFeatures.
+export function CommandCompositeFeature({ expose, onChange, data }: FeatureProps) {
+  const { t } = useTranslation();
   const features = expose.features || [];
 
-  // Check if this is a color feature (color_xy or color_hs)
-  const isColorFeature = expose.type === 'composite' &&
-    (expose.name === 'color_xy' || expose.name === 'color_hs' || expose.name === 'color_rgb');
+  // Color composites keep their dedicated picker.
+  const isColorFeature =
+    expose.name === 'color_xy' ||
+    expose.name === 'color_hs' ||
+    expose.name === 'color_rgb';
 
-  // If it's a color feature, render ColorFeature instead
-  // Color values (x, y) are nested under expose.property
+  // Current device-reported values for this composite (usually empty for
+  // write-only command composites like `warning`).
+  const baseData =
+    expose.property && data?.[expose.property]
+      ? (data[expose.property] as Record<string, unknown>)
+      : {};
+
+  // Pending, not-yet-applied sub-feature edits. Resets on its own when the
+  // device changes: DeviceCard is keyed by device id, so this remounts.
+  const [edits, setEdits] = useState<Record<string, unknown>>({});
+
   if (isColorFeature) {
-    const colorData = expose.property && data?.[expose.property]
-      ? data[expose.property] as Record<string, unknown>
-      : data;
-
+    const colorData =
+      expose.property && data?.[expose.property]
+        ? (data[expose.property] as Record<string, unknown>)
+        : data;
     return (
       <ColorFeature
         expose={expose}
@@ -503,6 +519,49 @@ export function CompositeFeature({ expose, onChange, data }: FeatureProps) {
       />
     );
   }
+
+  if (features.length === 0) {
+    return <ValueDisplay expose={expose} value={data?.[expose.property]} />;
+  }
+
+  const combined = { ...baseData, ...edits };
+
+  return (
+    <div className="py-1 px-2 bg-background/30 rounded space-y-1">
+      <span className="text-xs text-muted-foreground font-medium">
+        {expose.label || expose.name}
+      </span>
+      <div className="space-y-0.5">
+        {features.map((subExpose, i) => (
+          <Feature
+            key={subExpose.property || subExpose.name || `${subExpose.type}-${i}`}
+            expose={subExpose}
+            value={combined[subExpose.property]}
+            // Accumulate locally; do not publish until Apply.
+            onChange={(property, value) =>
+              setEdits((prev) => ({ ...prev, [property]: value }))
+            }
+            data={combined}
+          />
+        ))}
+      </div>
+      <div className="flex justify-end pt-1">
+        <button
+          onClick={() => onChange(expose.property, combined)}
+          className="text-[11px] font-medium px-2.5 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+        >
+          {t('devices.features.apply')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Wrapper feature with sub-features (switch, light, cover, lock, climate, fan).
+// Unlike a generic composite, these sub-features ARE settable at the top level,
+// so each one publishes independently as it changes.
+export function CompositeFeature({ expose, onChange, data }: FeatureProps) {
+  const features = expose.features || [];
 
   // For composite features with a property, check if data is nested under that property
   // This is needed for types like 'light' where the composite has a property name
@@ -517,9 +576,9 @@ export function CompositeFeature({ expose, onChange, data }: FeatureProps) {
 
   return (
     <div className="space-y-0.5">
-      {features.map((subExpose) => (
+      {features.map((subExpose, i) => (
         <Feature
-          key={subExpose.property || subExpose.name}
+          key={subExpose.property || subExpose.name || `${subExpose.type}-${i}`}
           expose={subExpose}
           value={featureData?.[subExpose.property]}
           onChange={onChange}
@@ -579,15 +638,25 @@ export function Feature({ expose, value, onChange, data }: FeatureProps) {
     case 'schedule':
       return <ScheduleFeature expose={exposeWithLabel} value={value} />;
 
-    // Composite types with sub-features
-    // Note: color_xy, color_hs, color_rgb are handled inside CompositeFeature
+    // Generic composite (e.g. siren `warning`): accumulate sub-values and publish
+    // once as a nested object. color_xy/hs/rgb are delegated to ColorFeature inside.
+    case 'composite':
+      return (
+        <CommandCompositeFeature
+          expose={exposeWithLabel}
+          value={value}
+          onChange={onChange}
+          data={data}
+        />
+      );
+
+    // Wrapper types whose sub-features are settable at the top level.
     case 'switch':
     case 'light':
     case 'cover':
     case 'lock':
     case 'climate':
     case 'fan':
-    case 'composite':
       return (
         <CompositeFeature
           expose={exposeWithLabel}

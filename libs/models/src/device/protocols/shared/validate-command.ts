@@ -91,9 +91,45 @@ function validateValue(
       return validateEnum(action, value);
     case 'color':
       return validateColor(action, value);
+    case 'composite':
+      return validateComposite(action, value);
     default:
       return null;
   }
+}
+
+/**
+ * Composite exposes (e.g. the siren's `warning`) are set as a single nested
+ * object under `action.property`. Each known sub-property is validated against
+ * the composite's sub-actions; unknown sub-properties are ignored (lenient).
+ */
+function validateComposite(
+  action: DeviceAction,
+  value: unknown,
+): ValidationError | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {
+      property: action.property,
+      code: 'INVALID_COMPOSITE',
+      message: `"${action.property}" must be an object of sub-properties.`,
+    };
+  }
+  const subActions = action.features ?? [];
+  for (const [subProperty, subValue] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
+    const subAction = subActions.find((a) => a.property === subProperty);
+    if (!subAction) continue;
+    const err = validateValue(subAction, subValue);
+    if (err) {
+      return {
+        property: `${action.property}.${subProperty}`,
+        code: err.code,
+        message: err.message,
+      };
+    }
+  }
+  return null;
 }
 
 function validateBinary(
