@@ -93,9 +93,64 @@ function validateValue(
       return validateColor(action, value);
     case 'composite':
       return validateComposite(action, value);
+    case 'schedule':
+      return validateSchedule(action, value);
     default:
       return null;
   }
+}
+
+const SCHEDULE_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const SCHEDULE_MAX_ENTRIES = 8;
+
+/**
+ * On-device scheduler array (e.g. the ESP32 relay firmware): up to 8 entries, each
+ * `{ time:"HH:MM", days:0..127 bitmask, action:"ON"|"OFF", enabled:boolean }`. The
+ * optional `id` is firmware-assigned (1..8) and not validated here.
+ */
+function validateSchedule(
+  action: DeviceAction,
+  value: unknown,
+): ValidationError | null {
+  const invalid = (message: string): ValidationError => ({
+    property: action.property,
+    code: 'INVALID_SCHEDULE',
+    message,
+  });
+
+  if (!Array.isArray(value)) {
+    return invalid(`"${action.property}" must be an array of schedule rules.`);
+  }
+  if (value.length > SCHEDULE_MAX_ENTRIES) {
+    return invalid(
+      `"${action.property}" allows at most ${SCHEDULE_MAX_ENTRIES} rules. Got ${value.length}.`,
+    );
+  }
+  for (let i = 0; i < value.length; i++) {
+    const entry = value[i];
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return invalid(`Rule ${i + 1} must be an object.`);
+    }
+    const e = entry as Record<string, unknown>;
+    if (typeof e.time !== 'string' || !SCHEDULE_TIME_RE.test(e.time)) {
+      return invalid(`Rule ${i + 1}: "time" must be "HH:MM" (24h).`);
+    }
+    if (
+      typeof e.days !== 'number' ||
+      !Number.isInteger(e.days) ||
+      e.days < 0 ||
+      e.days > 127
+    ) {
+      return invalid(`Rule ${i + 1}: "days" must be a 0-127 bitmask.`);
+    }
+    if (e.action !== 'ON' && e.action !== 'OFF') {
+      return invalid(`Rule ${i + 1}: "action" must be "ON" or "OFF".`);
+    }
+    if (typeof e.enabled !== 'boolean') {
+      return invalid(`Rule ${i + 1}: "enabled" must be a boolean.`);
+    }
+  }
+  return null;
 }
 
 /**

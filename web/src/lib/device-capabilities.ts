@@ -168,10 +168,11 @@ function haComponentToExpose(
       };
     case 'text':
       // The ESP32 relay firmware publishes its on-board scheduler as a JSON
-      // array on a `text` component named "schedule". The backend HA adapter
-      // has no `text` actions (commands are rejected as UNKNOWN_PROPERTY), so
-      // the SET bit is dropped to keep these out of rule/schedule action
-      // pickers until editing is supported end-to-end.
+      // array on a `text` component named "schedule". It's editable from the
+      // device card (the ScheduleFeature modal sends a `{schedule:[...]}`
+      // command), but the SET bit is intentionally kept off so `schedule`
+      // stays out of the rule/schedule action pickers, where editing an 8-entry
+      // array isn't supported. The card modal calls `onChange` directly.
       if (objectId === 'schedule') {
         return { ...base, type: 'schedule', access: FeatureAccessMode.STATE };
       }

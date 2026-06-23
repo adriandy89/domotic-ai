@@ -634,9 +634,16 @@ export function Feature({ expose, value, onChange, data }: FeatureProps) {
     case 'value':
       return <ValueDisplay expose={exposeWithLabel} value={value} />;
 
-    // On-device scheduler arrays (e.g. the ESP32 relay firmware) — read-only.
+    // On-device scheduler arrays (e.g. the ESP32 relay firmware): read-only
+    // summary with an inline editor that replaces the whole schedule.
     case 'schedule':
-      return <ScheduleFeature expose={exposeWithLabel} value={value} />;
+      return (
+        <ScheduleFeature
+          expose={exposeWithLabel}
+          value={value}
+          onChange={onChange}
+        />
+      );
 
     // Generic composite (e.g. siren `warning`): accumulate sub-values and publish
     // once as a nested object. color_xy/hs/rgb are delegated to ColorFeature inside.

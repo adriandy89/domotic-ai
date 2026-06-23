@@ -122,6 +122,34 @@ export function nextScheduleOccurrence(
   return best;
 }
 
+// ── Editing helpers (used by the schedule edit modal) ──────────────────────────
+
+/** Firmware limit: at most 8 schedule entries (mirrors the backend validator). */
+export const SCHEDULE_MAX_ENTRIES = 8;
+
+/** Day presets as `days` bitmasks. */
+export const DAY_MASKS = {
+  everyDay: EVERY_DAY,
+  weekdays: WEEKDAYS_MASK,
+  weekend: WEEKEND_MASK,
+  none: 0,
+} as const;
+
+/** Mon-first list of `{ jsDay, short }` for rendering the day toggles. */
+export const SCHEDULE_DAY_OPTIONS: ReadonlyArray<{ jsDay: number; short: string }> =
+  DISPLAY_ORDER.map((d) => ({ jsDay: d, short: DAY_SHORT[d] }));
+
+/** True if the bitmask includes the given JS day (0=Sun..6=Sat). */
+export function hasDay(mask: number, jsDay: number): boolean {
+  return hasJsDay(mask, jsDay);
+}
+
+/** Return a new bitmask with the given JS day flipped. */
+export function toggleDay(mask: number, jsDay: number): number {
+  const bit = 1 << BIT_TO_JS_DAY.indexOf(jsDay);
+  return (mask & bit) !== 0 ? mask & ~bit : (mask | bit) & EVERY_DAY;
+}
+
 /** "ON 19:00" (today) / "ON 05:00 tmrw" / "ON Mon 05:00". */
 export function formatNextOccurrence(
   occ: { entry: ScheduleEntry; date: Date },

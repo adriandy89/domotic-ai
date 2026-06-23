@@ -156,6 +156,20 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
       }
     }
 
+    // The ESP32 relay firmware exposes its on-board scheduler as a `schedule`
+    // `text` component, written via the shared `…/set` topic with a wrapped
+    // `{"schedule":[...]}` payload (see buildCommandMessages). Surface it as a
+    // writable action so the command validates — independent of whether the
+    // component declares its own command_topic, since it reuses the device's set
+    // topic. The entity loop above skips it (text isn't a known command type).
+    const hasSchedule = entities.some(
+      (e) => e.component === 'text' && e.property === 'schedule',
+    );
+    const hasCommandTopic = entities.some((e) => e.commandTopic);
+    if (hasSchedule && hasCommandTopic) {
+      actions.push({ property: 'schedule', type: 'schedule', label: 'Schedule' });
+    }
+
     return dedupeByProperty(actions);
   }
 
@@ -232,6 +246,19 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
           topic: brightnessEntity.brightnessCommandTopic as string,
           payload: toPayload(value),
         });
+        continue;
+      }
+
+      // On-device scheduler: the firmware expects the whole array wrapped as
+      // `{"schedule":[...]}` on the shared `…/set` topic (the same topic the
+      // relay uses). Reuse the schedule's own command topic when declared, else
+      // any sibling command topic — every component shares `~/set`.
+      if (key === 'schedule') {
+        const topic =
+          entities.find((e) => e.property === 'schedule' && e.commandTopic)
+            ?.commandTopic ?? entities.find((e) => e.commandTopic)?.commandTopic;
+        if (!topic) continue;
+        messages.push({ topic, payload: JSON.stringify({ schedule: value }) });
         continue;
       }
 

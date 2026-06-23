@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CalendarClock, ChevronDown, ChevronUp } from 'lucide-react';
+import { CalendarClock, ChevronDown, ChevronUp, Pencil } from 'lucide-react';
 import type { DeviceExpose } from '../../store/useDevicesStore';
 import { cn } from '../../lib/utils';
 import {
@@ -8,26 +8,55 @@ import {
   formatScheduleDays,
   nextScheduleOccurrence,
   parseScheduleValue,
+  type ScheduleEntry,
 } from '../../lib/schedule-format';
+import { ScheduleEditModal } from './ScheduleEditModal';
 
 interface ScheduleFeatureProps {
   expose: DeviceExpose;
   value: unknown;
+  /** When provided, an edit button opens the schedule editor and sends a command. */
+  onChange?: (property: string, value: unknown) => void;
 }
 
-// Read-only renderer for the on-device scheduler array some WiFi firmwares
-// publish (e.g. the ESP32 relay): a collapsed one-line summary that expands
-// inline to the rule list. Editing isn't wired up — the backend HA adapter has
-// no `text` actions yet, so the expose is read-only (see device-capabilities.ts).
-export function ScheduleFeature({ expose, value }: ScheduleFeatureProps) {
+// Renderer for the on-device scheduler array some WiFi firmwares publish (e.g.
+// the ESP32 relay): a collapsed one-line summary that expands inline to the rule
+// list. When `onChange` is provided, a pencil button opens a full editor that
+// replaces the whole schedule via a `{schedule:[...]}` command.
+export function ScheduleFeature({ expose, value, onChange }: ScheduleFeatureProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const entries = useMemo(() => parseScheduleValue(value), [value]);
   const next = useMemo(
     () => (entries && entries.length > 0 ? nextScheduleOccurrence(entries) : null),
     [entries],
   );
   const label = expose.label || expose.name;
+  const canEdit = !!onChange;
+
+  const modal = canEdit && editing ? (
+    <ScheduleEditModal
+      onClose={() => setEditing(false)}
+      deviceLabel={label}
+      value={value}
+      onSave={(next: ScheduleEntry[]) => onChange?.(expose.property, next)}
+    />
+  ) : null;
+
+  const editButton = canEdit ? (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setEditing(true);
+      }}
+      className="shrink-0 text-muted-foreground hover:text-foreground transition-colors p-0.5"
+      title={t('devices.schedule.edit')}
+    >
+      <Pencil className="h-3 w-3" />
+    </button>
+  ) : null;
 
   // Degraded states share one row shell. ValueDisplay isn't reused so the
   // Feature → ScheduleFeature import stays one-directional.
@@ -45,22 +74,28 @@ export function ScheduleFeature({ expose, value }: ScheduleFeatureProps) {
       display = String(value);
     }
     return (
-      <div className="flex items-center justify-between py-1 px-2 bg-background/30 rounded">
-        <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-0">
-          <CalendarClock className="h-3 w-3 shrink-0" />
-          <span className="truncate">{label}</span>
-        </span>
-        <span
-          className="text-xs font-medium text-muted-foreground truncate max-w-[140px]"
-          title={
-            typeof value === 'object' && value !== null
-              ? JSON.stringify(value, null, 2)
-              : undefined
-          }
-        >
-          {display}
-        </span>
-      </div>
+      <>
+        <div className="flex items-center justify-between gap-1 py-1 px-2 bg-background/30 rounded">
+          <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-0">
+            <CalendarClock className="h-3 w-3 shrink-0" />
+            <span className="truncate">{label}</span>
+          </span>
+          <span className="flex items-center gap-1 min-w-0">
+            <span
+              className="text-xs font-medium text-muted-foreground truncate max-w-[140px]"
+              title={
+                typeof value === 'object' && value !== null
+                  ? JSON.stringify(value, null, 2)
+                  : undefined
+              }
+            >
+              {display}
+            </span>
+            {editButton}
+          </span>
+        </div>
+        {modal}
+      </>
     );
   }
 
@@ -68,44 +103,47 @@ export function ScheduleFeature({ expose, value }: ScheduleFeatureProps) {
 
   return (
     <div className="py-1 px-2 bg-background/30 rounded hover:bg-background/50 transition-colors">
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between gap-2 text-left"
-        title={open ? t('devices.schedule.collapse') : t('devices.schedule.expand')}
-      >
-        <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-0">
-          <CalendarClock className="h-3 w-3 shrink-0" />
-          <span className="truncate">{label}</span>
-        </span>
-        <span className="flex items-center gap-1 shrink-0 min-w-0">
-          <span className="text-xs font-medium text-foreground truncate">
-            {t('devices.schedule.rules', { count })}
-            {next && (
-              <>
-                <span className="text-muted-foreground">
-                  {' · '}
-                  {t('devices.schedule.next')}{' '}
-                </span>
-                <span
-                  className={
-                    next.entry.action === 'ON'
-                      ? 'text-emerald-500'
-                      : 'text-foreground'
-                  }
-                >
-                  {formatNextOccurrence(next)}
-                </span>
-              </>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex-1 flex items-center justify-between gap-2 text-left min-w-0"
+          title={open ? t('devices.schedule.collapse') : t('devices.schedule.expand')}
+        >
+          <span className="text-xs text-muted-foreground flex items-center gap-1 min-w-0">
+            <CalendarClock className="h-3 w-3 shrink-0" />
+            <span className="truncate">{label}</span>
+          </span>
+          <span className="flex items-center gap-1 shrink-0 min-w-0">
+            <span className="text-xs font-medium text-foreground truncate">
+              {t('devices.schedule.rules', { count })}
+              {next && (
+                <>
+                  <span className="text-muted-foreground">
+                    {' · '}
+                    {t('devices.schedule.next')}{' '}
+                  </span>
+                  <span
+                    className={
+                      next.entry.action === 'ON'
+                        ? 'text-emerald-500'
+                        : 'text-foreground'
+                    }
+                  >
+                    {formatNextOccurrence(next)}
+                  </span>
+                </>
+              )}
+            </span>
+            {open ? (
+              <ChevronUp className="h-3 w-3 text-muted-foreground shrink-0" />
+            ) : (
+              <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
             )}
           </span>
-          {open ? (
-            <ChevronUp className="h-3 w-3 text-muted-foreground shrink-0" />
-          ) : (
-            <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
-          )}
-        </span>
-      </button>
+        </button>
+        {editButton}
+      </div>
 
       {open && (
         <div
@@ -141,6 +179,7 @@ export function ScheduleFeature({ expose, value }: ScheduleFeatureProps) {
           ))}
         </div>
       )}
+      {modal}
     </div>
   );
 }

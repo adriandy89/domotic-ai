@@ -80,7 +80,8 @@ export interface ValidationError {
     | 'INVALID_ENUM'
     | 'INVALID_BINARY'
     | 'INVALID_COLOR'
-    | 'INVALID_COMPOSITE';
+    | 'INVALID_COMPOSITE'
+    | 'INVALID_SCHEDULE';
   message: string;
 }
 
