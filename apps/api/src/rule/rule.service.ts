@@ -142,6 +142,8 @@ export class RuleService {
       select: {
         ...this.selectRules,
         _count: true,
+        // Operations only, so the UI can flag "care" rules (absence operators).
+        conditions: { select: { operation: true } },
       },
       where: {
         user_id,

@@ -4,7 +4,19 @@ import { shouldFetch, trackInflight } from '../lib/staleness';
 
 // Enums matching Prisma schema
 export type RuleType = 'RECURRENT' | 'ONETIME';
-export type Operation = 'EQ' | 'NEQ' | 'GT' | 'LT' | 'GTE' | 'LTE' | 'CONTAINS';
+export type Operation =
+  | 'EQ'
+  | 'NEQ'
+  | 'GT'
+  | 'LT'
+  | 'GTE'
+  | 'LTE'
+  | 'CONTAINS'
+  // Absence/silence operators evaluated by the backend watchdog (care rules):
+  // INACTIVE = attribute not active for data.forSeconds; STALE = device hasn't
+  // reported for data.forSeconds.
+  | 'INACTIVE'
+  | 'STALE';
 export type ResultType = 'COMMAND' | 'NOTIFICATION';
 export type NotificationChannel =
   | 'EMAIL'
@@ -32,6 +44,8 @@ export interface Result {
   data?: Record<string, unknown>;
   channel: NotificationChannel[];
   resend_after?: number;
+  /** External email recipients for care alerts (sent regardless of owner channels). */
+  recipients?: string[];
 }
 
 // Rule list item (from /rules/all/user)
@@ -50,6 +64,8 @@ export interface Rule {
     conditions: number;
     results: number;
   };
+  /** Operations of this rule's conditions (used to flag care/absence rules). */
+  conditions?: { operation: Operation }[];
 }
 
 // Full rule detail (from /rules/:id)

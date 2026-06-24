@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, Plus, Trash2, Loader2, Save } from 'lucide-react';
+import { ChevronLeft, Plus, Trash2, Loader2, Save, HeartPulse } from 'lucide-react';
 import { useRulesStore } from '../store/useRulesStore';
 import type {
   CreateRuleRequest,
@@ -18,7 +18,21 @@ import {
   getDeviceExposes as deviceExposes,
   getPublishableExposes as devicePublishableExposes,
   flattenExposes,
+  hasExpose,
 } from '../lib/device-capabilities';
+import {
+  RULE_TEMPLATES,
+  PRESENCE_ATTRIBUTES,
+  LOW_BATTERY_ADDON,
+  SILENT_ADDON,
+  DURATION_UNIT_SECONDS,
+  isAbsenceOperation,
+  secondsToDuration,
+  secondsToIntervalParts,
+  durationToSeconds,
+  type RuleTemplate,
+  type DurationUnit,
+} from '../lib/rule-templates';
 import {
   Card,
   CardContent,
@@ -37,11 +51,12 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { Separator } from '../components/ui/separator';
+import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 
 // Operations by expose type
 const OPERATION_OPTIONS: Record<string, Operation[]> = {
-  binary: ['EQ'],
+  binary: ['EQ', 'INACTIVE'],
   numeric: ['EQ', 'GT', 'GTE', 'LT', 'LTE'],
   enum: ['EQ'],
   composite: ['EQ'],
@@ -56,7 +71,11 @@ const OPERATION_LABELS: Record<Operation, { label: string; symbol: string }> = {
   GTE: { label: 'Greater or Equal', symbol: '≥' },
   LTE: { label: 'Less or Equal', symbol: '≤' },
   CONTAINS: { label: 'Contains', symbol: '∋' },
+  INACTIVE: { label: 'Inactive for', symbol: '⏳' },
+  STALE: { label: 'No report for', symbol: '📡' },
 };
+
+const DURATION_UNITS: DurationUnit[] = ['minutes', 'hours', 'days'];
 
 const RESULT_TYPES: { value: ResultType; label: string }[] = [
   { value: 'COMMAND', label: 'Send Action' },
@@ -93,11 +112,22 @@ export default function RuleFormPage() {
   const [description, setDescription] = useState('');
   const [ruleType, setRuleType] = useState<RuleType>('RECURRENT');
   const [interval, setInterval] = useState(0);
+  // Display-only unit selector for `interval` (stored value is always seconds).
+  const [intervalValue, setIntervalValue] = useState(0);
+  const [intervalUnit, setIntervalUnit] = useState<DurationUnit>('minutes');
   const [active, setActive] = useState(true);
   const [all, setAll] = useState(true);
   const [homeId, setHomeId] = useState('');
   const [conditions, setConditions] = useState<Omit<Condition, 'id'>[]>([]);
   const [results, setResults] = useState<Omit<Result, 'id'>[]>([]);
+
+  // Care/Wellness template state (creation only)
+  const [activeTemplate, setActiveTemplate] = useState<RuleTemplate | null>(
+    null,
+  );
+  const [addonLowBattery, setAddonLowBattery] = useState(false);
+  const [addonSilent, setAddonSilent] = useState(false);
+  const [recipientEmail, setRecipientEmail] = useState('');
 
   // Load rule data for edit mode
   useEffect(() => {
@@ -124,11 +154,18 @@ export default function RuleFormPage() {
       setDescription(currentRule.description || '');
       setRuleType(currentRule.type);
       setInterval(currentRule.interval);
+      const parts = secondsToIntervalParts(currentRule.interval);
+      setIntervalValue(parts.value);
+      setIntervalUnit(parts.unit);
       setActive(currentRule.active);
       setAll(currentRule.all);
       setHomeId(currentRule.home_id);
       setConditions(currentRule.conditions.map(({ id: _id, ...rest }) => rest));
       setResults(currentRule.results.map(({ id: _id, ...rest }) => rest));
+      const recipients = currentRule.results
+        .map((r) => (r.data?.recipients as string[] | undefined) || [])
+        .find((arr) => arr.length > 0);
+      setRecipientEmail(recipients?.join(', ') || '');
     }
   }, [currentRule, isEditMode]);
 
@@ -143,6 +180,30 @@ export default function RuleFormPage() {
     const deviceIds = devicesByHome[homeId] || [];
     return deviceIds.map((dId) => devices[dId]).filter(Boolean);
   }, [homeId, devicesByHome, devices]);
+
+  // Devices offered in the pickers, narrowed by the active template's focus
+  // (presence sensors / battery devices). Falls back to all if none match.
+  const pickerDevices = useMemo(() => {
+    if (!activeTemplate || activeTemplate.deviceFilter === 'any')
+      return homeDevices;
+    const wanted =
+      activeTemplate.deviceFilter === 'presence'
+        ? PRESENCE_ATTRIBUTES
+        : ['battery'];
+    const filtered = homeDevices.filter((d) => hasExpose(d, wanted));
+    return filtered.length > 0 ? filtered : homeDevices;
+  }, [activeTemplate, homeDevices]);
+
+  // Care context: a template is active or the rule already uses absence ops.
+  const isCareContext = useMemo(
+    () =>
+      !!activeTemplate ||
+      conditions.some((c) => isAbsenceOperation(c.operation)),
+    [activeTemplate, conditions],
+  );
+
+  // The device the add-on conditions attach to (the primary condition's device).
+  const primaryDeviceId = conditions[0]?.device_id || '';
 
   // Get device exposes by device ID (protocol-agnostic, flattened for the pickers)
   const getDeviceExposes = useCallback(
@@ -204,14 +265,29 @@ export default function RuleFormPage() {
       conditions.map((c, i) => {
         if (i !== index) return c;
         const updated = { ...c, [field]: value };
-        // Reset dependent fields when device changes
+        const isAbsence = isAbsenceOperation(updated.operation);
+        // Reset dependent fields when device changes — but keep absence
+        // semantics (duration, active target) intact for care conditions.
         if (field === 'device_id') {
-          updated.attribute = '';
-          updated.operation = 'EQ';
-          updated.data = { value: '' };
+          if (isAbsence) {
+            // For INACTIVE on a presence sensor, auto-pick the presence attribute.
+            if (updated.operation === 'INACTIVE') {
+              const exposes = getDeviceExposes(value as string);
+              const match = exposes.find(
+                (e) =>
+                  PRESENCE_ATTRIBUTES.includes(e.property) ||
+                  PRESENCE_ATTRIBUTES.includes(e.name),
+              );
+              updated.attribute = match?.property || match?.name || '';
+            }
+          } else {
+            updated.attribute = '';
+            updated.operation = 'EQ';
+            updated.data = { value: '' };
+          }
         }
-        // Reset operation and value when attribute changes
-        if (field === 'attribute') {
+        // Reset operation and value when attribute changes (non-absence only)
+        if (field === 'attribute' && !isAbsence) {
           updated.operation = 'EQ';
           updated.data = { value: '' };
         }
@@ -265,24 +341,68 @@ export default function RuleFormPage() {
     );
   };
 
+  // Apply a care template: prefill name + a primary condition + an email
+  // notification result. Device & timings are then tuned by the user.
+  const applyTemplate = (template: RuleTemplate) => {
+    setActiveTemplate(template);
+    setName(t(template.nameKey));
+    setRuleType('RECURRENT');
+    setAll(true);
+    setAddonLowBattery(false);
+    setAddonSilent(false);
+
+    const data: Record<string, unknown> = {};
+    if (isAbsenceOperation(template.operation)) {
+      data.forSeconds = template.defaultForSeconds ?? 12 * 3600;
+      if (template.activeValue !== undefined) data.value = template.activeValue;
+    } else {
+      data.value = template.defaultValue ?? 20;
+    }
+
+    setConditions([
+      {
+        device_id: '',
+        attribute: template.attribute ?? '',
+        operation: template.operation,
+        data,
+      },
+    ]);
+    setResults([
+      {
+        device_id: '',
+        event: t(template.eventKey),
+        type: 'NOTIFICATION',
+        attribute: '',
+        data: { value: '' },
+        channel: ['EMAIL'],
+      },
+    ]);
+  };
+
   // Handle home change - clear conditions and results when home changes
   const handleHomeChange = (newHomeId: string) => {
     if (newHomeId !== homeId) {
       setHomeId(newHomeId);
-      // Clear conditions and results since devices are home-specific
-      setConditions([]);
-      setResults([]);
+      // Clear conditions and results since devices are home-specific, then
+      // re-seed the active care template (its device picker is now valid).
+      if (activeTemplate) {
+        applyTemplate(activeTemplate);
+      } else {
+        setConditions([]);
+        setResults([]);
+      }
     }
   };
 
   // Check if form is valid for submission
   const isFormValid = useMemo(() => {
-    const hasValidConditions = conditions.some(
-      (c) =>
-        c.device_id &&
-        c.attribute &&
-        c.data?.value !== '' &&
-        c.data?.value !== undefined,
+    const hasValidConditions = conditions.some((c) =>
+      isAbsenceOperation(c.operation)
+        ? c.device_id && Number(c.data?.forSeconds) > 0
+        : c.device_id &&
+          c.attribute &&
+          c.data?.value !== '' &&
+          c.data?.value !== undefined,
     );
     const hasValidResults = results.some((r) =>
       r.type === 'NOTIFICATION'
@@ -320,29 +440,78 @@ export default function RuleFormPage() {
       return;
     }
 
+    // Parse external caregiver recipients (comma-separated emails).
+    const recipients = recipientEmail
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    // Base conditions (absence conditions don't require an attribute).
+    const baseConditions = conditions.filter((c) =>
+      isAbsenceOperation(c.operation)
+        ? c.device_id
+        : c.device_id && c.attribute,
+    );
+
+    // Add-on conditions toggled in the care card, attached to the primary device.
+    const addonConditions: Omit<Condition, 'id'>[] = [];
+    if (!isEditMode && addonLowBattery && primaryDeviceId) {
+      addonConditions.push({
+        device_id: primaryDeviceId,
+        attribute: LOW_BATTERY_ADDON.attribute,
+        operation: LOW_BATTERY_ADDON.operation,
+        data: { value: LOW_BATTERY_ADDON.value },
+      });
+    }
+    if (!isEditMode && addonSilent && primaryDeviceId) {
+      addonConditions.push({
+        device_id: primaryDeviceId,
+        attribute: '',
+        operation: SILENT_ADDON.operation,
+        data: { forSeconds: SILENT_ADDON.forSeconds },
+      });
+    }
+
+    const finalConditions = [...baseConditions, ...addonConditions];
+    // Any add-on means "alert if primary OR add-on" → OR semantics.
+    const useAll = addonConditions.length > 0 ? false : all;
+
     const data: CreateRuleRequest = {
       name: name.trim(),
       description: description.trim() || undefined,
       type: ruleType,
       interval,
       active,
-      all,
+      all: useAll,
       home_id: homeId,
-      conditions: conditions.filter((c) => c.device_id && c.attribute),
+      conditions: finalConditions,
       results: results
         .filter((r) =>
           r.type === 'NOTIFICATION' ? r.event : r.device_id && r.attribute,
         )
-        .map((r) => ({
-          ...r,
-          // For NOTIFICATION type, don't send device_id, attribute, or data if empty
-          device_id:
-            r.type === 'NOTIFICATION' || !r.device_id ? undefined : r.device_id,
-          attribute:
-            r.type === 'NOTIFICATION' || !r.attribute ? undefined : r.attribute,
-          data:
-            r.type === 'NOTIFICATION' || !r.data?.value ? undefined : r.data,
-        })),
+        .map(({ recipients: _drop, ...r }) => {
+          if (r.type === 'NOTIFICATION') {
+            // Ensure EMAIL is enabled when an external recipient is set.
+            const channel =
+              recipients.length > 0 && !r.channel.includes('EMAIL')
+                ? [...r.channel, 'EMAIL' as NotificationChannel]
+                : r.channel;
+            // Recipients live inside `data` (no dedicated column).
+            return {
+              ...r,
+              device_id: undefined,
+              attribute: undefined,
+              data: recipients.length > 0 ? { recipients } : undefined,
+              channel,
+            };
+          }
+          return {
+            ...r,
+            device_id: !r.device_id ? undefined : r.device_id,
+            attribute: !r.attribute ? undefined : r.attribute,
+            data: !r.data?.value ? undefined : r.data,
+          };
+        }),
     };
 
     let success = false;
@@ -378,6 +547,61 @@ export default function RuleFormPage() {
           {isEditMode ? t('rules.form.editTitle') : t('rules.form.createTitle')}
         </h1>
       </div>
+
+      {/* Template band (creation only) */}
+      {!isEditMode && (
+        <Card className="bg-card/40 border-border">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <HeartPulse className="w-4 h-4 text-rose-500" />
+              {t('rules.templates.title')}
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              {t('rules.templates.subtitle')}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {RULE_TEMPLATES.map((tpl) => {
+                const Icon = tpl.icon;
+                const selected = activeTemplate?.id === tpl.id;
+                return (
+                  <button
+                    key={tpl.id}
+                    type="button"
+                    onClick={() => applyTemplate(tpl)}
+                    title={t(tpl.descKey)}
+                    className={cn(
+                      'flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors',
+                      selected
+                        ? 'border-rose-500/60 bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                        : 'border-border bg-background/50 hover:bg-accent/50',
+                    )}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {t(tpl.labelKey)}
+                  </button>
+                );
+              })}
+              {activeTemplate && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTemplate(null);
+                    setConditions([]);
+                    setResults([]);
+                    setAddonLowBattery(false);
+                    setAddonSilent(false);
+                  }}
+                  className="flex items-center gap-2 rounded-full border border-border bg-background/50 px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent/50"
+                >
+                  {t('rules.templates.blank')}
+                </button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Basic Info */}
       <Card className="bg-card/40 border-border">
@@ -450,13 +674,41 @@ export default function RuleFormPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="interval">{t('rules.form.waitSeconds')}</Label>
-              <Input
-                id="interval"
-                type="number"
-                min={0}
-                value={interval}
-                onChange={(e) => setInterval(Number(e.target.value))}
-              />
+              <div className="flex gap-2">
+                <Input
+                  id="interval"
+                  type="number"
+                  min={0}
+                  className="flex-1"
+                  value={intervalValue}
+                  onChange={(e) => {
+                    const v = Math.max(0, Number(e.target.value) || 0);
+                    setIntervalValue(v);
+                    setInterval(v * DURATION_UNIT_SECONDS[intervalUnit]);
+                  }}
+                />
+                <Select
+                  value={intervalUnit}
+                  onValueChange={(u: string) => {
+                    const unit = u as DurationUnit;
+                    setIntervalUnit(unit);
+                    setInterval(intervalValue * DURATION_UNIT_SECONDS[unit]);
+                  }}
+                >
+                  <SelectTrigger className="w-28">
+                    <SelectValue>{t('rules.form.unit.' + intervalUnit)}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(
+                      ['seconds', 'minutes', 'hours', 'days'] as DurationUnit[]
+                    ).map((u) => (
+                      <SelectItem key={u} value={u}>
+                        {t('rules.form.unit.' + u)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="flex items-center gap-6 pt-6">
               <div className="flex items-center gap-2">
@@ -496,7 +748,19 @@ export default function RuleFormPage() {
                 condition.device_id && condition.attribute
                   ? getExpose(condition.device_id, condition.attribute)
                   : null;
-              const availableOps = getOperationsForExpose(selectedExpose);
+              const isAbsence = isAbsenceOperation(condition.operation);
+              // Union the type-based ops with absence ops + the current op so a
+              // pre-set STALE/INACTIVE stays selectable even without an expose.
+              const availableOps = Array.from(
+                new Set<Operation>([
+                  ...getOperationsForExpose(selectedExpose),
+                  'STALE',
+                  condition.operation,
+                ]),
+              );
+              const duration = secondsToDuration(
+                Number(condition.data?.forSeconds) || 0,
+              );
 
               return (
                 <div
@@ -519,7 +783,7 @@ export default function RuleFormPage() {
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {homeDevices.map((device) => (
+                        {pickerDevices.map((device) => (
                           <SelectItem key={device.id} value={device.id}>
                             {device.name}
                           </SelectItem>
@@ -578,7 +842,50 @@ export default function RuleFormPage() {
                     </Select>
 
                     {/* Value Input - depends on expose type */}
-                    {selectedExpose?.type === 'binary' ? (
+                    {isAbsence ? (
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          min={1}
+                          className="flex-1"
+                          value={duration.value}
+                          onChange={(e) =>
+                            updateCondition(index, 'data', {
+                              ...condition.data,
+                              forSeconds: durationToSeconds(
+                                Number(e.target.value) || 1,
+                                duration.unit,
+                              ),
+                            })
+                          }
+                        />
+                        <Select
+                          value={duration.unit}
+                          onValueChange={(u: string) =>
+                            updateCondition(index, 'data', {
+                              ...condition.data,
+                              forSeconds: durationToSeconds(
+                                duration.value,
+                                u as DurationUnit,
+                              ),
+                            })
+                          }
+                        >
+                          <SelectTrigger className="w-28">
+                            <SelectValue>
+                              {t('rules.form.unit.' + duration.unit)}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            {DURATION_UNITS.map((u) => (
+                              <SelectItem key={u} value={u}>
+                                {t('rules.form.unit.' + u)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : selectedExpose?.type === 'binary' ? (
                       <Select
                         value={String(condition.data?.value || '')}
                         onValueChange={(v: string) => {
@@ -676,6 +983,58 @@ export default function RuleFormPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Care options */}
+      {isCareContext && (
+        <Card className="bg-rose-500/5 border-rose-500/20">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <HeartPulse className="w-5 h-5 text-rose-500" />
+              {t('rules.care.title')}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {t('rules.care.subtitle')}
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* External recipient */}
+            <div className="space-y-2">
+              <Label htmlFor="recipient">{t('rules.care.recipient')}</Label>
+              <Input
+                id="recipient"
+                type="text"
+                placeholder={t('rules.care.recipientPlaceholder')}
+                value={recipientEmail}
+                onChange={(e) => setRecipientEmail(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t('rules.care.recipientHint')}
+              </p>
+            </div>
+
+            {/* Add-on conditions (creation only) */}
+            {!isEditMode && (
+              <div className="space-y-2 pt-2 border-t border-rose-500/10">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-background/40">
+                  <Label className="cursor-pointer font-normal">
+                    {t('rules.care.addonLowBattery')}
+                  </Label>
+                  <Switch
+                    checked={addonLowBattery}
+                    onCheckedChange={setAddonLowBattery}
+                  />
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-background/40">
+                  <Label className="cursor-pointer font-normal">
+                    {t('rules.care.addonSilent')}
+                  </Label>
+                  <Switch checked={addonSilent} onCheckedChange={setAddonSilent} />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Results */}
       <Card className="bg-card/40 border-border">

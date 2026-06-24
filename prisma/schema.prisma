@@ -376,6 +376,12 @@ enum Operation {
   GTE
   LT
   LTE
+  // Absence/silence operators evaluated by the watchdog (not the event-driven
+  // engine): INACTIVE = attribute hasn't reached its active value for
+  // `data.forSeconds`; STALE = device hasn't reported any data for
+  // `data.forSeconds`.
+  INACTIVE
+  STALE
 }
 
 enum RuleType {

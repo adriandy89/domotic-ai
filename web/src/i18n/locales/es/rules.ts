@@ -34,7 +34,7 @@ export const rules: RulesNS = {
     type: 'Tipo',
     recurrent: 'Recurrente',
     once: 'Una vez',
-    waitSeconds: 'Esperar condiciones verdaderas (segundos)',
+    waitSeconds: 'Esperar condiciones verdaderas',
     active: 'Activa',
     conditions: 'Condiciones',
     add: 'Añadir',
@@ -62,6 +62,14 @@ export const rules: RulesNS = {
       GTE: 'Mayor o igual',
       LTE: 'Menor o igual',
       CONTAINS: 'Contiene',
+      INACTIVE: 'Inactivo durante',
+      STALE: 'Sin reportar durante',
+    },
+    unit: {
+      seconds: 'segundos',
+      minutes: 'minutos',
+      hours: 'horas',
+      days: 'días',
     },
     toast: {
       nameRequired: 'El nombre es obligatorio',
@@ -71,5 +79,48 @@ export const rules: RulesNS = {
       updated: 'Regla actualizada correctamente',
       created: 'Regla creada correctamente',
     },
+  },
+  templates: {
+    title: 'Empezar desde una plantilla',
+    subtitle: 'Plantillas de cuidado para monitorizar a personas que viven solas',
+    blank: 'Empezar en blanco',
+    noMotion: {
+      label: 'Sin movimiento',
+      name: 'Aviso de sin movimiento',
+      desc: 'Avisar si un sensor de movimiento/presencia no detecta a nadie durante un tiempo',
+      event: 'No se ha detectado movimiento durante el tiempo configurado.',
+    },
+    silent: {
+      label: 'Dispositivo en silencio',
+      name: 'Dispositivo no reporta',
+      desc: 'Avisar si un dispositivo deja de enviar datos',
+      event: 'Un dispositivo ha dejado de reportar durante el tiempo configurado.',
+    },
+    lowBattery: {
+      label: 'Batería baja',
+      name: 'Aviso de batería baja',
+      desc: 'Avisar cuando la batería de un dispositivo baje de un umbral',
+      event: 'La batería de un dispositivo se está agotando.',
+    },
+    routine: {
+      label: 'Rutina diaria',
+      name: 'Comprobación de rutina diaria',
+      desc: 'Avisar si no ocurre una actividad diaria esperada',
+      event: 'No se ha detectado una actividad diaria esperada.',
+    },
+  },
+  care: {
+    title: 'Opciones de cuidado',
+    subtitle: 'Configura a quién se avisa y comprobaciones opcionales del dispositivo',
+    badge: 'Cuidado',
+    filter: 'Cuidado',
+    recipient: 'Avisar por email (externo)',
+    recipientPlaceholder: 'familiar@email.com, otro@email.com',
+    recipientHint:
+      'Déjalo vacío para avisarte a ti por tus canales activos. Separa varios emails con comas.',
+    addonLowBattery:
+      'Avisar también si la batería de este dispositivo está baja (< 20%)',
+    addonSilent:
+      'Avisar también si este dispositivo deja de reportar (> 1 día)',
   },
 };

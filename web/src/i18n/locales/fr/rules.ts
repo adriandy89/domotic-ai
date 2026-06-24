@@ -34,7 +34,7 @@ export const rules: RulesNS = {
     type: 'Type',
     recurrent: 'Récurrente',
     once: 'Une fois',
-    waitSeconds: 'Attendre conditions vraies (secondes)',
+    waitSeconds: 'Attendre conditions vraies',
     active: 'Active',
     conditions: 'Conditions',
     add: 'Ajouter',
@@ -62,6 +62,14 @@ export const rules: RulesNS = {
       GTE: 'Supérieur ou égal',
       LTE: 'Inférieur ou égal',
       CONTAINS: 'Contient',
+      INACTIVE: 'Inactif pendant',
+      STALE: 'Sans rapport pendant',
+    },
+    unit: {
+      seconds: 'secondes',
+      minutes: 'minutes',
+      hours: 'heures',
+      days: 'jours',
     },
     toast: {
       nameRequired: 'Le nom est obligatoire',
@@ -71,5 +79,49 @@ export const rules: RulesNS = {
       updated: 'Règle mise à jour avec succès',
       created: 'Règle créée avec succès',
     },
+  },
+  templates: {
+    title: 'Partir d’un modèle',
+    subtitle: 'Modèles de soins pour surveiller les personnes vivant seules',
+    blank: 'Partir de zéro',
+    noMotion: {
+      label: 'Aucun mouvement',
+      name: 'Alerte aucun mouvement',
+      desc: 'Alerter si un capteur de mouvement/présence ne détecte personne pendant un certain temps',
+      event: 'Aucun mouvement n’a été détecté pendant la durée configurée.',
+    },
+    silent: {
+      label: 'Appareil silencieux',
+      name: 'Appareil ne rapporte plus',
+      desc: 'Alerter si un appareil cesse d’envoyer des données',
+      event: 'Un appareil a cessé de rapporter pendant la durée configurée.',
+    },
+    lowBattery: {
+      label: 'Batterie faible',
+      name: 'Alerte batterie faible',
+      desc: 'Alerter quand la batterie d’un appareil passe sous un seuil',
+      event: 'La batterie d’un appareil est faible.',
+    },
+    routine: {
+      label: 'Routine quotidienne',
+      name: 'Vérification de routine quotidienne',
+      desc: 'Alerter si une activité quotidienne attendue n’a pas eu lieu',
+      event: 'Une activité quotidienne attendue n’a pas été détectée.',
+    },
+  },
+  care: {
+    title: 'Options de soins',
+    subtitle:
+      'Configurez qui est notifié et les vérifications facultatives de l’appareil',
+    badge: 'Soins',
+    filter: 'Soins',
+    recipient: 'Notifier par e-mail (externe)',
+    recipientPlaceholder: 'proche@email.com, autre@email.com',
+    recipientHint:
+      'Laissez vide pour vous notifier via vos canaux activés. Séparez plusieurs e-mails par des virgules.',
+    addonLowBattery:
+      'M’alerter aussi si la batterie de cet appareil est faible (< 20%)',
+    addonSilent:
+      'M’alerter aussi si cet appareil cesse de rapporter (> 1 jour)',
   },
 };

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Zap, Plus, Loader2, Filter, Home } from 'lucide-react';
+import { Zap, Plus, Loader2, Filter, Home, HeartPulse } from 'lucide-react';
 import { useRulesStore } from '../store/useRulesStore';
 import { useHomesStore } from '../store/useHomesStore';
 import RuleCard from '../components/rule/RuleCard';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { isAbsenceOperation } from '../lib/rule-templates';
 
 export default function RulesPage() {
   const { t } = useTranslation();
@@ -15,17 +16,25 @@ export default function RulesPage() {
     useRulesStore();
   const { homes, homeIds } = useHomesStore();
   const [selectedHomeId, setSelectedHomeId] = useState<string | null>(null);
+  const [careOnly, setCareOnly] = useState(false);
 
   // Fetch rules on mount
   useEffect(() => {
     fetchRules();
   }, [fetchRules]);
 
-  // Filter rules by selected home
+  // Filter rules by selected home + care toggle
   const filteredRules = useMemo(() => {
-    if (!selectedHomeId) return rules;
-    return rules.filter((rule) => rule.home_id === selectedHomeId);
-  }, [rules, selectedHomeId]);
+    return rules.filter((rule) => {
+      if (selectedHomeId && rule.home_id !== selectedHomeId) return false;
+      if (
+        careOnly &&
+        !(rule.conditions || []).some((c) => isAbsenceOperation(c.operation))
+      )
+        return false;
+      return true;
+    });
+  }, [rules, selectedHomeId, careOnly]);
 
   // Get home list for filter
   const homeList = useMemo(() => {
@@ -124,6 +133,15 @@ export default function RulesPage() {
               {home.name}
             </Button>
           ))}
+          <Button
+            variant={careOnly ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setCareOnly((v) => !v)}
+            className="text-xs flex items-center gap-1"
+          >
+            <HeartPulse className="w-3 h-3" />
+            {t('rules.care.filter')}
+          </Button>
         </div>
       </div>
 

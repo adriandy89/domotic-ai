@@ -12,9 +12,11 @@ import {
   Zap,
   GitBranch,
   Home,
+  HeartPulse,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { Rule } from '../../store/useRulesStore';
+import { isAbsenceOperation } from '../../lib/rule-templates';
 import { useHomesStore } from '../../store/useHomesStore';
 import {
   Dialog,
@@ -68,6 +70,9 @@ export default function RuleCard({
   };
 
   const homeName = homes[rule.home_id]?.name || t('rules.card.unknownHome');
+  const isCare = (rule.conditions || []).some((c) =>
+    isAbsenceOperation(c.operation),
+  );
 
   return (
     <>
@@ -87,6 +92,12 @@ export default function RuleCard({
                 <div className="text-xs capitalize bg-primary/10 text-primary rounded px-2 py-1">
                   {rule.type.toLowerCase()}
                 </div>
+                {isCare && (
+                  <div className="flex items-center gap-1 text-xs bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded px-2 py-1">
+                    <HeartPulse className="w-3 h-3" />
+                    {t('rules.care.badge')}
+                  </div>
+                )}
               </div>
 
               <p className="text-xs text-muted-foreground line-clamp-1 truncate h-4">

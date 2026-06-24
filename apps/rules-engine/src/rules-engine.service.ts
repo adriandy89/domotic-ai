@@ -685,6 +685,7 @@ export class RulesEngineService {
       id: string;
       event: string;
       channel: string[] | NotificationChannel[];
+      data?: any;
     },
   ): Promise<void> {
     this.logger.log(
@@ -721,6 +722,27 @@ export class RulesEngineService {
     const matchingChannels = resultChannels.filter((ch) =>
       userChannels.includes(ch),
     );
+
+    // External caregiver recipients (care rules) get the email regardless of
+    // the owner's own channel preferences.
+    const recipients = Array.isArray(result.data?.recipients)
+      ? (result.data.recipients as string[]).filter(Boolean)
+      : [];
+    if (recipients.length > 0 && resultChannels.includes(NotificationChannel.EMAIL)) {
+      for (const email of recipients) {
+        await this.natsClient.emit('notification.email', {
+          ruleId: ruleInfo.ruleId,
+          ruleName: ruleInfo.ruleName,
+          resultId: result.id,
+          event: result.event,
+          userId: ruleInfo.userId,
+          homeId: ruleInfo.homeId,
+          homeName: home?.name,
+          language: user.language,
+          email,
+        });
+      }
+    }
 
     if (matchingChannels.length === 0) {
       this.logger.verbose(

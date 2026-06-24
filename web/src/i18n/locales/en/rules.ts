@@ -32,7 +32,7 @@ export const rules = {
     type: 'Type',
     recurrent: 'Recurrent',
     once: 'One Time',
-    waitSeconds: 'Wait Conditions True (seconds)',
+    waitSeconds: 'Wait Conditions True',
     active: 'Active',
     conditions: 'Conditions',
     add: 'Add',
@@ -60,6 +60,14 @@ export const rules = {
       GTE: 'Greater or Equal',
       LTE: 'Less or Equal',
       CONTAINS: 'Contains',
+      INACTIVE: 'Inactive for',
+      STALE: 'No report for',
+    },
+    unit: {
+      seconds: 'seconds',
+      minutes: 'minutes',
+      hours: 'hours',
+      days: 'days',
     },
     toast: {
       nameRequired: 'Name is required',
@@ -69,6 +77,47 @@ export const rules = {
       updated: 'Rule updated successfully',
       created: 'Rule created successfully',
     },
+  },
+  templates: {
+    title: 'Start from a template',
+    subtitle: 'Care templates for monitoring people who live alone',
+    blank: 'Start blank',
+    noMotion: {
+      label: 'No movement',
+      name: 'No movement alert',
+      desc: 'Alert if a motion/presence sensor detects no one for a while',
+      event: 'No movement has been detected for the configured time.',
+    },
+    silent: {
+      label: 'Device silent',
+      name: 'Device not reporting',
+      desc: 'Alert if a device stops reporting data',
+      event: 'A device has stopped reporting for the configured time.',
+    },
+    lowBattery: {
+      label: 'Low battery',
+      name: 'Low battery alert',
+      desc: 'Alert when a device battery drops below a threshold',
+      event: 'A device battery is running low.',
+    },
+    routine: {
+      label: 'Daily routine',
+      name: 'Daily routine check',
+      desc: 'Alert if an expected daily activity has not happened',
+      event: 'An expected daily activity has not been detected.',
+    },
+  },
+  care: {
+    title: 'Care options',
+    subtitle: 'Configure who gets notified and optional health checks',
+    badge: 'Care',
+    filter: 'Care',
+    recipient: 'Notify by email (external)',
+    recipientPlaceholder: 'relative@email.com, another@email.com',
+    recipientHint:
+      'Leave empty to notify yourself via your enabled channels. Separate multiple emails with commas.',
+    addonLowBattery: "Also alert me if this device's battery is low (< 20%)",
+    addonSilent: 'Also alert me if this device stops reporting (> 1 day)',
   },
 };
 

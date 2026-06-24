@@ -15,6 +15,7 @@ import {
   RULES_DELAYED_QUEUE_NAME,
 } from './rules-queue.constants';
 import { SchedulesModule } from './schedules/schedules.module';
+import { WatchdogModule } from './watchdog/watchdog.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { SchedulesModule } from './schedules/schedules.module';
     NatsClientModule,
     DbModule,
     SchedulesModule,
+    WatchdogModule,
   ],
   controllers: [RulesEngineController],
   providers: [RulesEngineService, RulesQueueProcessor, RulesDelayedProcessor],
