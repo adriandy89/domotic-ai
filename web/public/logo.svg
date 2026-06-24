@@ -1,0 +1,45 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#16243b"/>
+    </linearGradient>
+    <linearGradient id="cy" x1="150" y1="110" x2="372" y2="400" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38e0f5"/>
+      <stop offset="1" stop-color="#0891b2"/>
+    </linearGradient>
+    <radialGradient id="core" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#a5f3fc"/>
+      <stop offset="0.55" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#0e7490"/>
+    </radialGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Fondo a sangre completa (apto para maskable) -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+
+  <!-- Casa: silueta pentagonal -->
+  <path d="M256 120 L368 218 V388 H144 V218 Z"
+        fill="none" stroke="url(#cy)" stroke-width="26"
+        stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- Arcos de conectividad (hogar inteligente) sobre el núcleo -->
+  <g stroke="url(#cy)" stroke-width="15" stroke-linecap="round" fill="none" opacity="0.95">
+    <path d="M214 312 A60 60 0 0 1 298 312"/>
+    <path d="M236 334 A30 30 0 0 1 276 334"/>
+  </g>
+
+  <!-- Núcleo inteligente (hub AI) -->
+  <circle cx="256" cy="356" r="17" fill="url(#core)" filter="url(#glow)"/>
+
+  <!-- Destello AI -->
+  <polygon points="368,150 379,176 405,187 379,198 368,224 357,198 331,187 357,176"
+           fill="url(#core)" filter="url(#glow)"/>
+</svg>

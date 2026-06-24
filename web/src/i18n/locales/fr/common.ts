@@ -92,4 +92,10 @@ export const common: CommonNS = {
     sat: 'Samedi',
     sun: 'Dimanche',
   },
+
+  // Avis de version / mise à jour automatique
+  version: {
+    updateAvailable: 'Nouvelle version disponible',
+    updatingSoon: 'La mise à jour se fera automatiquement sous peu…',
+  },
 };

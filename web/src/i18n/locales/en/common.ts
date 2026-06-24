@@ -93,6 +93,12 @@ export const common = {
     sat: 'Saturday',
     sun: 'Sunday',
   },
+
+  // App version / auto-update notice
+  version: {
+    updateAvailable: 'New version available',
+    updatingSoon: 'It will update automatically shortly…',
+  },
 };
 
 export type CommonNS = typeof common;

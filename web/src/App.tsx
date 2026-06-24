@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import { PwaUpdatePrompt } from './components/PwaUpdatePrompt';
 import AuthLayout from './components/layout/AuthLayout';
 import DashboardLayout from './components/layout/DashboardLayout';
 import ReportsLayout from './components/reports/ReportsLayout';
@@ -41,6 +42,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <BrowserRouter>
+      <PwaUpdatePrompt />
       <Toaster richColors position="top-right" />
       <Routes>
         {/* Auth Routes */}
