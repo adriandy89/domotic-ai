@@ -1,11 +1,12 @@
 import { DbService } from '@app/db';
 import { createTool } from '@mastra/core/tools';
+import z from 'zod';
 
 export const listHomesTool = createTool({
   id: 'list-homes',
   description:
     'List ALL homes accessible to the user, each with its id, name, address, connection status and device count. Use this FIRST when the user mentions a specific home by name or when more than one home may exist, then pass the chosen `homeId` to the other tools (get-home-overview, get-devices-list, create-rule, etc.).',
-
+  inputSchema: z.object({}).optional(),
   execute: async (_inputData, context) => {
     const userId: string | undefined = context?.requestContext?.get('userId');
     const dbService: DbService | undefined =
