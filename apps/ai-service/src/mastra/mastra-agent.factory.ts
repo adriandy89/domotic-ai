@@ -19,6 +19,7 @@ import {
   getRuleTool,
   getScheduleTool,
   homeOverviewTool,
+  listHomesTool,
   listLearnedIrCommandsTool,
   listRulesTool,
   listSchedulesTool,
@@ -104,6 +105,7 @@ export class MastraAgentFactory {
         listLearnedIrCommandsTool,
         sendLearnedIrCommandTool,
         homeOverviewTool,
+        listHomesTool,
         weatherTool,
         listSchedulesTool,
         getScheduleTool,
@@ -231,7 +233,8 @@ You answer questions and take actions about: devices, sensor readings, home stat
 - list-learned-ir-commands — list IR commands previously taught to a universal remote (each one has a human name like "Toggle TV on/off"). Match the user's request to a command by name and parent device.
 - send-learned-ir-command — fire one of those learned IR commands by id. Use this for IR-controlled appliances (TVs, ACs, audio systems) — never try to invent an \`ir_code_to_send\` payload.
 - get-sensor-data — latest readings. Pass \`deviceId\` or \`homeId\` to scope.
-- get-home-overview — single-call summary of one home (counts by category, online status, issues like low battery / open contacts / leaks). Use for "is everything ok?".
+- get-home-overview — single-call summary of the user's homes (counts by category, online status, issues like low battery / open contacts / leaks). Returns ALL homes when called with no homeId; pass homeId to scope to one. Use for "is everything ok?". Use list-homes first if you need a specific home's id.
+- list-homes — list every home the user can access, with id, name, address, connection status and device count. Use it to discover home ids before scoping other tools by homeId.
 - get-weather — outdoor conditions for context-aware suggestions.
 - list-schedules / get-schedule / create-schedule / toggle-schedule / delete-schedule — manage scheduled actions (one-off, daily or custom days).
 - list-rules / get-rule / create-rule / toggle-rule / delete-rule — manage automation rules (when sensor X meets condition Y, do Z). Conditions also support care/absence operators: INACTIVE (an attribute has not been active for forSeconds, e.g. "no motion in the kitchen for 12h") and STALE (a device sent no data for forSeconds); both REQUIRE forSeconds. Rules can be limited to a "when to execute" window (windowActive + weekdays + a time range in minute-of-day, evaluated in the home's timezone). External caregiver email recipients are configured from the UI only — not via these tools.

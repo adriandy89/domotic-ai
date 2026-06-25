@@ -30,6 +30,7 @@ const TOOL_KEYS = [
   'listLearnedIrCommandsTool',
   'sendLearnedIrCommandTool',
   'homeOverviewTool',
+  'listHomesTool',
   'weatherTool',
   'listSchedulesTool',
   'getScheduleTool',

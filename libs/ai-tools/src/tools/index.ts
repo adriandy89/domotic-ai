@@ -6,5 +6,6 @@ export * from './learned-ir-commands.tool';
 export * from './sensor-data.tool';
 export * from './weather.tool';
 export * from './home-overview.tool';
+export * from './list-homes.tool';
 export * from './schedules.tool';
 export * from './rules.tool';
