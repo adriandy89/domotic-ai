@@ -42,6 +42,8 @@ export const rules = {
     device: 'Device',
     attribute: 'Attribute',
     value: 'Value',
+    attributeRequiredHint:
+      'Select the motion/presence attribute to watch (e.g. occupancy).',
     selectCommand: 'Select command',
     noLearnedCommands: 'No learned commands',
     eventMessage: 'Event message',
@@ -73,6 +75,8 @@ export const rules = {
       nameRequired: 'Name is required',
       selectHome: 'Please select a home',
       conditionRequired: 'At least one condition is required',
+      attributeRequired:
+        'Pick the attribute to watch for the "Inactive for" condition.',
       resultRequired: 'At least one result is required',
       updated: 'Rule updated successfully',
       created: 'Rule created successfully',

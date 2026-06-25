@@ -44,6 +44,8 @@ export const rules: RulesNS = {
     device: 'Dispositivo',
     attribute: 'Atributo',
     value: 'Valor',
+    attributeRequiredHint:
+      'Selecciona el atributo de movimiento/presencia a vigilar (p. ej. occupancy).',
     selectCommand: 'Selecciona un comando',
     noLearnedCommands: 'No hay comandos aprendidos',
     eventMessage: 'Mensaje del evento',
@@ -75,6 +77,8 @@ export const rules: RulesNS = {
       nameRequired: 'El nombre es obligatorio',
       selectHome: 'Selecciona un hogar',
       conditionRequired: 'Se requiere al menos una condición',
+      attributeRequired:
+        'Elige el atributo a vigilar para la condición "Inactivo durante".',
       resultRequired: 'Se requiere al menos un resultado',
       updated: 'Regla actualizada correctamente',
       created: 'Regla creada correctamente',

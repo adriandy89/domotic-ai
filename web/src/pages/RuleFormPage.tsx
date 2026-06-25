@@ -30,6 +30,7 @@ import {
   secondsToDuration,
   secondsToIntervalParts,
   durationToSeconds,
+  ruleHasCareSignals,
   type RuleTemplate,
   type DurationUnit,
 } from '../lib/rule-templates';
@@ -160,7 +161,48 @@ export default function RuleFormPage() {
       setActive(currentRule.active);
       setAll(currentRule.all);
       setHomeId(currentRule.home_id);
-      setConditions(currentRule.conditions.map(({ id: _id, ...rest }) => rest));
+
+      const loaded = currentRule.conditions.map(({ id: _id, ...rest }) => rest);
+      // For care rules, lift the add-on conditions (low-battery / silent) back
+      // into their toggles so editing shows the same clean UI as creation,
+      // instead of raw extra condition rows. New rules tag add-ons with
+      // `data.addon`; legacy rows are detected positionally (any non-primary
+      // battery-LT / STALE condition).
+      const careRule = ruleHasCareSignals({
+        conditions: loaded.map((c) => ({ operation: c.operation })),
+        results: currentRule.results,
+      });
+      if (careRule) {
+        let lowBat = false;
+        let silent = false;
+        const base = loaded.filter((c, i) => {
+          const marker = (c.data as { addon?: string } | undefined)?.addon;
+          const isLowBat =
+            marker === 'lowBattery' ||
+            (marker === undefined &&
+              i > 0 &&
+              c.operation === 'LT' &&
+              c.attribute === LOW_BATTERY_ADDON.attribute);
+          const isSilent =
+            marker === 'silent' ||
+            (marker === undefined && i > 0 && c.operation === 'STALE');
+          if (isLowBat) {
+            lowBat = true;
+            return false;
+          }
+          if (isSilent) {
+            silent = true;
+            return false;
+          }
+          return true;
+        });
+        setConditions(base);
+        setAddonLowBattery(lowBat);
+        setAddonSilent(silent);
+      } else {
+        setConditions(loaded);
+      }
+
       setResults(currentRule.results.map(({ id: _id, ...rest }) => rest));
       const recipients = currentRule.results
         .map((r) => (r.data?.recipients as string[] | undefined) || [])
@@ -198,8 +240,11 @@ export default function RuleFormPage() {
   const isCareContext = useMemo(
     () =>
       !!activeTemplate ||
-      conditions.some((c) => isAbsenceOperation(c.operation)),
-    [activeTemplate, conditions],
+      conditions.some((c) => isAbsenceOperation(c.operation)) ||
+      // Low-battery care rules carry no absence op; an external recipient still
+      // marks them as care so the care card stays available when editing.
+      recipientEmail.trim() !== '',
+    [activeTemplate, conditions, recipientEmail],
   );
 
   // The device the add-on conditions attach to (the primary condition's device).
@@ -396,14 +441,19 @@ export default function RuleFormPage() {
 
   // Check if form is valid for submission
   const isFormValid = useMemo(() => {
-    const hasValidConditions = conditions.some((c) =>
-      isAbsenceOperation(c.operation)
-        ? c.device_id && Number(c.data?.forSeconds) > 0
-        : c.device_id &&
-          c.attribute &&
-          c.data?.value !== '' &&
-          c.data?.value !== undefined,
-    );
+    const hasValidConditions = conditions.some((c) => {
+      if (isAbsenceOperation(c.operation)) {
+        if (!c.device_id || !(Number(c.data?.forSeconds) > 0)) return false;
+        // INACTIVE tracks a specific attribute; STALE watches the whole device.
+        return c.operation === 'INACTIVE' ? !!c.attribute : true;
+      }
+      return (
+        c.device_id &&
+        c.attribute &&
+        c.data?.value !== '' &&
+        c.data?.value !== undefined
+      );
+    });
     const hasValidResults = results.some((r) =>
       r.type === 'NOTIFICATION'
         ? r.event && r.channel && r.channel.length > 0
@@ -435,6 +485,15 @@ export default function RuleFormPage() {
       toast.error(t('rules.form.toast.conditionRequired'));
       return;
     }
+    // INACTIVE needs an attribute to track activity against; reject empty ones
+    // so we never persist a silently-broken "no motion" condition.
+    const missingAttr = conditions.find(
+      (c) => c.operation === 'INACTIVE' && c.device_id && !c.attribute,
+    );
+    if (missingAttr) {
+      toast.error(t('rules.form.toast.attributeRequired'));
+      return;
+    }
     if (results.length === 0) {
       toast.error(t('rules.form.toast.resultRequired'));
       return;
@@ -446,29 +505,34 @@ export default function RuleFormPage() {
       .map((s) => s.trim())
       .filter(Boolean);
 
-    // Base conditions (absence conditions don't require an attribute).
+    // Base conditions: INACTIVE needs an attribute; STALE watches the whole
+    // device so it doesn't.
     const baseConditions = conditions.filter((c) =>
       isAbsenceOperation(c.operation)
-        ? c.device_id
+        ? c.operation === 'INACTIVE'
+          ? c.device_id && c.attribute
+          : c.device_id
         : c.device_id && c.attribute,
     );
 
-    // Add-on conditions toggled in the care card, attached to the primary device.
+    // Add-on conditions toggled in the care card, attached to the primary
+    // device. Tagged with `data.addon` so editing can lift them back into their
+    // toggles. Rebuilt on every save (create and edit) for idempotency.
     const addonConditions: Omit<Condition, 'id'>[] = [];
-    if (!isEditMode && addonLowBattery && primaryDeviceId) {
+    if (addonLowBattery && primaryDeviceId) {
       addonConditions.push({
         device_id: primaryDeviceId,
         attribute: LOW_BATTERY_ADDON.attribute,
         operation: LOW_BATTERY_ADDON.operation,
-        data: { value: LOW_BATTERY_ADDON.value },
+        data: { value: LOW_BATTERY_ADDON.value, addon: 'lowBattery' },
       });
     }
-    if (!isEditMode && addonSilent && primaryDeviceId) {
+    if (addonSilent && primaryDeviceId) {
       addonConditions.push({
         device_id: primaryDeviceId,
         attribute: '',
         operation: SILENT_ADDON.operation,
-        data: { forSeconds: SILENT_ADDON.forSeconds },
+        data: { forSeconds: SILENT_ADDON.forSeconds, addon: 'silent' },
       });
     }
 
@@ -672,44 +736,50 @@ export default function RuleFormPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="interval">{t('rules.form.waitSeconds')}</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="interval"
-                  type="number"
-                  min={0}
-                  className="flex-1"
-                  value={intervalValue}
-                  onChange={(e) => {
-                    const v = Math.max(0, Number(e.target.value) || 0);
-                    setIntervalValue(v);
-                    setInterval(v * DURATION_UNIT_SECONDS[intervalUnit]);
-                  }}
-                />
-                <Select
-                  value={intervalUnit}
-                  onValueChange={(u: string) => {
-                    const unit = u as DurationUnit;
-                    setIntervalUnit(unit);
-                    setInterval(intervalValue * DURATION_UNIT_SECONDS[unit]);
-                  }}
-                >
-                  <SelectTrigger className="w-28">
-                    <SelectValue>{t('rules.form.unit.' + intervalUnit)}</SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(
-                      ['seconds', 'minutes', 'hours', 'days'] as DurationUnit[]
-                    ).map((u) => (
-                      <SelectItem key={u} value={u}>
-                        {t('rules.form.unit.' + u)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            {/* Care rules are evaluated by the watchdog on a timer, which
+                ignores `interval` — hide it to avoid a no-op field. */}
+            {!isCareContext && (
+              <div className="space-y-2">
+                <Label htmlFor="interval">{t('rules.form.waitSeconds')}</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="interval"
+                    type="number"
+                    min={0}
+                    className="flex-1"
+                    value={intervalValue}
+                    onChange={(e) => {
+                      const v = Math.max(0, Number(e.target.value) || 0);
+                      setIntervalValue(v);
+                      setInterval(v * DURATION_UNIT_SECONDS[intervalUnit]);
+                    }}
+                  />
+                  <Select
+                    value={intervalUnit}
+                    onValueChange={(u: string) => {
+                      const unit = u as DurationUnit;
+                      setIntervalUnit(unit);
+                      setInterval(intervalValue * DURATION_UNIT_SECONDS[unit]);
+                    }}
+                  >
+                    <SelectTrigger className="w-28">
+                      <SelectValue>
+                        {t('rules.form.unit.' + intervalUnit)}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(
+                        ['seconds', 'minutes', 'hours', 'days'] as DurationUnit[]
+                      ).map((u) => (
+                        <SelectItem key={u} value={u}>
+                          {t('rules.form.unit.' + u)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
+            )}
             <div className="flex items-center gap-6 pt-6">
               <div className="flex items-center gap-2">
                 <Switch checked={active} onCheckedChange={setActive} />
@@ -822,7 +892,11 @@ export default function RuleFormPage() {
                       onValueChange={(v: string) =>
                         updateCondition(index, 'operation', v)
                       }
-                      disabled={!condition.attribute}
+                      // Absence ops (STALE) can have no attribute, so gate on the
+                      // device instead; value-based ops still need an attribute.
+                      disabled={
+                        isAbsence ? !condition.device_id : !condition.attribute
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue>
@@ -968,6 +1042,15 @@ export default function RuleFormPage() {
                         disabled={!condition.attribute}
                       />
                     )}
+                    {/* INACTIVE without a resolved attribute would persist a
+                        silently-broken "no motion" condition — flag it. */}
+                    {condition.operation === 'INACTIVE' &&
+                      condition.device_id &&
+                      !condition.attribute && (
+                        <p className="md:col-span-4 text-xs text-destructive">
+                          {t('rules.form.attributeRequiredHint')}
+                        </p>
+                      )}
                   </div>
                   <Button
                     variant="ghost"
@@ -1012,26 +1095,29 @@ export default function RuleFormPage() {
               </p>
             </div>
 
-            {/* Add-on conditions (creation only) */}
-            {!isEditMode && (
-              <div className="space-y-2 pt-2 border-t border-rose-500/10">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-background/40">
-                  <Label className="cursor-pointer font-normal">
-                    {t('rules.care.addonLowBattery')}
-                  </Label>
-                  <Switch
-                    checked={addonLowBattery}
-                    onCheckedChange={setAddonLowBattery}
-                  />
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-lg bg-background/40">
-                  <Label className="cursor-pointer font-normal">
-                    {t('rules.care.addonSilent')}
-                  </Label>
-                  <Switch checked={addonSilent} onCheckedChange={setAddonSilent} />
-                </div>
+            {/* Add-on conditions (toggles) — editable on create and edit. */}
+            <div className="space-y-2 pt-2 border-t border-rose-500/10">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-background/40">
+                <Label className="cursor-pointer font-normal">
+                  {t('rules.care.addonLowBattery')}
+                </Label>
+                <Switch
+                  checked={addonLowBattery}
+                  onCheckedChange={setAddonLowBattery}
+                  disabled={!primaryDeviceId}
+                />
               </div>
-            )}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-background/40">
+                <Label className="cursor-pointer font-normal">
+                  {t('rules.care.addonSilent')}
+                </Label>
+                <Switch
+                  checked={addonSilent}
+                  onCheckedChange={setAddonSilent}
+                  disabled={!primaryDeviceId}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

@@ -26,7 +26,7 @@ type WatchdogRule = {
   all: boolean;
   created_at: Date;
   user: { id: string; email: string; language: string | null };
-  home: { id: string; name: string };
+  home: { id: string; name: string; unique_id: string };
   conditions: {
     id: string;
     device_id: string;
@@ -36,7 +36,9 @@ type WatchdogRule = {
   }[];
   results: {
     id: string;
+    device_id: string | null;
     event: string;
+    attribute: string | null;
     type: ResultType;
     data: any;
     channel: NotificationChannel[];
@@ -96,7 +98,14 @@ export class WatchdogService implements OnModuleInit {
       return;
     }
     this.logger.log(`Evaluating ${rules.length} watchdog rule(s)`);
-    await Promise.all(rules.map((rule) => this.evaluateRule(rule)));
+    // Isolate failures per rule so one bad rule can't abort the whole scan.
+    await Promise.all(
+      rules.map((rule) =>
+        this.evaluateRule(rule).catch((error: any) =>
+          this.logger.error(`Watchdog rule ${rule.id} evaluation failed`, error),
+        ),
+      ),
+    );
   }
 
   private async loadWatchdogRules(): Promise<WatchdogRule[]> {
@@ -113,7 +122,7 @@ export class WatchdogService implements OnModuleInit {
         all: true,
         created_at: true,
         user: { select: { id: true, email: true, language: true } },
-        home: { select: { id: true, name: true } },
+        home: { select: { id: true, name: true, unique_id: true } },
         conditions: {
           select: {
             id: true,
@@ -126,7 +135,9 @@ export class WatchdogService implements OnModuleInit {
         results: {
           select: {
             id: true,
+            device_id: true,
             event: true,
+            attribute: true,
             type: true,
             data: true,
             channel: true,
@@ -168,9 +179,93 @@ export class WatchdogService implements OnModuleInit {
       return;
     }
 
+    // In AND mode the rule must honour its NON-absence conditions too (e.g.
+    // "no motion AND battery < 20%"). Those are value comparisons the watchdog
+    // checks against the current sensor state — otherwise it would fire on
+    // absence alone and break the AND semantics. (OR rules don't need this: the
+    // event-driven engine fires the other branches independently.)
+    if (rule.all) {
+      const otherConditions = rule.conditions.filter(
+        (c) =>
+          c.operation !== Operation.INACTIVE &&
+          c.operation !== Operation.STALE,
+      );
+      if (otherConditions.length > 0) {
+        const othersHold = await this.evaluateValueConditions(otherConditions);
+        if (!othersHold) {
+          this.logger.verbose(
+            `Rule ${rule.id} absence met but value conditions not satisfied`,
+          );
+          return;
+        }
+      }
+    }
+
     const reason = results.find((r) => r.met && r.fresh)?.reason ?? '';
     this.logger.log(`Watchdog rule ${rule.id} firing (${reason})`);
     await this.fire(rule, reason);
+  }
+
+  /**
+   * Evaluate the rule's non-absence (value) conditions against the latest known
+   * sensor state. Used to honour AND semantics for mixed care rules. Every
+   * condition must currently hold; a device with no data fails the check.
+   */
+  private async evaluateValueConditions(
+    conditions: WatchdogRule['conditions'],
+  ): Promise<boolean> {
+    const deviceIds = [...new Set(conditions.map((c) => c.device_id))];
+    const rows = await this.dbService.sensorDataLast.findMany({
+      where: { device_id: { in: deviceIds } },
+      select: { device_id: true, data: true },
+    });
+    const dataByDevice = new Map<string, Record<string, unknown>>();
+    for (const r of rows) {
+      dataByDevice.set(r.device_id, (r.data as Record<string, unknown>) ?? {});
+    }
+    return conditions.every((c) => {
+      const data = dataByDevice.get(c.device_id);
+      if (!data) return false; // no data → cannot confirm → AND fails
+      return this.compareValue(c.operation, data[c.attribute], c.data?.value);
+    });
+  }
+
+  /**
+   * Numeric/equality comparator mirroring the event-driven engine, including the
+   * numeric-string target coercion (the UI may persist "20" instead of 20).
+   */
+  private compareValue(
+    operation: Operation,
+    value: unknown,
+    target: unknown,
+  ): boolean {
+    if (value === undefined || value === null) return false;
+    if (target === undefined || target === null) return false;
+
+    let t: unknown = target;
+    if (
+      typeof value === 'number' &&
+      typeof t === 'string' &&
+      t.trim() !== '' &&
+      !Number.isNaN(Number(t))
+    ) {
+      t = Number(t);
+    }
+
+    switch (operation) {
+      case Operation.EQ:
+        return value === t;
+      case Operation.GT:
+        return (value as number) > (t as number);
+      case Operation.GTE:
+        return (value as number) >= (t as number);
+      case Operation.LT:
+        return (value as number) < (t as number);
+      case Operation.LTE:
+        return (value as number) <= (t as number);
+      default:
+        return false;
+    }
   }
 
   /**
@@ -216,8 +311,13 @@ export class WatchdogService implements OnModuleInit {
 
   /**
    * Most recent moment the attribute was "active": the latest state-transition
-   * to an active value, OR now if it is currently active, falling back to the
+   * *to* an active value, OR now if it is currently active, falling back to the
    * rule's creation time so a never-active sensor still triggers after N seconds.
+   *
+   * IMPORTANT: we must find the most recent *active* event, not just inspect the
+   * single latest event. A sensor that goes active→inactive leaves an inactive
+   * event on top; looking only at the latest one would miss the activity and
+   * break the per-episode re-arm (the rule would alert once and never again).
    */
   private async lastActiveAt(
     rule: WatchdogRule,
@@ -236,13 +336,20 @@ export class WatchdogService implements OnModuleInit {
       candidates.push(current.timestamp);
     }
 
-    const lastEvent = await this.dbService.deviceStateEvent.findFirst({
+    // Scan recent state events (newest first) and take the most recent one whose
+    // value counts as "active". Bounded window keeps the query cheap; for any
+    // realistic threshold the last active transition is well within it.
+    const recentEvents = await this.dbService.deviceStateEvent.findMany({
       where: { device_id: condition.device_id, property: condition.attribute },
       orderBy: { timestamp: 'desc' },
+      take: 50,
       select: { value: true, timestamp: true },
     });
-    if (lastEvent && this.isActive(lastEvent.value, condition)) {
-      candidates.push(lastEvent.timestamp);
+    const lastActiveEvent = recentEvents.find((e) =>
+      this.isActive(e.value, condition),
+    );
+    if (lastActiveEvent) {
+      candidates.push(lastActiveEvent.timestamp);
     }
 
     return candidates.reduce((a, b) => (a > b ? a : b));
@@ -263,21 +370,94 @@ export class WatchdogService implements OnModuleInit {
   }
 
   private async lastAlertAt(ruleId: string): Promise<Date | null> {
+    // Only the watchdog's OWN alerts define an episode. A mixed rule (e.g.
+    // no-motion + low-battery add-on) can also be fired by the event-driven
+    // engine; those executions carry no `watchdog:` marker and must not be
+    // mistaken for an absence alert, or a battery alarm would suppress the
+    // next no-motion re-arm.
     const last = await this.dbService.ruleExecution.findFirst({
-      where: { rule_id: ruleId, executed: true },
+      where: {
+        rule_id: ruleId,
+        executed: true,
+        error: { startsWith: 'watchdog:' },
+      },
       orderBy: { triggered_at: 'desc' },
       select: { triggered_at: true },
     });
     return last?.triggered_at ?? null;
   }
 
+  /**
+   * Send a device command for a COMMAND result. Mirrors the event-driven
+   * engine's command path so care rules can act, not only notify.
+   */
+  private async executeCommand(
+    homeUniqueId: string,
+    result: {
+      id: string;
+      device_id: string | null;
+      attribute: string | null;
+      data: any;
+    },
+  ): Promise<void> {
+    if (!result.device_id) {
+      this.logger.warn(`Watchdog command result ${result.id} has no device_id`);
+      return;
+    }
+
+    const device = await this.dbService.device.findUnique({
+      where: { id: result.device_id },
+      select: { unique_id: true, organization_id: true },
+    });
+    if (!device) {
+      this.logger.warn(`Device ${result.device_id} not found`);
+      return;
+    }
+
+    const command = this.buildCommandUnified(result);
+    this.logger.log(
+      `Watchdog sending command to device ${device.unique_id}: ${JSON.stringify(command)}`,
+    );
+
+    await this.natsClient.emit('mqtt-core.publish-command', {
+      homeUniqueId,
+      deviceUniqueId: device.unique_id,
+      organizationId: device.organization_id,
+      command,
+      source: 'rule',
+    });
+  }
+
+  /** Build a command payload from a result (same shape as the engine). */
+  private buildCommandUnified(result: {
+    attribute: string | null;
+    data: any;
+  }): Record<string, any> {
+    const command: Record<string, any> = {};
+    if (result.attribute && result.data) {
+      const dataValue = (result.data as { value: any })?.value;
+      if (dataValue !== undefined) {
+        command[result.attribute] = dataValue;
+      }
+    } else if (result.data) {
+      return result.data as Record<string, any>;
+    }
+    return command;
+  }
+
   private async fire(rule: WatchdogRule, reason: string): Promise<void> {
     let delivered = 0;
     for (const result of rule.results) {
-      if (result.type !== ResultType.NOTIFICATION) continue;
       try {
-        await this.notify(rule, result);
-        delivered++;
+        if (result.type === ResultType.NOTIFICATION) {
+          await this.notify(rule, result);
+          delivered++;
+        } else if (result.type === ResultType.COMMAND) {
+          // Care rules can also run an action (e.g. turn on a light / siren
+          // when there's been no movement), not only notify.
+          await this.executeCommand(rule.home.unique_id, result);
+          delivered++;
+        }
       } catch (error: any) {
         this.logger.error(
           `Error delivering watchdog result ${result.id}: ${error}`,

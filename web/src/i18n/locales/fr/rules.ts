@@ -44,6 +44,8 @@ export const rules: RulesNS = {
     device: 'Appareil',
     attribute: 'Attribut',
     value: 'Valeur',
+    attributeRequiredHint:
+      'Sélectionnez l’attribut de mouvement/présence à surveiller (p. ex. occupancy).',
     selectCommand: 'Sélectionner une commande',
     noLearnedCommands: 'Aucune commande apprise',
     eventMessage: 'Message de l’événement',
@@ -75,6 +77,8 @@ export const rules: RulesNS = {
       nameRequired: 'Le nom est obligatoire',
       selectHome: 'Veuillez sélectionner une maison',
       conditionRequired: 'Au moins une condition est requise',
+      attributeRequired:
+        'Choisissez l’attribut à surveiller pour la condition « Inactif pendant ».',
       resultRequired: 'Au moins un résultat est requis',
       updated: 'Règle mise à jour avec succès',
       created: 'Règle créée avec succès',

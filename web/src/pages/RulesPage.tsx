@@ -7,7 +7,7 @@ import { useHomesStore } from '../store/useHomesStore';
 import RuleCard from '../components/rule/RuleCard';
 import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
-import { isAbsenceOperation } from '../lib/rule-templates';
+import { ruleHasCareSignals } from '../lib/rule-templates';
 
 export default function RulesPage() {
   const { t } = useTranslation();
@@ -27,11 +27,7 @@ export default function RulesPage() {
   const filteredRules = useMemo(() => {
     return rules.filter((rule) => {
       if (selectedHomeId && rule.home_id !== selectedHomeId) return false;
-      if (
-        careOnly &&
-        !(rule.conditions || []).some((c) => isAbsenceOperation(c.operation))
-      )
-        return false;
+      if (careOnly && !ruleHasCareSignals(rule)) return false;
       return true;
     });
   }, [rules, selectedHomeId, careOnly]);

@@ -3,7 +3,9 @@ import { api } from '../lib/api';
 import { shouldFetch, trackInflight } from '../lib/staleness';
 
 // Enums matching Prisma schema
-export type RuleType = 'RECURRENT' | 'ONETIME';
+// Matches the Prisma `RuleType` values the UI supports. (The backend enum also
+// has SPECIFIC, which the rules engine does not execute, so it's not offered.)
+export type RuleType = 'RECURRENT' | 'ONCE';
 export type Operation =
   | 'EQ'
   | 'NEQ'
@@ -66,6 +68,8 @@ export interface Rule {
   };
   /** Operations of this rule's conditions (used to flag care/absence rules). */
   conditions?: { operation: Operation }[];
+  /** Result `data` (used to flag care rules that notify external recipients). */
+  results?: { data?: Record<string, unknown> | null }[];
 }
 
 // Full rule detail (from /rules/:id)

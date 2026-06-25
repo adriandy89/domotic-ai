@@ -144,6 +144,10 @@ export class RuleService {
         _count: true,
         // Operations only, so the UI can flag "care" rules (absence operators).
         conditions: { select: { operation: true } },
+        // Result `data` lets the UI flag care rules that notify external
+        // caregivers (e.g. the low-battery care template, whose LT op is not an
+        // absence op but which carries `data.recipients`).
+        results: { select: { data: true } },
       },
       where: {
         user_id,

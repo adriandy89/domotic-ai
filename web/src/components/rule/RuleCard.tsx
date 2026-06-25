@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { Rule } from '../../store/useRulesStore';
-import { isAbsenceOperation } from '../../lib/rule-templates';
+import { ruleHasCareSignals } from '../../lib/rule-templates';
 import { useHomesStore } from '../../store/useHomesStore';
 import {
   Dialog,
@@ -70,9 +70,7 @@ export default function RuleCard({
   };
 
   const homeName = homes[rule.home_id]?.name || t('rules.card.unknownHome');
-  const isCare = (rule.conditions || []).some((c) =>
-    isAbsenceOperation(c.operation),
-  );
+  const isCare = ruleHasCareSignals(rule);
 
   return (
     <>

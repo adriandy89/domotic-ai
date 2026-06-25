@@ -12,8 +12,20 @@ import {
 } from 'lucide-react';
 import type { Operation, NotificationChannel } from '../store/useRulesStore';
 
-/** Presence-style attributes a motion/occupancy sensor may expose. */
-export const PRESENCE_ATTRIBUTES = ['occupancy', 'presence', 'motion'];
+/**
+ * Presence-style attributes a motion/occupancy sensor may expose. Covers the
+ * common Zigbee2MQTT / HA-discovery / Tuya mmWave naming variants so the
+ * "no motion" auto-resolver and device filter find the right attribute.
+ */
+export const PRESENCE_ATTRIBUTES = [
+  'occupancy',
+  'presence',
+  'motion',
+  'motion_state',
+  'motion_detected',
+  'presence_state',
+  'occupied',
+];
 
 export type TemplateDeviceFilter = 'presence' | 'battery' | 'any';
 
@@ -87,7 +99,8 @@ export const RULE_TEMPLATES: RuleTemplate[] = [
     id: 'daily-routine',
     icon: AlarmClock,
     care: true,
-    deviceFilter: 'any',
+    // INACTIVE needs a presence-style attribute to track activity against.
+    deviceFilter: 'presence',
     operation: 'INACTIVE',
     activeValue: true,
     defaultForSeconds: 16 * HOURS,
@@ -160,4 +173,24 @@ export function isAbsenceOperation(op: Operation): boolean {
 /** A rule is a "care" rule if any condition uses an absence operator. */
 export function isCareRule(operations: Operation[]): boolean {
   return operations.some(isAbsenceOperation);
+}
+
+/**
+ * Detect a care/wellness rule from its conditions and results. A rule counts as
+ * "care" when it either uses an absence operator (no-motion / silent) OR sends
+ * to an external caregiver recipient (covers the low-battery care template,
+ * whose `LT` operation is not an absence op).
+ */
+export function ruleHasCareSignals(rule: {
+  conditions?: { operation: Operation }[] | null;
+  results?: { data?: Record<string, unknown> | null }[] | null;
+}): boolean {
+  const absence = (rule.conditions || []).some((c) =>
+    isAbsenceOperation(c.operation),
+  );
+  if (absence) return true;
+  return (rule.results || []).some((r) => {
+    const recipients = (r.data as { recipients?: unknown })?.recipients;
+    return Array.isArray(recipients) && recipients.length > 0;
+  });
 }
