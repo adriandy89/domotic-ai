@@ -1,295 +1,322 @@
-# Stack Client - Docker Setup Guide
+# Stack Client - Edge Setup Guide
 
-This repository contains the Docker stack for running the home automation client infrastructure. Follow the steps below to deploy each service.
+This repository contains the **edge stack** that runs in the customer's home. Each
+protocol runs an **official upstream image** (never forked) that publishes to the home's
+MQTT broker; the Domotic-AI backend ingests everything over MQTT — via **Home Assistant
+discovery** (Z-Wave, WiFi, BLE) or via the **native zigbee2mqtt bridge** (Zigbee). No
+custom firmware logic lives here: this repo is just `docker compose` + per-home config.
+
+## 🧩 How it works (read this first)
+
+A home has **one MQTT credential** (username = the home `unique_id`). Every protocol
+shares that single credential and differs only in three values, all derived from the home
+`unique_id`:
+
+| Value | Pattern | Example |
+|-------|---------|---------|
+| **Topic namespace** | `home/id/{homeUniqueId}/{protocol}` | `home/id/1234-…/zigbee` |
+| **Discovery prefix** *(not Zigbee)* | `home/id/{homeUniqueId}/discovery` | `home/id/1234-…/discovery` |
+| **Client ID** | `{homeUniqueId}-{protocol}` | `1234-…-zigbee` |
+
+> The `client_id` **must be unique per protocol** (and per device for WiFi) — the username
+> is shared across all bridges, but two MQTT clients cannot share a client id.
+
+**Where the values come from:** open the Domotic-AI dashboard → home detail →
+**Integrations** (Integraciones), pick the protocol tab, and copy the ready-to-paste
+snippet. It already fills in the broker host/port, the username (`unique_id`), the
+password, the topics and the client id for that home.
+
+**Auto-registration & enable defaults:** once a bridge publishes, the backend
+auto-registers the devices. WiFi is **plug & play (enabled immediately)**; Zigbee, Z-Wave
+and BLE devices are **registered disabled** — enable them from the dashboard.
+
+## 📦 Components
+
+| Component | Required | Image / source | Container | Hardware | Docker network |
+|-----------|:--------:|----------------|:---------:|----------|----------------|
+| **Zigbee** (zigbee2mqtt) | ✅ | `koenkk/zigbee2mqtt` | ✅ | Zigbee USB dongle | creates `zigbee` |
+| **Z-Wave** (zwave-js-ui) | ⬜ | `zwavejs/zwave-js-ui` | ✅ | Z-Wave USB stick | creates `zwave` |
+| **WiFi** (native firmware) | ⬜ | `domotic-ai` firmware | ⬜ (no container) | — | device's own WiFi |
+| **BLE** (Theengs Gateway) | ⬜ | `theengs/gateway` | ✅ | Bluetooth adapter | host network |
+| **Portainer** | ⬜ | `portainer/portainer-ce` | ✅ | — | joins `zigbee` |
+| **Cloudflare Tunnel** | ⬜ | `cloudflare/cloudflared` | ✅ | — | joins `zigbee` |
+
+Each protocol is **independent** — install only the ones you need. Each subfolder has its
+own `docker-compose.yml` (and, for Z-Wave / WiFi / BLE, its own `README.md`).
 
 ## 📋 Prerequisites
 
 Before starting, ensure you have:
-- Docker Engine installed
-- Docker Compose installed
-- A Zigbee USB dongle (e.g., Sonoff Zigbee 3.0 USB Dongle Plus)
-- MQTT broker accessible (for Zigbee2MQTT)
-
-## 🚀 Quick Start
-
-The deployment consists of three main components:
-1. **Zigbee2MQTT** (Required) - Zigbee device management
-2. **Portainer** (Optional) - Docker container management UI
-3. **Cloudflare Tunnel** (Optional) - Remote access via Cloudflare
+- Docker Engine + Docker Compose installed
+- The per-home MQTT values from the dashboard (**Integrations** panel)
+- The relevant hardware for each protocol you enable:
+  - Zigbee → a Zigbee USB dongle (e.g. Sonoff Zigbee 3.0 USB Dongle Plus)
+  - Z-Wave → a Z-Wave USB controller stick
+  - BLE → a Bluetooth adapter on the host
+  - WiFi → none (devices speak MQTT from their own firmware)
 
 ---
 
-## 1️⃣ Zigbee2MQTT Setup (Required)
+## 1️⃣ Zigbee Setup (zigbee2mqtt)
 
-Zigbee2MQTT acts as a bridge between your Zigbee devices and MQTT.
+Zigbee2MQTT bridges your Zigbee devices to MQTT. Unlike the other protocols it does **not**
+use HA discovery — the backend reads the native zigbee2mqtt `bridge/devices` list and the
+device `exposes`.
 
-### Step 1: Identify Your Zigbee Dongle
-
-First, plug in your Zigbee USB dongle and identify its device path:
+### Step 1: Identify your Zigbee dongle
 
 ```bash
 ls -l /dev/serial/by-id/
 ```
 
-You should see output similar to:
+You should see something like:
 ```
 usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_XXXXXXXX-if00-port0
 ```
 
-### Step 2: Update Docker Compose Configuration
+### Step 2: Map the dongle in docker-compose
 
-Edit the Zigbee docker-compose file:
-
-```bash
-cd zigbee
-nano docker-compose.yml
-```
-
-Update the device path on line 17 to match your actual dongle:
+Edit [zigbee/docker-compose.yml](zigbee/docker-compose.yml) and set the `devices:` path to
+your actual dongle:
 
 ```yaml
 devices:
   - /dev/serial/by-id/usb-ITead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_XXXXXXXX-if00-port0:/dev/ttyUSB0
 ```
 
-### Step 3: Configure Zigbee2MQTT
+### Step 3: Configure MQTT
 
-Edit the configuration file:
+Edit [zigbee/zigbee2mqtt-data/configuration.yaml](zigbee/zigbee2mqtt-data/configuration.yaml).
+Copy the values from the dashboard → **Integrations → Zigbee**:
 
-```bash
-nano zigbee2mqtt-data/configuration.yaml
+```yaml
+mqtt:
+  # Per-protocol namespace: home/id/{homeUniqueId}/zigbee
+  base_topic: home/id/{homeUniqueId}/zigbee
+  server: mqtt://your-mqtt-server.com:1883
+  version: 5
+  # Distinct client_id per protocol (the home username is shared across bridges):
+  client_id: {homeUniqueId}-zigbee
+  user: {homeUniqueId}
+  password: your-password
 ```
 
-<br/>
+Other settings to review:
 
+```yaml
+frontend:
+  enabled: true
+  port: 8080
+  auth_token: your-secure-token-here   # change the default
+advanced:
+  pan_id: GENERATE          # or a number between 1 and 0xFFFE
+  ext_pan_id: GENERATE      # or an 8-byte array
+  network_key: GENERATE     # keep GENERATE for a secure auto key
+  channel: 20               # try 15, 20 or 25 (avoid 11 with heavy WiFi)
+  last_seen: epoch
+homeassistant:
+  enabled: false            # Zigbee uses the native bridge, NOT HA discovery
+```
 
-### Update the following settings with values from Domotic-AI application:
-   ## ⚠️ YOU MUST GET CONFIGURATION FROM DOMOTIC-AI APPLICATION ⚠️
-- **MQTT Server**: Update with MQTT broker details
-  ```yaml
-  mqtt:
-    server: mqtt://your-mqtt-server.com:1883
-    user: your-username
-    password: your-password
-    client_id: your-client-id
-    base_topic: home/id/your-topic
-  ```
+> ⚠️ Leave `homeassistant.enabled: false`. The backend consumes the native zigbee2mqtt
+> bridge object — turning HA discovery on would publish a second, conflicting shape.
 
-### **Frontend Auth Token**: Change the default auth token
-  ```yaml
-  frontend:
-    auth_token: your-secure-token-here
-  ```
-
-### **Network Key**: Generate a new secure network key or keep `GENERATE` for auto-generation
-  ```yaml
-  advanced:
-    pan_id: GENERATE        # o un número entre 1 y 0xFFFE
-    ext_pan_id: GENERATE    # o un array de 8 bytes aleatorios
-    network_key: GENERATE
-    channel: 25             # prueba 15, 20 o 25 (evita 11 si tienes mucho WiFi)
-    last_seen: epoch
-  ```
-
-### Step 4: Start Zigbee2MQTT
-
-Launch the Zigbee2MQTT service:
+### Step 4: Start and verify
 
 ```bash
+cd zigbee
 docker compose up -d
-```
-
-Verify the service is running:
-
-```bash
 docker compose logs -f
 ```
 
-### Step 5: Access Zigbee2MQTT Web Interface
-
-Open your browser and navigate to:
-```
-http://localhost:8080
-```
-
-You'll be prompted to enter the auth token you configured in step 3.
+Open the web UI at `http://localhost:8080` and enter the `auth_token` from step 3. New
+devices appear in the dashboard **disabled** — enable the ones you want.
 
 ---
 
-## 2️⃣ Portainer Setup (Optional)
+## 2️⃣ Z-Wave Setup (zwave-js-ui) — optional
 
-Portainer provides a web-based UI for managing Docker containers.
-
-### Step 1: Navigate to Portainer Directory
+Official image [`zwavejs/zwave-js-ui`](https://zwave-js.github.io/zwave-js-ui/): a Z-Wave
+control panel with a built-in MQTT gateway. It publishes standard HA discovery messages
+that the backend consumes — nothing custom.
 
 ```bash
-cd ../portainer
+cd zwave
+# 1. Plug the Z-Wave stick and set the devices: by-id path in docker-compose.yml
+docker compose up -d
+# 2. Open http://<host>:8091 and configure MQTT + HA discovery in the UI
 ```
 
-### Step 2: Start Portainer
+The MQTT name (gateway prefix) is `home/id/{homeUniqueId}/zwave`, the client id
+`{homeUniqueId}-zwave`, and the HA discovery prefix `home/id/{homeUniqueId}/discovery`.
+
+👉 **Full instructions:** [zwave/README.md](zwave/README.md)
+
+---
+
+## 3️⃣ WiFi Setup (native MQTT firmware) — optional
+
+WiFi devices speak MQTT **directly from their firmware** — there is **no container to run**.
+The backend consumes HA discovery (the `domotic-ai` firmware emits device-based `cmps`
+bundles), and devices come online **plug & play (enabled)**. Devices that can't emit
+discovery can still be onboarded by publishing a single aggregate JSON state.
+
+Use a **unique `client_id` per device** (e.g. `{homeUniqueId}-wifi-{deviceId}`). Copy the
+broker + topics from the dashboard → **Integrations → WiFi**.
+
+👉 **Full instructions (discovery shapes, topics, examples):** [wifi/README.md](wifi/README.md)
+
+---
+
+## 4️⃣ BLE Setup (Theengs Gateway) — optional
+
+Official image [`theengs/gateway`](https://gateway.theengs.io/): bridges read-only
+Bluetooth LE sensors (temperature, humidity, battery, …) to MQTT with HA discovery.
 
 ```bash
+cd ble
+# Edit docker-compose.yml: set MQTT host/credentials and replace {homeUniqueId} in the topics
 docker compose up -d
 ```
 
-### Step 3: Access Portainer
+Needs **host networking + DBus** for the Bluetooth adapter (already set in the compose
+file). Publishes under `home/id/{homeUniqueId}/ble/BTtoMQTT` with discovery prefix
+`home/id/{homeUniqueId}/discovery`. Devices register **disabled** — enable them in the
+dashboard.
 
-Open your browser and navigate to:
-```
-http://localhost:9000
-```
-
-On first access, you'll be prompted to create an admin account.
-
-### Step 4: Monitor Your Stack
-
-Once logged in, you can:
-- View all running containers
-- Check logs and resource usage
-- Manage the Zigbee2MQTT container
-- Monitor the `zigbee` network
+👉 **Full instructions:** [ble/README.md](ble/README.md)
 
 ---
 
-## 3️⃣ Cloudflare Tunnel Setup (Optional)
+## 5️⃣ Portainer Setup (optional)
 
-Cloudflare Tunnel allows you to securely access your services remotely without opening ports on your router.
-
-### Step 1: Create a Cloudflare Tunnel
-
-1. Log in to [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/)
-2. Navigate to **Access** → **Tunnels**
-3. Click **Create a tunnel**
-4. Choose **Cloudflared** and give it a name
-5. Copy the tunnel token (it looks like: `eyJhIjoiXXXXXX...`)
-
-### Step 2: Update Compose Configuration
-
-Edit the Cloudflare compose file:
+Portainer provides a web UI for managing Docker containers.
 
 ```bash
-cd ../cloudflare
-nano compose.yml
+cd portainer
+docker compose up -d
 ```
 
-Replace the placeholder token on line 5 with your actual tunnel token:
+Open `http://localhost:9000` and create an admin account on first access. From there you
+can view containers, logs and resource usage.
+
+> Portainer attaches to the **external `zigbee` network**, so start the Zigbee stack first
+> (it creates that network).
+
+---
+
+## 6️⃣ Cloudflare Tunnel Setup (optional)
+
+Cloudflare Tunnel exposes your services remotely without opening router ports.
+
+### Step 1: Create a tunnel
+
+1. Log in to [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/)
+2. **Networks → Tunnels → Create a tunnel**
+3. Choose **Cloudflared**, name it, and copy the tunnel token (`eyJhIjoiXXXXXX...`)
+
+### Step 2: Set the token
+
+Edit [cloudflare/compose.yml](cloudflare/compose.yml) and replace the placeholder token:
 
 ```yaml
 command: tunnel --no-autoupdate run --token YOUR_ACTUAL_TOKEN_HERE
 ```
 
-### Step 3: Configure Tunnel Routes
+### Step 3: Configure routes & start
 
-Back in the Cloudflare dashboard, configure public hostnames:
-
-Example routes:
+In the Cloudflare dashboard add public hostnames, e.g.:
 - `zigbee.yourdomain.com` → `http://zigbee2mqtt:8080`
 - `portainer.yourdomain.com` → `http://portainer:9000`
 
-### Step 4: Start Cloudflare Tunnel
-
 ```bash
 docker compose up -d
+docker compose logs -f   # expect "Registered tunnel connection"
 ```
 
-Verify the tunnel is connected:
-
-```bash
-docker compose logs -f
-```
-
-You should see: `Connection registered` and `Registered tunnel connection`
-
-### Step 5: Access Remotely
-
-You can now access your services from anywhere:
-- `https://zigbee.yourdomain.com`
-- `https://portainer.yourdomain.com`
+> Like Portainer, cloudflared joins the **external `zigbee` network**, so start the Zigbee
+> stack first.
 
 ---
 
 ## 🔧 Network Architecture
 
-All services are connected via the `zigbee` Docker network:
+Protocols are **independent**; only the optional management services share a network with
+Zigbee:
 
 ```
-┌─────────────────┐
-│  Zigbee2MQTT    │ (Creates the zigbee network)
-│  Port: 8080     │
-└────────┬────────┘
-         │
-         ├─────────┐
-         │         │
-┌────────▼────┐   ┌▼──────────────┐
-│  Portainer  │   │  Cloudflared  │
-│  Port: 9000 │   │  (Tunnel)     │
-└─────────────┘   └───────────────┘
+   Zigbee stack ──────────────┐ creates the "zigbee" network
+   (zigbee2mqtt :8080)        │
+                              ├──────────────┐
+                       ┌──────▼─────┐   ┌─────▼────────┐
+                       │ Portainer  │   │ Cloudflared  │   (join "zigbee", external: true)
+                       │  :9000     │   │  (tunnel)    │
+                       └────────────┘   └──────────────┘
+
+   Z-Wave stack ─── creates its own "zwave" network (zwave-js-ui :8091, ws :3000)
+   BLE stack    ─── host networking (Theengs Gateway + DBus)
+   WiFi         ─── no container; devices use their own WiFi
 ```
 
-The Zigbee2MQTT service must be started **first** as it creates the network that other services depend on.
+**Start order:** if you use Portainer or Cloudflare Tunnel, start the **Zigbee** stack
+first — it creates the `zigbee` network they attach to (`external: true`). Z-Wave, BLE and
+WiFi have no ordering dependency.
 
 ---
 
 ## 📝 Maintenance & Troubleshooting
 
-### View Logs
-
-For any service, navigate to its directory and run:
-```bash
-docker compose logs -f
-```
-
-### Restart a Service
+Run these inside the relevant subfolder (`zigbee/`, `zwave/`, `ble/`, `portainer/`,
+`cloudflare/`):
 
 ```bash
-docker compose restart
+docker compose logs -f       # view logs
+docker compose restart       # restart
+docker compose down          # stop
+docker compose pull && docker compose up -d   # update images
 ```
 
-### Stop a Service
+### Common issues
 
-```bash
-docker compose down
-```
+**USB dongle not detected (Zigbee / Z-Wave)**
+- Re-check the path: `ls -l /dev/serial/by-id/`
+- Grant serial access: `sudo usermod -aG dialout $USER` (re-login required)
 
-### Update Images
+**Device shows up but stays disabled**
+- Expected for Zigbee / Z-Wave / BLE — enable it in the dashboard. Only WiFi is enabled on
+  arrival.
 
-```bash
-docker compose pull
-docker compose up -d
-```
+**Nothing appears in the dashboard**
+- Verify the `base_topic` / discovery prefix use the **home `unique_id`** exactly.
+- Verify the `client_id` is unique per protocol — a duplicate id silently disconnects the
+  other client.
+- Check broker connectivity in the bridge logs (auth failures show there).
 
-### Common Issues
+**Portainer / Cloudflare can't find the network**
+- Start the Zigbee stack first: `docker network ls | grep zigbee`
 
-**Issue**: Zigbee dongle not detected
-- Solution: Check the device path with `ls -l /dev/serial/by-id/`
-- Ensure your user has permissions: `sudo usermod -aG dialout $USER` (requires logout)
-
-**Issue**: Portainer cannot connect to Zigbee network
-- Solution: Ensure Zigbee2MQTT is running first to create the network
-- Check network exists: `docker network ls | grep zigbee`
-
-**Issue**: Cloudflare tunnel not connecting
-- Solution: Verify your token is correct
-- Check tunnel status in Cloudflare dashboard
-- Ensure the tunnel name matches
+**Cloudflare tunnel not connecting**
+- Verify the token and that the tunnel name matches the dashboard.
 
 ---
 
 ## 🛡️ Security Recommendations
 
-1. **Change default tokens**: Update all default authentication tokens
-2. **Use strong passwords**: For MQTT and Portainer
-3. **Network key**: Generate a secure network key for Zigbee
-4. **Cloudflare Access**: Consider adding Cloudflare Access policies for additional security
-5. **Regular updates**: Keep Docker images updated
+1. **Change default tokens** — zigbee2mqtt `frontend.auth_token`, Portainer admin, etc.
+2. **Keep credentials per home** — never reuse one home's MQTT credential for another.
+3. **Generate a secure Zigbee network key** (`network_key: GENERATE`).
+4. **Cloudflare Access** — add Access policies in front of exposed services.
+5. **Keep images updated** — `docker compose pull` regularly.
 
 ---
 
 ## 📚 Additional Resources
 
-- [Zigbee2MQTT Documentation](https://www.zigbee2mqtt.io/)
-- [Portainer Documentation](https://docs.portainer.io/)
-- [Cloudflare Tunnel Documentation](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/)
+- [Zigbee2MQTT](https://www.zigbee2mqtt.io/)
+- [Z-Wave JS UI](https://zwave-js.github.io/zwave-js-ui/)
+- [Theengs Gateway](https://gateway.theengs.io/)
+- [Portainer](https://docs.portainer.io/)
+- [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-apps/)
 
 ---
 

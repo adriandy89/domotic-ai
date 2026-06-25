@@ -16,6 +16,9 @@ adapter consumes the standard Home Assistant discovery messages this image emits
 Copy the **per-home MQTT credentials** from the Domotic-AI dashboard (Integrations → Z-Wave)
 and set, replacing `{homeUniqueId}` with your home id:
 
+**Settings → Z-Wave**
+- Serial Port: `/dev/zwave`  *(the in-container path the `devices:` mapping exposes — not the host `by-id` path)*
+
 **Settings → MQTT**
 - Host: `mqtt://<your-mqtt-host>:1883`
 - Username / Password: the home credentials
