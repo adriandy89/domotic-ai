@@ -260,6 +260,15 @@ model Rule {
   active      Boolean     @default(false)
   all         Boolean     @default(true)
   interval    Int         @default(0)
+  // Optional "when to execute" gate. When window_active, the rule may only
+  // act (fire results) if "now" — in the home's timezone — falls within the
+  // allowed days and time-of-day range. window_days empty = every day.
+  // window_start/window_end are minute-of-day (0-1439); start > end wraps midnight.
+  window_active  Boolean        @default(false)
+  window_days    ScheduleDays[]
+  window_all_day Boolean        @default(true)
+  window_start   Int?
+  window_end     Int?
   timestamp   DateTime?   @db.Timestamptz(6)
   created_at  DateTime    @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
   updated_at  DateTime?   @updatedAt @db.Timestamptz(6)

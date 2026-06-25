@@ -10,7 +10,42 @@ import {
   AlarmClock,
   type LucideIcon,
 } from 'lucide-react';
-import type { Operation, NotificationChannel } from '../store/useRulesStore';
+import type {
+  Operation,
+  NotificationChannel,
+  WeekDay,
+} from '../store/useRulesStore';
+
+// ── "When to execute" window helpers ────────────────────────────────────────
+
+/** Weekday chips for the execution-window picker (Mon-first display order). */
+export const WEEK_DAYS: { value: WeekDay; key: string }[] = [
+  { value: 'MONDAY', key: 'mon' },
+  { value: 'TUESDAY', key: 'tue' },
+  { value: 'WEDNESDAY', key: 'wed' },
+  { value: 'THURSDAY', key: 'thu' },
+  { value: 'FRIDAY', key: 'fri' },
+  { value: 'SATURDAY', key: 'sat' },
+  { value: 'SUNDAY', key: 'sun' },
+];
+
+/** "HH:MM" -> minute-of-day (0..1439). Returns null for blank/invalid input. */
+export function hhmmToMinutes(hhmm: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(hhmm.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/** minute-of-day -> "HH:MM" (zero-padded). */
+export function minutesToHhmm(minutes: number | null | undefined): string {
+  if (minutes == null || !Number.isFinite(minutes)) return '';
+  const m = ((minutes % 1440) + 1440) % 1440;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+}
 
 /**
  * Presence-style attributes a motion/occupancy sensor may expose. Covers the

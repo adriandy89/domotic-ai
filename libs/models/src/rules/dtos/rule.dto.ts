@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ICreateCondition, ICreateResult } from '../interfaces';
-import { RuleType } from 'generated/prisma/enums';
+import { RuleType, ScheduleDays } from 'generated/prisma/enums';
 
 export class RuleDto {
   @ApiProperty()
@@ -44,6 +44,21 @@ export class RuleDto {
 
   @ApiProperty()
   readonly home_id: string;
+
+  @ApiProperty()
+  readonly window_active: boolean;
+
+  @ApiProperty({ enum: ScheduleDays, isArray: true })
+  readonly window_days: ScheduleDays[];
+
+  @ApiProperty()
+  readonly window_all_day: boolean;
+
+  @ApiProperty({ required: false, nullable: true })
+  readonly window_start: number | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  readonly window_end: number | null;
 
   @ApiProperty()
   resend_after: number;

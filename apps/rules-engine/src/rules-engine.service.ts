@@ -15,6 +15,8 @@ import {
   RULES_DELAYED_QUEUE_NAME,
   IDelayedRuleJob,
 } from './rules-queue.constants';
+import { isWithinExecutionWindow } from './execution-window';
+import { ScheduleDays } from 'generated/prisma/client';
 
 // Type matching the select query structure
 type RuleSelected = {
@@ -25,6 +27,11 @@ type RuleSelected = {
   all: boolean;
   type: RuleType;
   interval: number;
+  window_active: boolean;
+  window_days: ScheduleDays[];
+  window_all_day: boolean;
+  window_start: number | null;
+  window_end: number | null;
   timestamp: Date | null;
   created_at: Date;
   user: {
@@ -54,6 +61,7 @@ type RuleSelected = {
     id: string;
     name: string;
     unique_id: string;
+    timezone: string | null;
   };
 };
 
@@ -122,6 +130,11 @@ export class RulesEngineService {
         active: true,
         all: true,
         type: true,
+        window_active: true,
+        window_days: true,
+        window_all_day: true,
+        window_start: true,
+        window_end: true,
         user: {
           select: {
             id: true,
@@ -158,6 +171,7 @@ export class RulesEngineService {
             id: true,
             name: true,
             unique_id: true,
+            timezone: true,
           },
         },
         created_at: true,
@@ -260,7 +274,16 @@ export class RulesEngineService {
       return;
     }
 
-    // No interval - execute immediately
+    // No interval - execute immediately, but only inside the rule's allowed
+    // "when to execute" window (evaluated in the home's timezone).
+    if (
+      !isWithinExecutionWindow(rule, new Date(), rule.home.timezone)
+    ) {
+      this.logger.verbose(
+        `Rule ${rule.id} conditions met but outside its execution window`,
+      );
+      return;
+    }
     await this.executeResults(rule);
     await this.markRuleExecuted(rule);
     await this.recordRuleExecution({
@@ -376,6 +399,34 @@ export class RulesEngineService {
 
     // Clear the pending job cache
     await this.cacheService.del(getKeyRulePendingJob(jobData.ruleId));
+
+    // Re-check the "when to execute" window at fire time — it may have closed
+    // during the interval (or the rule may have been edited). Reload the minimal
+    // fields needed in case the window depends on the home timezone.
+    const ruleWindow = await this.dbService.rule.findUnique({
+      where: { id: jobData.ruleId },
+      select: {
+        window_active: true,
+        window_days: true,
+        window_all_day: true,
+        window_start: true,
+        window_end: true,
+        home: { select: { timezone: true } },
+      },
+    });
+    if (
+      ruleWindow &&
+      !isWithinExecutionWindow(
+        ruleWindow,
+        new Date(),
+        ruleWindow.home?.timezone ?? null,
+      )
+    ) {
+      this.logger.verbose(
+        `Delayed rule ${jobData.ruleId} fired outside its execution window; skipping`,
+      );
+      return;
+    }
 
     // Execute each result
     for (const result of jobData.results) {

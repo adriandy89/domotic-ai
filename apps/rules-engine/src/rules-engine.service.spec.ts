@@ -405,6 +405,87 @@ describe('RulesEngineService.processNewData lifecycle', () => {
   });
 });
 
+describe('RulesEngineService execution window gate', () => {
+  it('immediate: skips firing when outside the window', async () => {
+    const { service, db, nats } = makeService();
+    const r = rule({
+      interval: 0,
+      // zero-length window => never within => always outside (deterministic)
+      window_active: true,
+      window_all_day: false,
+      window_start: 600,
+      window_end: 600,
+      home: { id: 'h1', name: 'Home', unique_id: 'home-unique', timezone: 'UTC' },
+    });
+    db.rule.findMany.mockResolvedValue([r]);
+    await service.processNewData({
+      ruleIds: ['r1'],
+      deviceId: 'd1',
+      timestamp: new Date(),
+      data: { temperature: 35 },
+      prevData: { temperature: 20 },
+    });
+    expect(nats.emit).not.toHaveBeenCalled();
+    // conditions met was true but we returned before recording an execution
+    expect(db.ruleExecution.create).not.toHaveBeenCalled();
+  });
+
+  it('immediate: fires when inside the window (all day)', async () => {
+    const { service, db, nats } = makeService();
+    const r = rule({
+      interval: 0,
+      window_active: true,
+      window_all_day: true,
+      window_days: [],
+      home: { id: 'h1', name: 'Home', unique_id: 'home-unique', timezone: 'UTC' },
+    });
+    db.rule.findMany.mockResolvedValue([r]);
+    await service.processNewData({
+      ruleIds: ['r1'],
+      deviceId: 'd1',
+      timestamp: new Date(),
+      data: { temperature: 35 },
+      prevData: { temperature: 20 },
+    });
+    expect(nats.emit).toHaveBeenCalledWith(
+      'notification.email',
+      expect.any(Object),
+    );
+  });
+
+  it('delayed: skips firing when the window has closed at fire time', async () => {
+    const { service, db, nats } = makeService();
+    db.rule.findUnique.mockResolvedValue({
+      window_active: true,
+      window_all_day: false,
+      window_start: 600,
+      window_end: 600, // zero-length => outside
+      home: { timezone: 'UTC' },
+    });
+    await service.executeDelayedRule({
+      ruleId: 'r1',
+      ruleName: 'Rule',
+      homeUniqueId: 'home-unique',
+      userId: 'u1',
+      homeId: 'h1',
+      results: [
+        {
+          id: 'res1',
+          device_id: null,
+          event: 'hi',
+          attribute: null,
+          data: {},
+          type: ResultType.NOTIFICATION,
+          channel: [NotificationChannel.EMAIL],
+          resend_after: null,
+        },
+      ],
+    } as any);
+    expect(nats.emit).not.toHaveBeenCalled();
+    expect(db.ruleExecution.create).not.toHaveBeenCalled();
+  });
+});
+
 describe('RulesEngineService.executeNotification fan-out', () => {
   const ruleInfo = { ruleId: 'r1', ruleName: 'Rule', userId: 'u1', homeId: 'h1' };
 

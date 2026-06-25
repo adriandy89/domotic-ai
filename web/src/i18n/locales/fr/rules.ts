@@ -20,6 +20,7 @@ export const rules: RulesNS = {
     actions: 'actions',
     deleteTitle: 'Supprimer la règle',
     unknownHome: 'Inconnu',
+    allDay: 'Toute la journée',
   },
   form: {
     createTitle: 'Créer une règle',
@@ -72,6 +73,20 @@ export const rules: RulesNS = {
       minutes: 'minutes',
       hours: 'heures',
       days: 'jours',
+    },
+    window: {
+      title: 'Quand exécuter',
+      subtitle:
+        'Limitez les jours et la plage horaire où cette règle peut agir (fuseau du domicile).',
+      enable: 'Limiter quand elle s’exécute',
+      days: 'Jours',
+      everyDay: 'Aucun jour sélectionné : s’applique tous les jours.',
+      daysHint: 'La règle n’agit que les jours sélectionnés.',
+      allDay: 'Toute la journée',
+      from: 'De',
+      to: 'À',
+      overnightHint:
+        'Si l’heure de début est postérieure à l’heure de fin, la plage traverse minuit (p. ex. 22:00–06:00).',
     },
     toast: {
       nameRequired: 'Le nom est obligatoire',

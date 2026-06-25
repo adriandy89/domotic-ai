@@ -25,6 +25,11 @@ export class RuleService {
     home_id: true,
     timestamp: true,
     updated_at: true,
+    window_active: true,
+    window_days: true,
+    window_all_day: true,
+    window_start: true,
+    window_end: true,
   };
 
   constructor(
@@ -209,6 +214,11 @@ export class RuleService {
         active: true,
         all: true,
         type: true,
+        window_active: true,
+        window_days: true,
+        window_all_day: true,
+        window_start: true,
+        window_end: true,
         user_id: true,
         user: {
           select: {

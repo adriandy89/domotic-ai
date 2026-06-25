@@ -1,4 +1,10 @@
-import { Operation, ResultType, Rule, RuleType } from 'generated/prisma/client';
+import {
+  Operation,
+  ResultType,
+  Rule,
+  RuleType,
+  ScheduleDays,
+} from 'generated/prisma/client';
 
 export interface IRuleObj {
   [key: string]: Rule;
@@ -34,4 +40,9 @@ export interface ICreateRule {
   conditions: ICreateCondition[];
   results: ICreateResult[];
   home_id: string;
+  window_active?: boolean;
+  window_days?: ScheduleDays[];
+  window_all_day?: boolean;
+  window_start?: number | null;
+  window_end?: number | null;
 }

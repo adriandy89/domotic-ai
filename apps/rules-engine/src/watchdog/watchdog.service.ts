@@ -8,6 +8,7 @@ import {
   NotificationChannel,
   Operation,
   ResultType,
+  ScheduleDays,
 } from 'generated/prisma/client';
 import {
   IWatchdogJob,
@@ -15,6 +16,7 @@ import {
   WATCHDOG_QUEUE_NAME,
   WATCHDOG_SCHEDULER_ID,
 } from './watchdog-queue.constants';
+import { isWithinExecutionWindow } from '../execution-window';
 
 // Values that count as "active" for a presence/contact-style attribute when
 // stored as a string in device_state_events.
@@ -25,8 +27,13 @@ type WatchdogRule = {
   name: string;
   all: boolean;
   created_at: Date;
+  window_active: boolean;
+  window_days: ScheduleDays[];
+  window_all_day: boolean;
+  window_start: number | null;
+  window_end: number | null;
   user: { id: string; email: string; language: string | null };
-  home: { id: string; name: string; unique_id: string };
+  home: { id: string; name: string; unique_id: string; timezone: string | null };
   conditions: {
     id: string;
     device_id: string;
@@ -121,8 +128,15 @@ export class WatchdogService implements OnModuleInit {
         name: true,
         all: true,
         created_at: true,
+        window_active: true,
+        window_days: true,
+        window_all_day: true,
+        window_start: true,
+        window_end: true,
         user: { select: { id: true, email: true, language: true } },
-        home: { select: { id: true, name: true, unique_id: true } },
+        home: {
+          select: { id: true, name: true, unique_id: true, timezone: true },
+        },
         conditions: {
           select: {
             id: true,
@@ -199,6 +213,16 @@ export class WatchdogService implements OnModuleInit {
           return;
         }
       }
+    }
+
+    // Respect the rule's "when to execute" window (home timezone). Outside it,
+    // don't fire and don't record an execution — the episode stays armed and
+    // will alert once the window opens while the condition still holds.
+    if (!isWithinExecutionWindow(rule, new Date(), rule.home.timezone)) {
+      this.logger.verbose(
+        `Watchdog rule ${rule.id} met but outside its execution window`,
+      );
+      return;
     }
 
     const reason = results.find((r) => r.met && r.fresh)?.reason ?? '';

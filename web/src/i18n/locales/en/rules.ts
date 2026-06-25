@@ -18,6 +18,7 @@ export const rules = {
     actions: 'actions',
     deleteTitle: 'Delete Rule',
     unknownHome: 'Unknown',
+    allDay: 'All day',
   },
   form: {
     createTitle: 'Create Rule',
@@ -70,6 +71,20 @@ export const rules = {
       minutes: 'minutes',
       hours: 'hours',
       days: 'days',
+    },
+    window: {
+      title: 'When to run',
+      subtitle:
+        'Limit the days and time range when this rule may act (home timezone).',
+      enable: 'Limit when it runs',
+      days: 'Days',
+      everyDay: 'No days selected: applies every day.',
+      daysHint: 'The rule only acts on the selected days.',
+      allDay: 'All day',
+      from: 'From',
+      to: 'To',
+      overnightHint:
+        'If the start time is later than the end time, the range crosses midnight (e.g. 22:00–06:00).',
     },
     toast: {
       nameRequired: 'Name is required',

@@ -471,6 +471,42 @@ describe('WatchdogService AND with mixed (non-absence) conditions', () => {
   });
 });
 
+describe('WatchdogService execution window gate', () => {
+  it('does NOT fire when met+fresh but outside the execution window', async () => {
+    const { service } = makeService();
+    const fire = jest.spyOn(service as any, 'fire').mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'evaluateCondition')
+      .mockResolvedValue({ met: true, fresh: true, reason: 'inactive' });
+    const rule = inactiveRule({
+      // zero-length window => always outside
+      window_active: true,
+      window_all_day: false,
+      window_start: 600,
+      window_end: 600,
+      home: { id: 'h1', name: 'Home', unique_id: 'home-unique', timezone: 'UTC' },
+    });
+    await (service as any).evaluateRule(rule);
+    expect(fire).not.toHaveBeenCalled();
+  });
+
+  it('fires when met+fresh and inside the window', async () => {
+    const { service } = makeService();
+    const fire = jest.spyOn(service as any, 'fire').mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'evaluateCondition')
+      .mockResolvedValue({ met: true, fresh: true, reason: 'inactive' });
+    const rule = inactiveRule({
+      window_active: true,
+      window_all_day: true,
+      window_days: [],
+      home: { id: 'h1', name: 'Home', unique_id: 'home-unique', timezone: 'UTC' },
+    });
+    await (service as any).evaluateRule(rule);
+    expect(fire).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('WatchdogService re-arm episode (end-to-end scan)', () => {
   it('alerts once, stays silent while inactive, then re-arms after recovery', async () => {
     const { service, db, nats } = makeService();

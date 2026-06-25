@@ -1,7 +1,15 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, Plus, Trash2, Loader2, Save, HeartPulse } from 'lucide-react';
+import {
+  ChevronLeft,
+  Plus,
+  Trash2,
+  Loader2,
+  Save,
+  HeartPulse,
+  CalendarClock,
+} from 'lucide-react';
 import { useRulesStore } from '../store/useRulesStore';
 import type {
   CreateRuleRequest,
@@ -11,6 +19,7 @@ import type {
   ResultType,
   NotificationChannel,
   RuleType,
+  WeekDay,
 } from '../store/useRulesStore';
 import { useHomesStore } from '../store/useHomesStore';
 import { useDevicesStore, type DeviceExpose } from '../store/useDevicesStore';
@@ -31,6 +40,9 @@ import {
   secondsToIntervalParts,
   durationToSeconds,
   ruleHasCareSignals,
+  WEEK_DAYS,
+  hhmmToMinutes,
+  minutesToHhmm,
   type RuleTemplate,
   type DurationUnit,
 } from '../lib/rule-templates';
@@ -122,6 +134,13 @@ export default function RuleFormPage() {
   const [conditions, setConditions] = useState<Omit<Condition, 'id'>[]>([]);
   const [results, setResults] = useState<Omit<Result, 'id'>[]>([]);
 
+  // "When to execute" window state (HH:MM strings in the UI).
+  const [windowActive, setWindowActive] = useState(false);
+  const [windowDays, setWindowDays] = useState<WeekDay[]>([]);
+  const [windowAllDay, setWindowAllDay] = useState(true);
+  const [windowStart, setWindowStart] = useState('08:00');
+  const [windowEnd, setWindowEnd] = useState('19:30');
+
   // Care/Wellness template state (creation only)
   const [activeTemplate, setActiveTemplate] = useState<RuleTemplate | null>(
     null,
@@ -161,6 +180,21 @@ export default function RuleFormPage() {
       setActive(currentRule.active);
       setAll(currentRule.all);
       setHomeId(currentRule.home_id);
+
+      // Execution window
+      setWindowActive(!!currentRule.window_active);
+      setWindowDays(currentRule.window_days || []);
+      setWindowAllDay(currentRule.window_all_day ?? true);
+      setWindowStart(
+        currentRule.window_start != null
+          ? minutesToHhmm(currentRule.window_start)
+          : '08:00',
+      );
+      setWindowEnd(
+        currentRule.window_end != null
+          ? minutesToHhmm(currentRule.window_end)
+          : '19:30',
+      );
 
       const loaded = currentRule.conditions.map(({ id: _id, ...rest }) => rest);
       // For care rules, lift the add-on conditions (low-battery / silent) back
@@ -462,14 +496,37 @@ export default function RuleFormPage() {
           r.data?.value !== '' &&
           r.data?.value !== undefined,
     );
+    // Execution window: when limiting to a time range, both bounds must be valid.
+    const windowValid =
+      !windowActive ||
+      windowAllDay ||
+      (hhmmToMinutes(windowStart) !== null &&
+        hhmmToMinutes(windowEnd) !== null);
     return (
       name.trim() !== '' &&
       homeId !== '' &&
       hasValidConditions &&
       hasValidResults &&
-      interval >= 0
+      interval >= 0 &&
+      windowValid
     );
-  }, [name, homeId, conditions, results, interval]);
+  }, [
+    name,
+    homeId,
+    conditions,
+    results,
+    interval,
+    windowActive,
+    windowAllDay,
+    windowStart,
+    windowEnd,
+  ]);
+
+  const toggleWindowDay = (day: WeekDay) => {
+    setWindowDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
+    );
+  };
 
   // Handle submit
   const handleSubmit = async () => {
@@ -548,6 +605,13 @@ export default function RuleFormPage() {
       active,
       all: useAll,
       home_id: homeId,
+      window_active: windowActive,
+      window_days: windowActive ? windowDays : [],
+      window_all_day: windowActive ? windowAllDay : true,
+      window_start:
+        windowActive && !windowAllDay ? hhmmToMinutes(windowStart) : null,
+      window_end:
+        windowActive && !windowAllDay ? hhmmToMinutes(windowEnd) : null,
       conditions: finalConditions,
       results: results
         .filter((r) =>
@@ -1063,6 +1127,101 @@ export default function RuleFormPage() {
                 </div>
               );
             })
+          )}
+        </CardContent>
+      </Card>
+
+      {/* When to execute (execution window) */}
+      <Card className="bg-card/40 border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <CalendarClock className="w-5 h-5 text-primary" />
+            {t('rules.form.window.title')}
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {t('rules.form.window.subtitle')}
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-3 rounded-lg bg-background/40">
+            <Label className="cursor-pointer font-normal">
+              {t('rules.form.window.enable')}
+            </Label>
+            <Switch checked={windowActive} onCheckedChange={setWindowActive} />
+          </div>
+
+          {windowActive && (
+            <div className="space-y-4">
+              {/* Days */}
+              <div className="space-y-2">
+                <Label>{t('rules.form.window.days')}</Label>
+                <div className="flex flex-wrap gap-2">
+                  {WEEK_DAYS.map((d) => (
+                    <button
+                      key={d.value}
+                      type="button"
+                      onClick={() => toggleWindowDay(d.value)}
+                      className={cn(
+                        'px-3 py-2 rounded-lg border text-sm font-medium transition-all',
+                        windowDays.includes(d.value)
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-card/30 hover:bg-card/60 text-muted-foreground',
+                      )}
+                    >
+                      {t(`common.weekdayShort.${d.key}`)}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {windowDays.length === 0
+                    ? t('rules.form.window.everyDay')
+                    : t('rules.form.window.daysHint')}
+                </p>
+              </div>
+
+              {/* All day vs time range */}
+              <div className="flex items-center justify-between p-3 rounded-lg bg-background/40">
+                <Label className="cursor-pointer font-normal">
+                  {t('rules.form.window.allDay')}
+                </Label>
+                <Switch
+                  checked={windowAllDay}
+                  onCheckedChange={setWindowAllDay}
+                />
+              </div>
+
+              {!windowAllDay && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="window-from">
+                        {t('rules.form.window.from')}
+                      </Label>
+                      <Input
+                        id="window-from"
+                        type="time"
+                        value={windowStart}
+                        onChange={(e) => setWindowStart(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="window-to">
+                        {t('rules.form.window.to')}
+                      </Label>
+                      <Input
+                        id="window-to"
+                        type="time"
+                        value={windowEnd}
+                        onChange={(e) => setWindowEnd(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t('rules.form.window.overnightHint')}
+                  </p>
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>

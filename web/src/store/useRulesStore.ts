@@ -26,6 +26,27 @@ export type NotificationChannel =
   | 'PUSH'
   | 'TELEGRAM'
   | 'WEBHOOK';
+export type WeekDay =
+  | 'SUNDAY'
+  | 'MONDAY'
+  | 'TUESDAY'
+  | 'WEDNESDAY'
+  | 'THURSDAY'
+  | 'FRIDAY'
+  | 'SATURDAY';
+
+/**
+ * Optional "when to execute" window. When window_active, the rule may only act
+ * within the given weekdays (empty = every day) and time-of-day range
+ * (minute-of-day; start > end wraps midnight), evaluated in the home timezone.
+ */
+export interface ExecutionWindowFields {
+  window_active?: boolean;
+  window_days?: WeekDay[];
+  window_all_day?: boolean;
+  window_start?: number | null;
+  window_end?: number | null;
+}
 
 // Condition type for API responses
 export interface Condition {
@@ -51,7 +72,7 @@ export interface Result {
 }
 
 // Rule list item (from /rules/all/user)
-export interface Rule {
+export interface Rule extends ExecutionWindowFields {
   id: string;
   name: string;
   description?: string;
@@ -73,7 +94,7 @@ export interface Rule {
 }
 
 // Full rule detail (from /rules/:id)
-export interface RuleDetail {
+export interface RuleDetail extends ExecutionWindowFields {
   id: string;
   name: string;
   description?: string;
@@ -89,7 +110,7 @@ export interface RuleDetail {
 }
 
 // Create/Update rule request
-export interface CreateRuleRequest {
+export interface CreateRuleRequest extends ExecutionWindowFields {
   name: string;
   description?: string;
   type: RuleType;

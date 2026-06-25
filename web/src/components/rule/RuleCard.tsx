@@ -13,11 +13,23 @@ import {
   GitBranch,
   Home,
   HeartPulse,
+  CalendarClock,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
-import type { Rule } from '../../store/useRulesStore';
-import { ruleHasCareSignals } from '../../lib/rule-templates';
+import type { Rule, WeekDay } from '../../store/useRulesStore';
+import { ruleHasCareSignals, minutesToHhmm } from '../../lib/rule-templates';
 import { useHomesStore } from '../../store/useHomesStore';
+
+// WeekDay enum -> common.weekdayShort.* i18n key.
+const DAY_KEY: Record<WeekDay, string> = {
+  SUNDAY: 'sun',
+  MONDAY: 'mon',
+  TUESDAY: 'tue',
+  WEDNESDAY: 'wed',
+  THURSDAY: 'thu',
+  FRIDAY: 'fri',
+  SATURDAY: 'sat',
+};
 import {
   Dialog,
   DialogContent,
@@ -71,6 +83,19 @@ export default function RuleCard({
 
   const homeName = homes[rule.home_id]?.name || t('rules.card.unknownHome');
   const isCare = ruleHasCareSignals(rule);
+
+  // Compact "when to execute" summary (only when the window gate is enabled).
+  const windowTime = rule.window_active
+    ? rule.window_all_day
+      ? t('rules.card.allDay')
+      : `${minutesToHhmm(rule.window_start)}–${minutesToHhmm(rule.window_end)}`
+    : null;
+  const windowDaysLabel =
+    rule.window_active && (rule.window_days?.length ?? 0) > 0
+      ? rule.window_days!
+          .map((d) => t(`common.weekdayShort.${DAY_KEY[d]}`))
+          .join(', ')
+      : null;
 
   return (
     <>
@@ -166,6 +191,19 @@ export default function RuleCard({
                   {t('rules.card.actions')}
                 </span>
               </div>
+              {windowTime && (
+                <div
+                  className="flex items-center gap-1.5 text-sm"
+                  title={windowDaysLabel || t('rules.form.window.everyDay')}
+                >
+                  <CalendarClock className="w-4 h-4 text-violet-500" />
+                  <span className="text-xs text-muted-foreground">
+                    {windowDaysLabel
+                      ? `${windowDaysLabel} · ${windowTime}`
+                      : windowTime}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Power Toggle */}
