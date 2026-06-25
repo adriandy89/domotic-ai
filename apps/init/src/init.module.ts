@@ -18,7 +18,6 @@ import { HttpModule } from '@nestjs/axios';
       global: true,
       timeout: 15_000,
       maxRedirects: 5,
-      // baseURL: process.env.TRACCAR_BASE_URL || 'http://localhost:8082/api/',
     }),
     ScheduleModule.forRoot(),
     CacheModule.forRootAsync(),

@@ -30,7 +30,6 @@ import { UserModule } from './user';
       global: true,
       timeout: 15_000,
       maxRedirects: 5,
-      // baseURL: process.env.TRACCAR_BASE_URL || 'http://localhost:8082/api/',
     }),
     SSEModule,
     AuthModule,
