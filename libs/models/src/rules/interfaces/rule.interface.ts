@@ -15,7 +15,8 @@ export interface ICreateCondition {
   device_id: string;
   attribute: string;
   operation: Operation;
-  data: { value: any };
+  // `value` for comparison ops; `forSeconds` for absence ops (INACTIVE/STALE).
+  data: { value?: any; forSeconds?: number };
 }
 
 export interface ICreateResult {
@@ -24,7 +25,8 @@ export interface ICreateResult {
   event: string;
   type: ResultType;
   attribute: string;
-  data: { value: any };
+  // `value` for COMMAND; `recipients` for external caregiver email alerts.
+  data: { value?: any; recipients?: string[] };
   channel: any[];
   resend_after: number;
 }

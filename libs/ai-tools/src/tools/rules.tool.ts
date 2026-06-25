@@ -9,6 +9,7 @@ import {
   Operation,
   ResultType,
   RuleType,
+  ScheduleDays,
 } from 'generated/prisma/enums';
 import z from 'zod';
 
@@ -19,9 +20,28 @@ const NOTIFICATION_CHANNELS = Object.values(NotificationChannel) as [
 const OPERATIONS = Object.values(Operation) as [string, ...string[]];
 const RULE_TYPES = Object.values(RuleType) as [string, ...string[]];
 const RESULT_TYPES = Object.values(ResultType) as [string, ...string[]];
+const SCHEDULE_DAYS = Object.values(ScheduleDays) as [string, ...string[]];
 
 const MAX_CONDITIONS = 10;
 const MAX_RESULTS = 10;
+
+/** Compact, read-only view of a rule's "when to execute" window. */
+function mapWindow(rule: {
+  window_active: boolean;
+  window_days: ScheduleDays[];
+  window_all_day: boolean;
+  window_start: number | null;
+  window_end: number | null;
+}) {
+  if (!rule.window_active) return null;
+  return {
+    active: true,
+    allDay: rule.window_all_day,
+    days: rule.window_days, // empty = every day
+    start: rule.window_start, // minute-of-day or null
+    end: rule.window_end,
+  };
+}
 
 // -----------------------------------------------------------------------------
 // list-rules
@@ -61,6 +81,11 @@ export const listRulesTool = createTool({
         active: true,
         all: true,
         interval: true,
+        window_active: true,
+        window_days: true,
+        window_all_day: true,
+        window_start: true,
+        window_end: true,
         home: { select: { id: true, name: true } },
         _count: { select: { conditions: true, results: true } },
         created_at: true,
@@ -79,6 +104,7 @@ export const listRulesTool = createTool({
         active: r.active,
         all: r.all,
         interval: r.interval,
+        window: mapWindow(r),
         home: r.home,
         conditionsCount: r._count.conditions,
         resultsCount: r._count.results,
@@ -119,6 +145,11 @@ export const getRuleTool = createTool({
         active: true,
         all: true,
         interval: true,
+        window_active: true,
+        window_days: true,
+        window_all_day: true,
+        window_start: true,
+        window_end: true,
         home: { select: { id: true, name: true } },
         conditions: {
           select: {
@@ -157,26 +188,45 @@ export const getRuleTool = createTool({
         active: rule.active,
         all: rule.all,
         interval: rule.interval,
+        window: mapWindow(rule),
         home: rule.home,
-        conditions: rule.conditions.map((c) => ({
-          id: c.id,
-          deviceId: c.device?.id,
-          deviceName: c.device?.name,
-          attribute: c.attribute,
-          operation: c.operation,
-          value: (c.data as { value?: unknown })?.value,
-        })),
-        results: rule.results.map((r) => ({
-          id: r.id,
-          type: r.type,
-          deviceId: r.device?.id,
-          deviceName: r.device?.name,
-          attribute: r.attribute,
-          value: (r.data as { value?: unknown })?.value,
-          event: r.event,
-          channel: r.channel,
-          resendAfter: r.resend_after,
-        })),
+        conditions: rule.conditions.map((c) => {
+          const data = (c.data ?? {}) as {
+            value?: unknown;
+            forSeconds?: number;
+          };
+          return {
+            id: c.id,
+            deviceId: c.device?.id,
+            deviceName: c.device?.name,
+            attribute: c.attribute,
+            operation: c.operation,
+            value: data.value,
+            forSeconds: data.forSeconds,
+          };
+        }),
+        results: rule.results.map((r) => {
+          const data = (r.data ?? {}) as {
+            value?: unknown;
+            recipients?: unknown[];
+          };
+          return {
+            id: r.id,
+            type: r.type,
+            deviceId: r.device?.id,
+            deviceName: r.device?.name,
+            attribute: r.attribute,
+            value: data.value,
+            // External caregiver emails are configured from the UI only — expose
+            // a count (so the AI knows it's a care alert) but not the addresses.
+            recipientsCount: Array.isArray(data.recipients)
+              ? data.recipients.length
+              : 0,
+            event: r.event,
+            channel: r.channel,
+            resendAfter: r.resend_after,
+          };
+        }),
         createdAt: rule.created_at,
         updatedAt: rule.updated_at,
       },
@@ -213,19 +263,65 @@ const createRuleInput = z.object({
       'ONCE = fire once then deactivate. RECURRENT = fire every time conditions are met (with `interval` cooldown). Default RECURRENT.',
     ),
   homeId: z.string().uuid().describe('Home UUID owning the rule.'),
+  // "When to execute" window (optional gate). The rule only acts when "now",
+  // in the home's timezone, falls within the allowed days and time range.
+  windowActive: z
+    .boolean()
+    .optional()
+    .describe('Enable the execution-time window gate. Default false.'),
+  windowDays: z
+    .array(z.enum(SCHEDULE_DAYS))
+    .optional()
+    .describe('Allowed weekdays (empty = every day).'),
+  windowAllDay: z
+    .boolean()
+    .optional()
+    .describe('Allow any time of day. Default true.'),
+  windowStart: z
+    .number()
+    .int()
+    .min(0)
+    .max(1439)
+    .optional()
+    .describe('Window start as minute-of-day (0-1439). 480 = 08:00.'),
+  windowEnd: z
+    .number()
+    .int()
+    .min(0)
+    .max(1439)
+    .optional()
+    .describe(
+      'Window end as minute-of-day (0-1439). 1170 = 19:30. If start > end the range crosses midnight.',
+    ),
   conditions: z
     .array(
       z.object({
         deviceId: z.string().uuid(),
         attribute: z
           .string()
+          .optional()
           .describe(
-            'A readable attribute of the device (e.g. "temperature", "humidity", "occupancy", "state"). Must be reported by the device.',
+            'A readable attribute of the device (e.g. "temperature", "humidity", "occupancy", "state"). Required for comparison operators and INACTIVE. Omit for STALE (watches the whole device).',
           ),
         operation: z
           .enum(OPERATIONS)
-          .describe('Comparison: EQ, GT, GTE, LT, LTE.'),
-        value: z.unknown().describe('Threshold or value to compare against.'),
+          .describe(
+            'Comparison: EQ, GT, GTE, LT, LTE. Care/absence: INACTIVE (attribute not active for forSeconds, e.g. no motion), STALE (device sent no data for forSeconds).',
+          ),
+        value: z
+          .unknown()
+          .optional()
+          .describe(
+            'Threshold or value to compare against. Required for comparison operators; ignored by STALE.',
+          ),
+        forSeconds: z
+          .number()
+          .int()
+          .min(1)
+          .optional()
+          .describe(
+            'Duration in seconds for INACTIVE/STALE (e.g. 43200 = 12h). Required for those operators.',
+          ),
       }),
     )
     .min(1)
@@ -300,6 +396,11 @@ export const createRuleTool = createTool({
       homeId,
       conditions,
       results,
+      windowActive = false,
+      windowDays = [],
+      windowAllDay = true,
+      windowStart,
+      windowEnd,
     } = inputData;
 
     // 1. Home belongs to user
@@ -313,17 +414,55 @@ export const createRuleTool = createTool({
       };
     }
 
-    // 2. Validate conditions (readable attributes)
+    // 1b. Execution window: a time range needs both bounds.
+    if (
+      windowActive &&
+      windowAllDay === false &&
+      (windowStart === undefined || windowEnd === undefined)
+    ) {
+      return {
+        success: false,
+        error:
+          'A time-range window requires both windowStart and windowEnd (minute-of-day).',
+      };
+    }
+
+    // 2. Validate conditions. Branch by operator:
+    //  - INACTIVE: needs a readable attribute + forSeconds (no motion for N s).
+    //  - STALE:    needs only forSeconds; attribute optional (whole device).
+    //  - EQ/GT/…:  needs a readable attribute + a value to compare.
     const conditionErrors: Array<{
       index: number;
       deviceId: string;
-      attribute: string;
+      attribute?: string;
       error: string;
       readableAttributes?: string[];
     }> = [];
 
     for (let i = 0; i < conditions.length; i++) {
       const c = conditions[i];
+      const isAbsence =
+        c.operation === Operation.INACTIVE || c.operation === Operation.STALE;
+
+      if (isAbsence && !(Number(c.forSeconds) > 0)) {
+        conditionErrors.push({
+          index: i,
+          deviceId: c.deviceId,
+          attribute: c.attribute,
+          error: `Operator ${c.operation} requires a positive forSeconds (duration in seconds)`,
+        });
+        continue;
+      }
+      if (!isAbsence && c.value === undefined) {
+        conditionErrors.push({
+          index: i,
+          deviceId: c.deviceId,
+          attribute: c.attribute,
+          error: `Operator ${c.operation} requires a value to compare against`,
+        });
+        continue;
+      }
+
       const device = await dbService.device.findUnique({
         where: {
           id: c.deviceId,
@@ -341,18 +480,31 @@ export const createRuleTool = createTool({
         });
         continue;
       }
-      const readable = getAdapter(device.protocol).getReadableAttributes(
-        device.attributes,
-      );
-      const found = readable.find((r) => r.property === c.attribute);
-      if (!found) {
-        conditionErrors.push({
-          index: i,
-          deviceId: c.deviceId,
-          attribute: c.attribute,
-          error: `Attribute "${c.attribute}" is not a readable attribute of this device`,
-          readableAttributes: readable.map((r) => r.property),
-        });
+
+      // STALE watches the whole device, so it needs no attribute. All other
+      // operators require a readable attribute.
+      if (c.operation !== Operation.STALE) {
+        if (!c.attribute) {
+          conditionErrors.push({
+            index: i,
+            deviceId: c.deviceId,
+            error: `Operator ${c.operation} requires an attribute`,
+          });
+          continue;
+        }
+        const readable = getAdapter(device.protocol).getReadableAttributes(
+          device.attributes,
+        );
+        const found = readable.find((r) => r.property === c.attribute);
+        if (!found) {
+          conditionErrors.push({
+            index: i,
+            deviceId: c.deviceId,
+            attribute: c.attribute,
+            error: `Attribute "${c.attribute}" is not a readable attribute of this device`,
+            readableAttributes: readable.map((r) => r.property),
+          });
+        }
       }
     }
 
@@ -436,15 +588,27 @@ export const createRuleTool = createTool({
         all,
         interval,
         type: type as RuleType,
+        window_active: windowActive,
+        window_days: (windowActive ? windowDays : []) as ScheduleDays[],
+        window_all_day: windowActive ? windowAllDay : true,
+        window_start:
+          windowActive && !windowAllDay ? (windowStart ?? null) : null,
+        window_end: windowActive && !windowAllDay ? (windowEnd ?? null) : null,
         home: { connect: { id: homeId } },
         user: { connect: { id: userId } },
         conditions: {
           createMany: {
             data: conditions.map((c) => ({
               device_id: c.deviceId,
-              attribute: c.attribute,
+              attribute: c.attribute ?? '',
               operation: c.operation as Operation,
-              data: { value: c.value } as Prisma.InputJsonValue,
+              // Comparison ops carry `value`; INACTIVE/STALE carry `forSeconds`.
+              data: {
+                ...(c.value !== undefined ? { value: c.value } : {}),
+                ...(c.forSeconds !== undefined
+                  ? { forSeconds: c.forSeconds }
+                  : {}),
+              } as Prisma.InputJsonValue,
             })),
           },
         },
