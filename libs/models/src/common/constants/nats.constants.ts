@@ -18,3 +18,9 @@ export const XIAOZHI_PATTERNS = {
   DELETED: 'integrations.xiaozhi.deleted',
   TEST: 'integrations.xiaozhi.test',
 } as const;
+
+export const EDGE_PATTERNS = {
+  // Rebuild + publish the retained offline rules bundle for a home. Emitted by
+  // the API whenever a run_offline rule/schedule or home.edge_enabled changes.
+  PUBLISH_BUNDLE: 'edge.bundle.publish',
+} as const;

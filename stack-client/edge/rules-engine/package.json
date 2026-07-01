@@ -1,0 +1,50 @@
+{
+  "name": "edge-rules-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone offline rules engine for Domotic-AI edge homes (Orange Pi).",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.25.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "vendor": "bash scripts/vendor-libs.sh",
+    "vendor:check": "bash scripts/check-vendor-drift.sh",
+    "prebuild": "bash scripts/vendor-libs.sh",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/main.js",
+    "dev": "ts-node src/main.ts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/schedule": "^6.0.0",
+    "better-sqlite3": "^11.10.0",
+    "cron-parser": "^4.9.0",
+    "mqtt": "^5.10.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.10.0",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3"]
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "testEnvironment": "node"
+  }
+}

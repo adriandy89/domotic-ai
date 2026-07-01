@@ -11,6 +11,7 @@ import {
   SCHEDULES_PATTERNS,
   UpdateScheduleDto,
 } from '@app/models';
+import { EdgeSyncNotifier } from '../edge/edge-sync.notifier';
 
 @Injectable()
 export class ScheduleService {
@@ -23,6 +24,7 @@ export class ScheduleService {
     date: true,
     frequency: true,
     days: true,
+    run_offline: true,
     channel: true,
     home_id: true,
     user_id: true,
@@ -41,6 +43,7 @@ export class ScheduleService {
   constructor(
     private dbService: DbService,
     private natsClient: NatsClientService,
+    private readonly edgeSync: EdgeSyncNotifier,
   ) {}
 
   private async emitUpsert(id: string): Promise<void> {
@@ -105,6 +108,7 @@ export class ScheduleService {
       select: this.selectSchedule,
     });
     await this.emitUpsert(created.id);
+    await this.edgeSync.notifyByHomeId(home_id);
     return created;
   }
 
@@ -145,6 +149,7 @@ export class ScheduleService {
       select: this.selectSchedule,
     });
     await this.emitUpsert(updated.id);
+    if (updated.home_id) await this.edgeSync.notifyByHomeId(updated.home_id);
     return updated;
   }
 
@@ -196,6 +201,7 @@ export class ScheduleService {
         date: true,
         frequency: true,
         days: true,
+        run_offline: true,
         channel: true,
         user_id: true,
         user: {
@@ -223,8 +229,12 @@ export class ScheduleService {
   }
 
   async delete(id: string, user_id: string) {
-    await this.dbService.schedule.delete({ where: { id, user_id } });
+    const existing = await this.dbService.schedule.delete({
+      where: { id, user_id },
+      select: { home_id: true },
+    });
     await this.emitDelete(id);
+    if (existing.home_id) await this.edgeSync.notifyByHomeId(existing.home_id);
     return { ok: true };
   }
 
@@ -235,6 +245,7 @@ export class ScheduleService {
       select: { ...this.selectSchedule },
     });
     await this.emitUpsert(updated.id);
+    if (updated.home_id) await this.edgeSync.notifyByHomeId(updated.home_id);
     return updated;
   }
 }

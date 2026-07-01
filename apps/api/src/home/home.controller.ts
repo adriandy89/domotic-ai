@@ -115,6 +115,16 @@ export class HomeController {
     return this.homeService.getMqttConfig();
   }
 
+  @Get('edge/token/:uniqueId')
+  @Permissions([Role.MANAGER])
+  @UseGuards(PermissionsGuard)
+  async getEdgeToken(
+    @Param('uniqueId') uniqueId: string,
+    @GetUserInfo() user: SessionUser,
+  ) {
+    return this.homeService.getEdgeToken(uniqueId, user.organization_id);
+  }
+
   @Get()
   @Permissions([Role.MANAGER])
   @UseGuards(PermissionsGuard)

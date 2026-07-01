@@ -130,6 +130,7 @@ export default function RuleFormPage() {
   const [intervalUnit, setIntervalUnit] = useState<DurationUnit>('minutes');
   const [active, setActive] = useState(true);
   const [all, setAll] = useState(true);
+  const [runOffline, setRunOffline] = useState(false);
   const [homeId, setHomeId] = useState('');
   const [conditions, setConditions] = useState<Omit<Condition, 'id'>[]>([]);
   const [results, setResults] = useState<Omit<Result, 'id'>[]>([]);
@@ -179,6 +180,7 @@ export default function RuleFormPage() {
       setIntervalUnit(parts.unit);
       setActive(currentRule.active);
       setAll(currentRule.all);
+      setRunOffline(!!currentRule.run_offline);
       setHomeId(currentRule.home_id);
 
       // Execution window
@@ -604,6 +606,7 @@ export default function RuleFormPage() {
       interval,
       active,
       all: useAll,
+      run_offline: runOffline,
       home_id: homeId,
       window_active: windowActive,
       window_days: windowActive ? windowDays : [],
@@ -853,6 +856,15 @@ export default function RuleFormPage() {
                 <Switch checked={all} onCheckedChange={setAll} />
                 <Label>
                   {all ? t('rules.form.allMatch') : t('rules.form.anyMatch')}
+                </Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={runOffline}
+                  onCheckedChange={setRunOffline}
+                />
+                <Label title={t('rules.form.runOfflineHint')}>
+                  {t('rules.form.runOffline')}
                 </Label>
               </div>
             </div>

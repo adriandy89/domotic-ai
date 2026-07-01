@@ -13,11 +13,14 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Prisma } from 'generated/prisma/client';
 import { decrypt } from '../utils';
 import { MqttConnectionService } from './mqtt-connection.service';
+import { EdgeSyncNotifier } from '../edge/edge-sync.notifier';
+import { deriveEdgeToken } from '@app/edge-bundle';
 
 @Injectable()
 export class HomeService {
@@ -34,6 +37,7 @@ export class HomeService {
     icon: true,
     image: true,
     connected: true,
+    edge_enabled: true,
     // Energy / pricing config consumed by the Reports + Dashboard pricing UI.
     tariff_type: true,
     tariff_config: true,
@@ -51,6 +55,7 @@ export class HomeService {
     private mqttCredentialsService: MqttConnectionService,
     private readonly cacheService: CacheService,
     private readonly natsClient: NatsClientService,
+    private readonly edgeSync: EdgeSyncNotifier,
   ) {}
 
   async statisticsOrgHomes(organizationId: string) {
@@ -312,6 +317,9 @@ export class HomeService {
       if (updated.mcp_password) {
         updated.mcp_password = decrypt(updated.mcp_password);
       }
+      // Republish the offline bundle when an edge-enabled home changes (e.g. it
+      // was just enabled). No-op for non-edge homes.
+      await this.edgeSync.notifyByHomeId(id);
       return { ok: true, data: updated };
     } catch (error: any) {
       if (error.code === 'P2025') throw new Error('role not found');
@@ -398,6 +406,27 @@ export class HomeService {
     return {
       mqttHost: this.configService.get('MQTT_SERVER_BASE'),
       mqttPort: this.configService.get('MQTT_PORT'),
+    };
+  }
+
+  /**
+   * Per-home edge auth token for the dashboard "Edge" integration snippet. Derived
+   * from EDGE_SIGNING_SECRET + the home unique_id; the user copies it into that
+   * home's edge `.env` as EDGE_AUTH_TOKEN. Scoped to the caller's organization.
+   */
+  async getEdgeToken(
+    uniqueId: string,
+    organization_id: string,
+  ): Promise<{ edgeToken: string; configured: boolean }> {
+    const home = await this.dbService.home.findUnique({
+      where: { unique_id: uniqueId, organization_id },
+      select: { id: true },
+    });
+    if (!home) throw new NotFoundException('Home not found');
+    const master = this.configService.get<string>('EDGE_SIGNING_SECRET', '');
+    return {
+      configured: !!master,
+      edgeToken: master ? deriveEdgeToken(master, uniqueId) : '',
     };
   }
 

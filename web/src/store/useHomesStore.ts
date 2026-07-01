@@ -12,6 +12,8 @@ export interface Home {
   description: string | null;
   disabled: boolean;
   connected: boolean;
+  /** Opt-in: runs the offline edge stack (local broker + rules engine). */
+  edge_enabled?: boolean;
   timezone?: string | null;
   address?: string | null;
   latitude?: number | null;

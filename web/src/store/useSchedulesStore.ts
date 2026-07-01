@@ -29,6 +29,8 @@ export interface Schedule {
   id: string;
   name: string;
   active: boolean;
+  /** Run locally on edge-enabled homes when offline. */
+  run_offline?: boolean;
   date?: string | null;
   frequency: ScheduleFrequency;
   days: ScheduleDay[];
@@ -46,6 +48,8 @@ export interface ScheduleDetail {
   id: string;
   name: string;
   active: boolean;
+  /** Run locally on edge-enabled homes when offline. */
+  run_offline?: boolean;
   date?: string | null;
   frequency: ScheduleFrequency;
   days: ScheduleDay[];
@@ -60,6 +64,8 @@ export interface ScheduleDetail {
 export interface CreateScheduleRequest {
   name: string;
   active: boolean;
+  /** Run locally on edge-enabled homes when offline. */
+  run_offline?: boolean;
   date?: string | null;
   frequency: ScheduleFrequency;
   days: ScheduleDay[];

@@ -62,6 +62,7 @@ interface HomeData {
   description: string | null;
   disabled: boolean;
   connected: boolean;
+  edge_enabled?: boolean;
   created_at: string;
   updated_at: string | null;
   last_update: string | null;
@@ -144,6 +145,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
     name: '',
     description: '',
     disabled: false,
+    edge_enabled: false,
     latitude: null as number | null,
     longitude: null as number | null,
     address: null as string | null,
@@ -236,13 +238,14 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
         name: formData.name,
         ...(formData.description ? { description: formData.description } : {}),
         disabled: formData.disabled,
+        edge_enabled: formData.edge_enabled,
         ...(formData.latitude !== null && { latitude: formData.latitude }),
         ...(formData.longitude !== null && { longitude: formData.longitude }),
         ...(formData.address ? { address: formData.address } : {}),
         ...(formData.timezone ? { timezone: formData.timezone } : {}),
       });
       setShowAddModal(false);
-      setFormData({ name: '', description: '', disabled: false, latitude: null, longitude: null, address: null, timezone: null });
+      setFormData({ name: '', description: '', disabled: false, edge_enabled: false, latitude: null, longitude: null, address: null, timezone: null });
       fetchHomes();
       onDataChange?.();
     } catch (error: any) {
@@ -262,6 +265,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
         name: formData.name,
         ...(formData.description ? { description: formData.description } : {}),
         disabled: formData.disabled,
+        edge_enabled: formData.edge_enabled,
         ...(formData.latitude !== null && { latitude: formData.latitude }),
         ...(formData.longitude !== null && { longitude: formData.longitude }),
         ...(formData.address ? { address: formData.address } : {}),
@@ -269,7 +273,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       });
       setShowEditModal(false);
       setEditTarget(null);
-      setFormData({ name: '', description: '', disabled: false, latitude: null, longitude: null, address: null, timezone: null });
+      setFormData({ name: '', description: '', disabled: false, edge_enabled: false, latitude: null, longitude: null, address: null, timezone: null });
       fetchHomes();
       onDataChange?.();
     } catch (error: any) {
@@ -288,6 +292,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       name: home.name,
       description: home.description || '',
       disabled: home.disabled,
+      edge_enabled: home.edge_enabled ?? false,
       latitude: home.latitude ?? null,
       longitude: home.longitude ?? null,
       address: home.address ?? null,
@@ -392,6 +397,24 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
           />
           <label htmlFor={`disabled_${idSuffix}`} className="text-sm font-medium">
             {t('access.form.disabledLabel')}
+          </label>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id={`edge_enabled_${idSuffix}`}
+            checked={formData.edge_enabled}
+            onChange={(e) =>
+              setFormData({ ...formData, edge_enabled: e.target.checked })
+            }
+            className="h-4 w-4 rounded border-border"
+          />
+          <label
+            htmlFor={`edge_enabled_${idSuffix}`}
+            className="text-sm font-medium"
+            title={t('access.form.edgeEnabledHint')}
+          >
+            {t('access.form.edgeEnabledLabel')}
           </label>
         </div>
 

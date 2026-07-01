@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AiModule } from './ai';
 import { AuthModule } from './auth';
 import { DeviceModule } from './device';
+import { EdgeModule } from './edge/edge.module';
 import { HomeModule } from './home';
 import { XiaozhiIntegrationModule } from './integrations/xiaozhi/xiaozhi.module';
 import { McpModule } from './mcp/mcp.module';
@@ -38,6 +39,7 @@ import { UserModule } from './user';
     DeviceModule,
     RuleModule,
     ScheduleModule,
+    EdgeModule,
     ReportsModule,
     PricingModule,
     NotificationModule,

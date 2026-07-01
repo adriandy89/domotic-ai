@@ -50,6 +50,9 @@ export const rules = {
     eventMessage: 'Event message',
     allMatch: 'All match',
     anyMatch: 'Any match',
+    runOffline: 'Run offline',
+    runOfflineHint:
+      'Keep this rule working without internet on edge-enabled homes (COMMAND actions only).',
     update: 'Update Rule',
     resultType: {
       COMMAND: 'Send Action',

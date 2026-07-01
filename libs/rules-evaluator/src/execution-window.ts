@@ -1,4 +1,5 @@
-import { ScheduleDays } from 'generated/prisma/client';
+import { ScheduleDays } from './enums';
+import { ExecutionWindow } from './types';
 
 /**
  * Optional "when to execute" gate for a rule. A rule may only ACT (fire its
@@ -7,18 +8,11 @@ import { ScheduleDays } from 'generated/prisma/client';
  * rule still evaluates its conditions normally; it just won't fire outside the
  * window.
  */
-export interface ExecutionWindow {
-  window_active: boolean;
-  window_days: ScheduleDays[];
-  window_all_day: boolean;
-  window_start: number | null; // minute-of-day 0..1439
-  window_end: number | null; // minute-of-day 0..1439
-}
 
 const MINUTES_PER_DAY = 24 * 60;
 
-// ScheduleDays enum -> JS getDay() index (0 = Sunday .. 6 = Saturday).
-const DOW_INDEX: Record<ScheduleDays, number> = {
+// ScheduleDays value -> JS getDay() index (0 = Sunday .. 6 = Saturday).
+const DOW_INDEX: Record<string, number> = {
   [ScheduleDays.SUNDAY]: 0,
   [ScheduleDays.MONDAY]: 1,
   [ScheduleDays.TUESDAY]: 2,

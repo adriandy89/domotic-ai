@@ -79,6 +79,8 @@ export interface Rule extends ExecutionWindowFields {
   type: RuleType;
   active: boolean;
   all: boolean;
+  /** Run locally on edge-enabled homes when offline (COMMAND results only). */
+  run_offline?: boolean;
   interval: number;
   timestamp?: string;
   home_id: string;
@@ -101,6 +103,8 @@ export interface RuleDetail extends ExecutionWindowFields {
   type: RuleType;
   active: boolean;
   all: boolean;
+  /** Run locally on edge-enabled homes when offline (COMMAND results only). */
+  run_offline?: boolean;
   interval: number;
   timestamp?: string;
   home_id: string;
@@ -116,6 +120,8 @@ export interface CreateRuleRequest extends ExecutionWindowFields {
   type: RuleType;
   active: boolean;
   all: boolean;
+  /** Run locally on edge-enabled homes when offline (COMMAND results only). */
+  run_offline?: boolean;
   interval: number;
   home_id: string;
   conditions: Omit<Condition, 'id'>[];

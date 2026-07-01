@@ -11,6 +11,7 @@ import {
   RulePageOptionsDto,
   UpdateRuleDto,
 } from '@app/models';
+import { EdgeSyncNotifier } from '../edge/edge-sync.notifier';
 
 @Injectable()
 export class RuleService {
@@ -25,6 +26,7 @@ export class RuleService {
     home_id: true,
     timestamp: true,
     updated_at: true,
+    run_offline: true,
     window_active: true,
     window_days: true,
     window_all_day: true,
@@ -34,6 +36,7 @@ export class RuleService {
 
   constructor(
     private dbService: DbService,
+    private readonly edgeSync: EdgeSyncNotifier,
     // private readonly cacheService: CacheService,
     // private readonly natsClient: NatsClientService,
   ) {}
@@ -52,7 +55,7 @@ export class RuleService {
       })) || [];
 
     try {
-      return await this.dbService.rule.create({
+      const rule = await this.dbService.rule.create({
         data: {
           ...ruleData,
           home: {
@@ -74,6 +77,8 @@ export class RuleService {
         },
         select: this.selectRules,
       });
+      await this.edgeSync.notifyByHomeId(home_id);
+      return rule;
     } catch (error: any) {
       console.error('Error creating rule: ', error);
     }
@@ -102,7 +107,7 @@ export class RuleService {
     const newResults = sanitizedResults.filter(
       (action) => action.id === undefined,
     );
-    return await this.dbService.rule.update({
+    const rule = await this.dbService.rule.update({
       where: { id },
       data: {
         ...ruleData,
@@ -140,6 +145,8 @@ export class RuleService {
       },
       select: this.selectRules,
     });
+    if (rule.home_id) await this.edgeSync.notifyByHomeId(rule.home_id);
+    return rule;
   }
 
   async findAllByCurrentUser(user_id: string) {
@@ -214,6 +221,7 @@ export class RuleService {
         active: true,
         all: true,
         type: true,
+        run_offline: true,
         window_active: true,
         window_days: true,
         window_all_day: true,
@@ -264,9 +272,11 @@ export class RuleService {
 
   async delete(id: string, user_id: string) {
     try {
-      await this.dbService.rule.delete({
+      const rule = await this.dbService.rule.delete({
         where: { id, user_id },
+        select: { home_id: true },
       });
+      await this.edgeSync.notifyByHomeId(rule.home_id);
       return { ok: true };
     } catch (error: any) {
       throw new Error(error);
@@ -282,6 +292,7 @@ export class RuleService {
           ...this.selectRules,
         },
       });
+      if (rule.home_id) await this.edgeSync.notifyByHomeId(rule.home_id);
       return rule;
     } catch (error: any) {
       throw new Error(error);

@@ -42,6 +42,9 @@ export const schedules: SchedulesNS = {
     home: 'Maison *',
     selectHome: 'Sélectionner une maison',
     active: 'Active',
+    runOffline: 'Exécuter hors ligne',
+    runOfflineHint:
+      'Garde cette planification active sans internet sur les maisons edge.',
     whenToRun: 'Quand exécuter',
     dateTime: 'Date et heure *',
     timeAnchor: 'Heure de référence *',

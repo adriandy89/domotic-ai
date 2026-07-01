@@ -1,12 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Copy, Check, ExternalLink, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../ui/button';
+import { api } from '../../lib/api';
 import {
   PROTOCOL_CATALOG,
   buildIntegrationConfig,
   type Protocol,
 } from '../../lib/integration-templates';
+
+/** Central backend base URL (edge appends /api/v1/edge/...): the dashboard's own API origin. */
+const CENTRAL_API_URL = (
+  import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1'
+).replace(/\/api\/v1\/?$/, '');
 
 interface IntegrationsPanelProps {
   uniqueId: string;
@@ -30,6 +36,30 @@ export function IntegrationsPanel({
   const [selected, setSelected] = useState<Protocol>('zigbee');
   const [copied, setCopied] = useState(false);
   const [revealed, setRevealed] = useState(false);
+  const [edgeToken, setEdgeToken] = useState<string>('');
+
+  // The per-home edge token is a derived secret; fetch it only when the Edge tab
+  // is opened (and reset when switching homes).
+  useEffect(() => {
+    setEdgeToken('');
+  }, [uniqueId]);
+  useEffect(() => {
+    if (selected !== 'edge' || edgeToken) return;
+    let cancelled = false;
+    api
+      .get<{ edgeToken: string; configured: boolean }>(
+        `/homes/edge/token/${uniqueId}`,
+      )
+      .then((res) => {
+        if (!cancelled) setEdgeToken(res.data.edgeToken || '');
+      })
+      .catch(() => {
+        /* leave placeholder in the snippet */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected, uniqueId, edgeToken]);
 
   const info = PROTOCOL_CATALOG.find((p) => p.protocol === selected)!;
   const config = buildIntegrationConfig(selected, {
@@ -38,6 +68,8 @@ export function IntegrationsPanel({
     username: uniqueId,
     password,
     uniqueId,
+    edgeToken,
+    centralApiUrl: CENTRAL_API_URL,
   });
 
   const copy = () => {

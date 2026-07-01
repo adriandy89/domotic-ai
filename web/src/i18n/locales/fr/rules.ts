@@ -52,6 +52,9 @@ export const rules: RulesNS = {
     eventMessage: 'Message de l’événement',
     allMatch: 'Toutes',
     anyMatch: 'N’importe laquelle',
+    runOffline: 'Exécuter hors ligne',
+    runOfflineHint:
+      'Garde cette règle active sans internet sur les maisons edge (actions COMMAND uniquement).',
     update: 'Mettre à jour la règle',
     resultType: {
       COMMAND: 'Envoyer une action',
