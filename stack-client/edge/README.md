@@ -98,6 +98,14 @@ talks to TBMQ from the home changes (the bridge instead of zigbee2mqtt directly)
 
 - **TBMQ persistent session** must be enabled for client id `{unique_id}-bridge`, or the
   store-and-forward queue is lost on reconnect.
+- **The bridge must speak MQTT v5** (`bridge_protocol_version mqttv50`, already in the
+  shipped `mosquitto.conf`). It subscribes to the same topic tree it publishes into, and
+  v5's *no-local* flag is what stops TBMQ echoing our own messages back. Without it, the
+  offline backlog (including executed rule `/set` commands) bounces back on reconnect
+  and **re-executes every rule action from the outage**.
+- **Passwords file permissions:** `mosquitto_passwd` run via `docker run` leaves the file
+  owned by root; the in-container `chown` fails on the `:ro` mount, so make it readable
+  (`chmod 644 mosquitto/passwords`) or mosquitto dies with `Unable to open pwfile`.
 - **Clock:** local schedules depend on the device clock — run NTP/chrony on the host.
 
 

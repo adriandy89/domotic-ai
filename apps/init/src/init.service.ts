@@ -183,6 +183,8 @@ export class InitService implements OnModuleInit {
    * Each protocol bridge uses a distinct MQTT client_id (`{uuid}-{protocol}`),
    * and the bare `{uuid}` is kept as a candidate for backward compatibility with
    * homes whose zigbee2mqtt still uses the legacy (pre-multi-protocol) client_id.
+   * Edge-enabled homes connect through their local mosquitto bridge instead
+   * (`{uuid}-bridge`, see stack-client/edge/mosquitto/mosquitto.conf).
    */
   private async isHomeConnected(
     uniqueId: string,
@@ -190,6 +192,7 @@ export class InitService implements OnModuleInit {
   ): Promise<boolean> {
     const candidateClientIds = [
       uniqueId,
+      `${uniqueId}-bridge`,
       ...Object.values(DeviceProtocol).map((p) => `${uniqueId}-${p}`),
     ];
     for (const clientId of candidateClientIds) {
