@@ -1,0 +1,281 @@
+import {
+  DeviceAction,
+  ValidationError,
+  ValidationResult,
+} from '../types';
+
+/**
+ * Generic command validation against a device's writable {@link DeviceAction}s.
+ * Shared by every protocol adapter — the constraints (binary/numeric/enum/color)
+ * are expressed on `DeviceAction`, which is protocol-agnostic.
+ *
+ * Pure: no I/O, no DB.
+ */
+
+/**
+ * Properties accepted by some firmwares but that don't appear as actions.
+ *  - transition: seconds (0..600)
+ *  - effect / read / write / state_*: meta-controls, accepted as-is
+ */
+const SPECIAL_PROPERTIES: Record<
+  string,
+  (value: unknown) => ValidationError | null
+> = {
+  transition: (value) => {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      return {
+        property: 'transition',
+        code: 'INVALID_TYPE',
+        message: 'transition must be a number (seconds)',
+      };
+    }
+    if (value < 0 || value > 600) {
+      return {
+        property: 'transition',
+        code: 'OUT_OF_RANGE',
+        message: 'transition out of range (0-600s)',
+      };
+    }
+    return null;
+  },
+  effect: () => null,
+  read: () => null,
+  write: () => null,
+};
+
+const SPECIAL_PROPERTY_PREFIXES = ['state_'];
+
+export function validateCommand(
+  command: Record<string, unknown>,
+  actions: DeviceAction[],
+): ValidationResult {
+  const errors: ValidationError[] = [];
+
+  for (const [property, value] of Object.entries(command)) {
+    const action = actions.find((a) => a.property === property);
+
+    if (!action) {
+      const special = SPECIAL_PROPERTIES[property];
+      if (special) {
+        const err = special(value);
+        if (err) errors.push(err);
+        continue;
+      }
+      if (SPECIAL_PROPERTY_PREFIXES.some((p) => property.startsWith(p)))
+        continue;
+      errors.push({
+        property,
+        code: 'UNKNOWN_PROPERTY',
+        message: `Property "${property}" is not writable on this device.`,
+      });
+      continue;
+    }
+
+    const err = validateValue(action, value);
+    if (err) errors.push(err);
+  }
+
+  return errors.length === 0 ? { valid: true } : { valid: false, errors };
+}
+
+function validateValue(
+  action: DeviceAction,
+  value: unknown,
+): ValidationError | null {
+  switch (action.type) {
+    case 'binary':
+      return validateBinary(action, value);
+    case 'numeric':
+      return validateNumeric(action, value);
+    case 'enum':
+      return validateEnum(action, value);
+    case 'color':
+      return validateColor(action, value);
+    case 'composite':
+      return validateComposite(action, value);
+    case 'schedule':
+      return validateSchedule(action, value);
+    default:
+      return null;
+  }
+}
+
+const SCHEDULE_TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const SCHEDULE_MAX_ENTRIES = 8;
+
+/**
+ * On-device scheduler array (e.g. the ESP32 relay firmware): up to 8 entries, each
+ * `{ time:"HH:MM", days:0..127 bitmask, action:"ON"|"OFF", enabled:boolean }`. The
+ * optional `id` is firmware-assigned (1..8) and not validated here.
+ */
+function validateSchedule(
+  action: DeviceAction,
+  value: unknown,
+): ValidationError | null {
+  const invalid = (message: string): ValidationError => ({
+    property: action.property,
+    code: 'INVALID_SCHEDULE',
+    message,
+  });
+
+  if (!Array.isArray(value)) {
+    return invalid(`"${action.property}" must be an array of schedule rules.`);
+  }
+  if (value.length > SCHEDULE_MAX_ENTRIES) {
+    return invalid(
+      `"${action.property}" allows at most ${SCHEDULE_MAX_ENTRIES} rules. Got ${value.length}.`,
+    );
+  }
+  for (let i = 0; i < value.length; i++) {
+    const entry = value[i];
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return invalid(`Rule ${i + 1} must be an object.`);
+    }
+    const e = entry as Record<string, unknown>;
+    if (typeof e.time !== 'string' || !SCHEDULE_TIME_RE.test(e.time)) {
+      return invalid(`Rule ${i + 1}: "time" must be "HH:MM" (24h).`);
+    }
+    if (
+      typeof e.days !== 'number' ||
+      !Number.isInteger(e.days) ||
+      e.days < 0 ||
+      e.days > 127
+    ) {
+      return invalid(`Rule ${i + 1}: "days" must be a 0-127 bitmask.`);
+    }
+    if (e.action !== 'ON' && e.action !== 'OFF') {
+      return invalid(`Rule ${i + 1}: "action" must be "ON" or "OFF".`);
+    }
+    if (typeof e.enabled !== 'boolean') {
+      return invalid(`Rule ${i + 1}: "enabled" must be a boolean.`);
+    }
+  }
+  return null;
+}
+
+/**
+ * Composite exposes (e.g. the siren's `warning`) are set as a single nested
+ * object under `action.property`. Each known sub-property is validated against
+ * the composite's sub-actions; unknown sub-properties are ignored (lenient).
+ */
+function validateComposite(
+  action: DeviceAction,
+  value: unknown,
+): ValidationError | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {
+      property: action.property,
+      code: 'INVALID_COMPOSITE',
+      message: `"${action.property}" must be an object of sub-properties.`,
+    };
+  }
+  const subActions = action.features ?? [];
+  for (const [subProperty, subValue] of Object.entries(
+    value as Record<string, unknown>,
+  )) {
+    const subAction = subActions.find((a) => a.property === subProperty);
+    if (!subAction) continue;
+    const err = validateValue(subAction, subValue);
+    if (err) {
+      return {
+        property: `${action.property}.${subProperty}`,
+        code: err.code,
+        message: err.message,
+      };
+    }
+  }
+  return null;
+}
+
+function validateBinary(
+  action: DeviceAction,
+  value: unknown,
+): ValidationError | null {
+  const allowed: unknown[] = [];
+  if (action.valueOn !== undefined) allowed.push(action.valueOn);
+  if (action.valueOff !== undefined) allowed.push(action.valueOff);
+  if (action.valueToggle !== undefined) allowed.push(action.valueToggle);
+  if (allowed.length === 0) return null;
+  if (!allowed.some((a) => a === value)) {
+    return {
+      property: action.property,
+      code: 'INVALID_BINARY',
+      message: `"${action.property}" must be one of: ${allowed.map((a) => JSON.stringify(a)).join(', ')}. Got ${JSON.stringify(value)}.`,
+    };
+  }
+  return null;
+}
+
+function validateNumeric(
+  action: DeviceAction,
+  value: unknown,
+): ValidationError | null {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return {
+      property: action.property,
+      code: 'INVALID_TYPE',
+      message: `"${action.property}" must be a number. Got ${JSON.stringify(value)}.`,
+    };
+  }
+  if (action.valueMin !== undefined && value < action.valueMin) {
+    return {
+      property: action.property,
+      code: 'OUT_OF_RANGE',
+      message: `"${action.property}" must be ≥ ${action.valueMin}. Got ${value}.`,
+    };
+  }
+  if (action.valueMax !== undefined && value > action.valueMax) {
+    return {
+      property: action.property,
+      code: 'OUT_OF_RANGE',
+      message: `"${action.property}" must be ≤ ${action.valueMax}. Got ${value}.`,
+    };
+  }
+  return null;
+}
+
+function validateEnum(
+  action: DeviceAction,
+  value: unknown,
+): ValidationError | null {
+  if (!action.values || action.values.length === 0) return null;
+  if (!action.values.includes(value as string | number)) {
+    return {
+      property: action.property,
+      code: 'INVALID_ENUM',
+      message: `"${action.property}" must be one of: ${action.values.map((v) => JSON.stringify(v)).join(', ')}. Got ${JSON.stringify(value)}.`,
+    };
+  }
+  return null;
+}
+
+function validateColor(
+  action: DeviceAction,
+  value: unknown,
+): ValidationError | null {
+  if (!value || typeof value !== 'object') {
+    return {
+      property: action.property,
+      code: 'INVALID_COLOR',
+      message:
+        'color must be an object like { hex }, { x, y }, { hue, saturation } or { r, g, b }.',
+    };
+  }
+  const v = value as Record<string, unknown>;
+  const hasXY = typeof v.x === 'number' && typeof v.y === 'number';
+  const hasHS = typeof v.hue === 'number' && typeof v.saturation === 'number';
+  const hasRGB =
+    typeof v.r === 'number' &&
+    typeof v.g === 'number' &&
+    typeof v.b === 'number';
+  const hasHex = typeof v.hex === 'string';
+  if (!hasXY && !hasHS && !hasRGB && !hasHex) {
+    return {
+      property: action.property,
+      code: 'INVALID_COLOR',
+      message:
+        'color must include one of: hex, {x,y}, {hue,saturation}, {r,g,b}.',
+    };
+  }
+  return null;
+}

@@ -9,6 +9,7 @@ import { DbModule } from '@app/db';
 import { MqttCoreController } from './mqtt-core.controller';
 import { DeviceAvailabilityService } from './services/device-availability.service';
 import { DeviceCommandService } from './services/device-command.service';
+import { EdgeBundlePublisherService } from './services/edge-bundle-publisher.service';
 import { DeviceRegistryService } from './services/device-registry.service';
 import { HaIngestionService } from './services/ha-ingestion.service';
 import { HomeRegistryService } from './services/home-registry.service';
@@ -35,6 +36,7 @@ import { ZigbeeIngestionService } from './services/zigbee-ingestion.service';
     ZigbeeIngestionService,
     HaIngestionService,
     DeviceCommandService,
+    EdgeBundlePublisherService,
   ],
 })
 export class MqttCoreModule implements OnModuleInit {

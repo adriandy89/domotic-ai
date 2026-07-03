@@ -1,4 +1,4 @@
-import { ScheduleDays, ScheduleFrequency } from 'generated/prisma/enums';
+import { ScheduleDays, ScheduleFrequency } from './enums';
 
 export interface ScheduleTiming {
   frequency: ScheduleFrequency;
@@ -11,7 +11,7 @@ export type JobTiming =
   | { kind: 'repeat'; pattern: string; tz: string }
   | { kind: 'invalid'; reason: string };
 
-const DOW_MAP: Record<ScheduleDays, number> = {
+const DOW_MAP: Record<string, number> = {
   [ScheduleDays.SUNDAY]: 0,
   [ScheduleDays.MONDAY]: 1,
   [ScheduleDays.TUESDAY]: 2,

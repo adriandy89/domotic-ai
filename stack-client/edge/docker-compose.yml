@@ -1,0 +1,72 @@
+name: edge
+
+# Opt-in edge stack: a local MQTT broker + an autonomous rules engine that keep
+# `run_offline` rules, schedules and the care watchdog working when the home loses
+# internet. Deployed only on homes with `edge_enabled = true`.
+#
+# This is the ONLY non-upstream component of stack-client (see ../README.md): the
+# rules-engine is Domotic-AI code, kept as a self-contained project under ./rules-engine
+# so it never mixes with the central platform (apps/, libs/).
+#
+# Fill the per-home values in ./.env (copy from ./.env.example).
+
+services:
+  # ───────────────────────────────────────────────────────────────
+  # Local MQTT broker (lightweight, Alpine). zigbee2mqtt publishes here.
+  # Bidirectional store-and-forward bridge to central TBMQ.
+  # ───────────────────────────────────────────────────────────────
+  mosquitto:
+    image: eclipse-mosquitto:2-openssl
+    container_name: mosquitto
+    restart: always
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/passwords:/mosquitto/config/passwords:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+    ports:
+      - '1883:1883' # MQTT local (zigbee2mqtt, edge-rules-engine)
+    networks:
+      - edge
+
+  # ───────────────────────────────────────────────────────────────
+  # Edge rules engine (standalone NestJS). No Postgres/Redis/NATS:
+  # only the local MQTT broker + embedded SQLite. Added in Phase 3.
+  # ───────────────────────────────────────────────────────────────
+  edge-rules-engine:
+    build:
+      context: ./rules-engine
+      dockerfile: Dockerfile
+    container_name: edge-rules-engine
+    restart: always
+    depends_on:
+      - mosquitto
+    environment:
+      - TZ=${TZ:-Europe/Madrid}
+      # Local MQTT broker:
+      - MQTT_URL=mqtt://mosquitto:1883
+      - MQTT_USERNAME=${EDGE_MQTT_USER}
+      - MQTT_PASSWORD=${EDGE_MQTT_PASS}
+      - MQTT_CLIENT_ID=${HOME_UNIQUE_ID}-edge-rules
+      # Home identity (same unique_id as the other bridges):
+      - HOME_UNIQUE_ID=${HOME_UNIQUE_ID}
+      # Rules bundle sync (retained MQTT) + HMAC verification + HTTP pull fallback:
+      - RULES_SYNC_TOPIC=home/id/${HOME_UNIQUE_ID}/edge/rules
+      - CENTRAL_API_URL=${CENTRAL_API_URL}
+      - EDGE_AUTH_TOKEN=${EDGE_AUTH_TOKEN}
+      # Embedded SQLite + watchdog cadence:
+      - SQLITE_PATH=/data/edge.db
+      - WATCHDOG_INTERVAL_SECONDS=${WATCHDOG_INTERVAL_SECONDS:-300}
+    volumes:
+      - edge-rules-data:/data
+    networks:
+      - edge
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:
+  edge-rules-data:
+
+networks:
+  edge:
+    name: edge

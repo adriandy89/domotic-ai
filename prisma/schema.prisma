@@ -33,45 +33,49 @@ model Organization {
 }
 
 model Home {
-  id              String       @id(map: "pk_home_id") @default(uuid())
-  unique_id       String       @unique @default(uuid()) @db.VarChar(128)
-  name            String       @db.VarChar(128)
-  mqtt_password   String?      @db.VarChar(256)
-  mqtt_username   String?      @db.VarChar(256)
-  mqtt_id         String?      @db.VarChar(256)
-  mcp_password    String?      @db.VarChar(256)
-  mcp_username    String?      @db.VarChar(256)
-  mcp_id          String?      @db.VarChar(256)
-  description     String?      @db.VarChar(512)
-  icon            String?      @db.VarChar(512)
-  image           String?      @db.VarChar(512)
-  timezone        String?      @db.VarChar(64)
-  address         String?      @db.VarChar(512)
-  latitude        Float?
-  longitude       Float?
-  attributes      Json?        @db.JsonB
-  disabled        Boolean?     @default(false)
-  connected       Boolean?     @default(false)
+  id                   String          @id(map: "pk_home_id") @default(uuid())
+  unique_id            String          @unique @default(uuid()) @db.VarChar(128)
+  name                 String          @db.VarChar(128)
+  mqtt_password        String?         @db.VarChar(256)
+  mqtt_username        String?         @db.VarChar(256)
+  mqtt_id              String?         @db.VarChar(256)
+  mcp_password         String?         @db.VarChar(256)
+  mcp_username         String?         @db.VarChar(256)
+  mcp_id               String?         @db.VarChar(256)
+  description          String?         @db.VarChar(512)
+  icon                 String?         @db.VarChar(512)
+  image                String?         @db.VarChar(512)
+  timezone             String?         @db.VarChar(64)
+  address              String?         @db.VarChar(512)
+  latitude             Float?
+  longitude            Float?
+  attributes           Json?           @db.JsonB
+  disabled             Boolean?        @default(false)
+  connected            Boolean?        @default(false)
+  // Opt-in: when true the home runs the edge stack (local broker + rules engine).
+  // Central then silences its watchdog and skips run_offline schedules for this home.
+  edge_enabled         Boolean         @default(false)
   // Reports configuration: per-home cost & comfort settings.
-  currency             String   @default("USD") @db.VarChar(3)
-  kwh_price            Decimal  @default(0)     @db.Decimal(8, 4)
+  currency             String          @default("USD") @db.VarChar(3)
+  kwh_price            Decimal         @default(0) @db.Decimal(8, 4)
   // Electricity tariff: FIXED uses kwh_price; TOU/DYNAMIC read tariff_config
   // (shape validated by pricing DTOs, see libs/models/src/pricing).
-  tariff_type          TariffType @default(FIXED)
-  tariff_config        Json?      @db.JsonB
-  comfort_min_temp     Decimal? @db.Decimal(4, 1)
-  comfort_max_temp     Decimal? @db.Decimal(4, 1)
-  comfort_min_humidity Decimal? @db.Decimal(4, 1)
-  comfort_max_humidity Decimal? @db.Decimal(4, 1)
-  created_at      DateTime     @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
-  updated_at      DateTime?    @updatedAt @db.Timestamptz(6)
-  last_update     DateTime?    @db.Timestamptz(6)
-  organization_id String
-  organization    Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  devices         Device[]
-  users           UserHome[]
-  rules           Rule[]
-  schedules       Schedule[]
+  tariff_type          TariffType      @default(FIXED)
+  tariff_config        Json?           @db.JsonB
+  comfort_min_temp     Decimal?        @db.Decimal(4, 1)
+  comfort_max_temp     Decimal?        @db.Decimal(4, 1)
+  comfort_min_humidity Decimal?        @db.Decimal(4, 1)
+  comfort_max_humidity Decimal?        @db.Decimal(4, 1)
+  created_at           DateTime        @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at           DateTime?       @updatedAt @db.Timestamptz(6)
+  last_update          DateTime?       @db.Timestamptz(6)
+  organization_id      String
+  organization         Organization    @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  devices              Device[]
+  users                UserHome[]
+  rules                Rule[]
+  schedules            Schedule[]
+  edge_executions      EdgeExecution[]
 
   @@index([name], map: "idx_home_name")
   @@index([unique_id], map: "idx_home_uniqueid")
@@ -119,32 +123,32 @@ model User {
 }
 
 model Device {
-  id               String                  @id(map: "pk_device_id") @default(uuid())
-  unique_id        String                  @db.VarChar(128)
-  name             String                  @db.VarChar(128)
-  model            String?                 @db.VarChar(128)
-  category         String?                 @db.VarChar(128)
-  protocol         String                  @default("zigbee") @db.VarChar(32)
-  description      String?                 @db.VarChar(512)
-  icon             String?                 @db.VarChar(512)
-  attributes       Json?                   @db.JsonB
-  disabled         Boolean?                @default(false)
-  online           Boolean?                @default(true)
-  created_at       DateTime                @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
-  updated_at       DateTime?               @updatedAt @db.Timestamptz(6)
-  organization_id  String
-  x                Float?                  @default(0)
-  y                Float?                  @default(0)
-  show_on_map      Boolean?                @default(false)
-  sensor_data      SensorData[]
-  home_id          String?
-  home             Home?                   @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  conditions       Condition[]
-  results          Result[]
-  schedules        ScheduleAction[]
-  learned_commands DeviceLearnedCommands[]
-  organization     Organization            @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  sensorDataLasts  SensorDataLast[]
+  id                 String                  @id(map: "pk_device_id") @default(uuid())
+  unique_id          String                  @db.VarChar(128)
+  name               String                  @db.VarChar(128)
+  model              String?                 @db.VarChar(128)
+  category           String?                 @db.VarChar(128)
+  protocol           String                  @default("zigbee") @db.VarChar(32)
+  description        String?                 @db.VarChar(512)
+  icon               String?                 @db.VarChar(512)
+  attributes         Json?                   @db.JsonB
+  disabled           Boolean?                @default(false)
+  online             Boolean?                @default(true)
+  created_at         DateTime                @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at         DateTime?               @updatedAt @db.Timestamptz(6)
+  organization_id    String
+  x                  Float?                  @default(0)
+  y                  Float?                  @default(0)
+  show_on_map        Boolean?                @default(false)
+  sensor_data        SensorData[]
+  home_id            String?
+  home               Home?                   @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  conditions         Condition[]
+  results            Result[]
+  schedules          ScheduleAction[]
+  learned_commands   DeviceLearnedCommands[]
+  organization       Organization            @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sensorDataLasts    SensorDataLast[]
   command_executions CommandExecution[]
   rule_executions    RuleExecution[]
   state_events       DeviceStateEvent[]
@@ -253,32 +257,35 @@ model UserHome {
 }
 
 model Rule {
-  id          String      @id(map: "pk_rule_id") @default(uuid())
-  type        RuleType    @default(RECURRENT)
-  name        String      @default("Rule") @db.VarChar(128)
-  description String?     @db.VarChar(512)
-  active      Boolean     @default(false)
-  all         Boolean     @default(true)
-  interval    Int         @default(0)
+  id             String          @id(map: "pk_rule_id") @default(uuid())
+  type           RuleType        @default(RECURRENT)
+  name           String          @default("Rule") @db.VarChar(128)
+  description    String?         @db.VarChar(512)
+  active         Boolean         @default(false)
+  all            Boolean         @default(true)
+  interval       Int             @default(0)
   // Optional "when to execute" gate. When window_active, the rule may only
   // act (fire results) if "now" — in the home's timezone — falls within the
   // allowed days and time-of-day range. window_days empty = every day.
   // window_start/window_end are minute-of-day (0-1439); start > end wraps midnight.
-  window_active  Boolean        @default(false)
+  window_active  Boolean         @default(false)
   window_days    ScheduleDays[]
-  window_all_day Boolean        @default(true)
+  window_all_day Boolean         @default(true)
   window_start   Int?
   window_end     Int?
-  timestamp   DateTime?   @db.Timestamptz(6)
-  created_at  DateTime    @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
-  updated_at  DateTime?   @updatedAt @db.Timestamptz(6)
-  conditions  Condition[]
-  results     Result[]
-  user_id     String
-  user        User        @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  home_id     String
-  home        Home        @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  executions  RuleExecution[]
+  // When true, this rule is included in the offline bundle synced to edge-enabled
+  // homes so it keeps firing (COMMAND results only) without internet.
+  run_offline    Boolean         @default(false)
+  timestamp      DateTime?       @db.Timestamptz(6)
+  created_at     DateTime        @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at     DateTime?       @updatedAt @db.Timestamptz(6)
+  conditions     Condition[]
+  results        Result[]
+  user_id        String
+  user           User            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  home_id        String
+  home           Home            @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  executions     RuleExecution[]
 
   @@index([user_id], map: "idx_rule_user")
   @@index([home_id], map: "idx_rule_home")
@@ -322,20 +329,22 @@ model Result {
 }
 
 model Schedule {
-  id         String                @id(map: "pk_schedule_id") @default(uuid())
-  name       String                @db.VarChar(128)
-  active     Boolean               @default(false)
-  date       DateTime?             @db.Timestamptz(6)
-  frequency  ScheduleFrequency
-  days       ScheduleDays[]
-  channel    NotificationChannel[]
-  actions    ScheduleAction[]
-  created_at DateTime              @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
-  updated_at DateTime?             @updatedAt @db.Timestamptz(6)
-  user_id    String
-  user       User                  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  home_id    String
-  home       Home                  @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id          String                @id(map: "pk_schedule_id") @default(uuid())
+  name        String                @db.VarChar(128)
+  active      Boolean               @default(false)
+  date        DateTime?             @db.Timestamptz(6)
+  frequency   ScheduleFrequency
+  days        ScheduleDays[]
+  // When true, this schedule runs locally on edge-enabled homes (see Rule.run_offline).
+  run_offline Boolean               @default(false)
+  channel     NotificationChannel[]
+  actions     ScheduleAction[]
+  created_at  DateTime              @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at  DateTime?             @updatedAt @db.Timestamptz(6)
+  user_id     String
+  user        User                  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  home_id     String
+  home        Home                  @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([user_id], map: "idx_schedule_user")
   @@index([home_id], map: "idx_schedule_home")
@@ -500,6 +509,30 @@ model RuleExecution {
   @@index([triggered_at], map: "idx_rule_execution_at")
   @@index([device_id], map: "idx_rule_execution_device")
   @@map("rule_executions")
+}
+
+// Staging table for rule/schedule executions that happened locally on an
+// edge-enabled home while (or after) it was offline. The edge uploads batches to
+// POST /api/v1/edge/executions; `dedup_key` = sha256(ruleId+deviceId+attribute+value+minute)
+// makes re-uploads and backfilled-telemetry replays idempotent.
+model EdgeExecution {
+  id             String   @id @default(uuid())
+  home_id        String
+  home           Home     @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  rule_id        String
+  device_id      String?
+  triggered_at   DateTime @db.Timestamptz(6)
+  conditions_met Boolean
+  executed       Boolean
+  results_count  Int      @default(0)
+  source         String   @db.VarChar(20) // 'rule' | 'schedule' | 'watchdog'
+  error          String?  @db.VarChar(1024)
+  dedup_key      String   @db.VarChar(128)
+  uploaded_at    DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([home_id, dedup_key], map: "uq_edge_execution_dedup")
+  @@index([home_id, triggered_at], map: "idx_edge_execution_home_at")
+  @@map("edge_executions")
 }
 
 model CommandExecution {

@@ -10,7 +10,7 @@ import {
   SCHEDULES_JOB_NAME,
   SCHEDULES_QUEUE_NAME,
 } from './schedules-queue.constants';
-import { buildJobTiming } from './cron-from-schedule';
+import { buildJobTiming } from '@app/rules-evaluator';
 
 type ScheduleForExecution = Prisma.ScheduleGetPayload<{
   include: {
@@ -146,7 +146,7 @@ export class SchedulesService implements OnModuleInit {
       where: { id: scheduleId },
       include: {
         actions: true,
-        home: { select: { unique_id: true } },
+        home: { select: { unique_id: true, edge_enabled: true } },
       },
     });
 
@@ -158,6 +158,16 @@ export class SchedulesService implements OnModuleInit {
     if (!schedule.active) {
       this.logger.warn(
         `Schedule ${scheduleId} is inactive, skipping execution`,
+      );
+      return;
+    }
+
+    // Edge-enabled homes run their own run_offline schedules locally (the edge
+    // engine runs 24/7 on the local broker), online or offline. Skip here so the
+    // central never double-fires the same schedule.
+    if (schedule.run_offline && schedule.home?.edge_enabled) {
+      this.logger.log(
+        `Schedule ${scheduleId} run_offline on an edge home; skipping central execution`,
       );
       return;
     }

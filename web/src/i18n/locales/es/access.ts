@@ -16,6 +16,9 @@ export const access: AccessNS = {
     nameRequired: 'Nombre *',
     saveChanges: 'Guardar cambios',
     disabledLabel: 'Deshabilitado',
+    edgeEnabledLabel: 'Edge sin conexión',
+    edgeEnabledHint:
+      'Ejecuta el stack edge local (broker + motor de reglas) para que las reglas y programaciones run_offline sigan funcionando sin internet.',
     optionalDescription: 'Descripción opcional',
   },
 

@@ -114,4 +114,13 @@ export class CreateHomeDto {
   @IsOptional()
   @IsBoolean()
   readonly disabled?: boolean;
+
+  @ApiProperty({
+    description: 'Opt-in: run the offline edge stack (local broker + rules engine)',
+    default: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  readonly edge_enabled?: boolean;
 }

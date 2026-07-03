@@ -134,6 +134,24 @@
       "compilerOptions": {
         "tsConfigPath": "apps/rules-engine/tsconfig.app.json"
       }
+    },
+    "rules-evaluator": {
+      "type": "library",
+      "root": "libs/rules-evaluator",
+      "entryFile": "index",
+      "sourceRoot": "libs/rules-evaluator/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/rules-evaluator/tsconfig.lib.json"
+      }
+    },
+    "edge-bundle": {
+      "type": "library",
+      "root": "libs/edge-bundle",
+      "entryFile": "index",
+      "sourceRoot": "libs/edge-bundle/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/edge-bundle/tsconfig.lib.json"
+      }
     }
   },
   "monorepo": true,

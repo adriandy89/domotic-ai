@@ -40,6 +40,15 @@ export class CreateScheduleDto {
   readonly active: boolean;
 
   @ApiProperty({
+    description: 'Run this schedule locally on edge-enabled homes when offline',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  readonly run_offline?: boolean;
+
+  @ApiProperty({
     description: 'Date/time for ONCE frequency or daily anchor for DAILY/CUSTOM',
     example: '2026-05-04T22:30:00.000Z',
     required: false,

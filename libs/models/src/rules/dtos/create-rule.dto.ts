@@ -118,6 +118,16 @@ export class CreateRuleDto {
   // ── "When to execute" window (optional gate) ──────────────────────────────
 
   @ApiProperty({
+    description:
+      'Run this rule locally on edge-enabled homes when offline (COMMAND results only)',
+    example: false,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  readonly run_offline?: boolean;
+
+  @ApiProperty({
     description: 'Enable the execution-time window gate',
     example: false,
     required: false,

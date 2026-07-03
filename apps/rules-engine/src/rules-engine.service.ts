@@ -10,13 +10,18 @@ import {
   Operation,
   ResultType,
   RuleType,
+  ScheduleDays,
 } from 'generated/prisma/client';
 import {
   RULES_DELAYED_QUEUE_NAME,
   IDelayedRuleJob,
 } from './rules-queue.constants';
-import { isWithinExecutionWindow } from './execution-window';
-import { ScheduleDays } from 'generated/prisma/client';
+import {
+  isWithinExecutionWindow,
+  evaluateCondition as evaluateConditionPure,
+  evaluateRule as evaluateRulePure,
+  buildCommandUnified as buildCommandUnifiedPure,
+} from '@app/rules-evaluator';
 
 // Type matching the select query structure
 type RuleSelected = {
@@ -122,6 +127,10 @@ export class RulesEngineService {
       where: {
         id: { in: ruleIds },
         active: true,
+        // Edge-enabled homes run their own run_offline rules locally (the edge
+        // engine runs 24/7 on the local broker), online or offline. Exclude them
+        // here so the central never double-fires them (incl. on backfilled telemetry).
+        NOT: { run_offline: true, home: { is: { edge_enabled: true } } },
       },
       select: {
         id: true,
@@ -522,18 +531,7 @@ export class RulesEngineService {
     attribute: string | null;
     data: any;
   }): Record<string, any> {
-    const command: Record<string, any> = {};
-
-    if (result.attribute && result.data) {
-      const dataValue = (result.data as { value: any })?.value;
-      if (dataValue !== undefined) {
-        command[result.attribute] = dataValue;
-      }
-    } else if (result.data) {
-      return result.data as Record<string, any>;
-    }
-
-    return command;
+    return buildCommandUnifiedPure(result);
   }
 
   /**
@@ -581,111 +579,38 @@ export class RulesEngineService {
     newData: Record<string, any>,
     prevData?: Record<string, any>,
   ): Promise<boolean> {
-    if (rule.conditions.length === 0) {
-      return true;
-    }
-
-    const currentDeviceConditions = rule.conditions.filter(
-      (c) => c.device_id === currentDeviceId,
-    );
-    // Evaluate current device conditions
-    const currentDeviceResults = currentDeviceConditions.map((condition) => {
-      const attributeValue = newData[condition.attribute];
-      return this.evaluateCondition(condition, attributeValue);
-    });
-
-    if (!rule.all) {
-      return currentDeviceResults.some((result) => result);
-    }
-
-    const allCurrentPass = currentDeviceResults.every((result) => result);
-    if (!allCurrentPass) {
-      return false;
-    }
-
-    // Check other devices if ALL mode
-    const otherDeviceConditions = rule.conditions.filter(
-      (c) => c.device_id !== currentDeviceId,
-    );
-    if (otherDeviceConditions.length === 0) {
-      return true;
-    }
-
+    // Fetch the latest data for any OTHER devices referenced in ALL mode; the pure
+    // evaluator (shared with the edge engine) does the OR/AND semantics.
     const otherDeviceIds = [
-      ...new Set(otherDeviceConditions.map((c) => c.device_id)),
+      ...new Set(
+        rule.conditions
+          .filter((c) => c.device_id !== currentDeviceId)
+          .map((c) => c.device_id),
+      ),
     ];
 
-    const otherDevicesData = await this.dbService.sensorDataLast.findMany({
-      where: { device_id: { in: otherDeviceIds } },
-      select: { device_id: true, data: true },
-    });
-
-    const deviceDataMap = new Map<string, any>();
-    for (const d of otherDevicesData) {
-      deviceDataMap.set(d.device_id, d.data);
-    }
-
-    for (const condition of otherDeviceConditions) {
-      const deviceData = deviceDataMap.get(condition.device_id);
-      if (!deviceData) {
-        this.logger.verbose(
-          `Rule ${rule.id}: No data for device ${condition.device_id}`,
-        );
-        return false;
-      }
-
-      const attributeValue = deviceData[condition.attribute];
-      if (!this.evaluateCondition(condition, attributeValue)) {
-        return false;
+    const deviceDataMap = new Map<string, Record<string, any>>();
+    if (rule.all && otherDeviceIds.length > 0) {
+      const otherDevicesData = await this.dbService.sensorDataLast.findMany({
+        where: { device_id: { in: otherDeviceIds } },
+        select: { device_id: true, data: true },
+      });
+      for (const d of otherDevicesData) {
+        deviceDataMap.set(d.device_id, d.data as Record<string, any>);
       }
     }
 
-    return true;
+    return evaluateRulePure(rule, currentDeviceId, newData, deviceDataMap);
   }
 
   /**
-   * Evaluate single condition
+   * Evaluate single condition (delegates to the shared pure evaluator)
    */
   private evaluateCondition(
     condition: RuleSelected['conditions'][0],
     value: any,
   ): boolean {
-    if (value === undefined || value === null) {
-      return false;
-    }
-
-    let targetValue = (condition.data as { value: any })?.value;
-    if (targetValue === undefined) {
-      this.logger.warn(`Condition ${condition.id} has no target value`);
-      return false;
-    }
-
-    // The UI may persist a numeric target as a string (e.g. "10.6"). When the incoming
-    // value is a number, coerce a numeric-looking target so `=`/`>`/`<` compare number
-    // vs number (strict `===` otherwise never matches: 10.6 === "10.6" is false).
-    if (
-      typeof value === 'number' &&
-      typeof targetValue === 'string' &&
-      targetValue.trim() !== '' &&
-      !Number.isNaN(Number(targetValue))
-    ) {
-      targetValue = Number(targetValue);
-    }
-
-    switch (condition.operation) {
-      case Operation.EQ:
-        return value === targetValue;
-      case Operation.GT:
-        return value > targetValue;
-      case Operation.GTE:
-        return value >= targetValue;
-      case Operation.LT:
-        return value < targetValue;
-      case Operation.LTE:
-        return value <= targetValue;
-      default:
-        return false;
-    }
+    return evaluateConditionPure(condition, value);
   }
 
   /**

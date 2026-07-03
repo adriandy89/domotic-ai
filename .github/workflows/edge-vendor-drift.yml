@@ -1,0 +1,22 @@
+name: edge vendor drift
+
+# Ensures the standalone edge engine's committed src/vendor stays in sync with the
+# monorepo source of truth (libs/rules-evaluator + libs/models/.../protocols).
+on:
+  pull_request:
+    paths:
+      - 'libs/rules-evaluator/**'
+      - 'libs/models/src/device/protocols/**'
+      - 'stack-client/edge/rules-engine/src/vendor/**'
+      - 'stack-client/edge/rules-engine/scripts/**'
+  push:
+    branches: [main]
+
+jobs:
+  vendor-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check vendored code is in sync
+        working-directory: stack-client/edge/rules-engine
+        run: bash scripts/check-vendor-drift.sh

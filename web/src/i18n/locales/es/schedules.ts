@@ -42,6 +42,9 @@ export const schedules: SchedulesNS = {
     home: 'Hogar *',
     selectHome: 'Selecciona un hogar',
     active: 'Activa',
+    runOffline: 'Ejecutar sin conexión',
+    runOfflineHint:
+      'Mantén esta programación funcionando sin internet en hogares con edge.',
     whenToRun: 'Cuándo ejecutar',
     dateTime: 'Fecha y hora *',
     timeAnchor: 'Hora de referencia *',

@@ -1,6 +1,8 @@
 import { Controller, Logger } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices';
+import { EDGE_PATTERNS } from '@app/models';
 import { MqttCoreService, PublishCommandResult } from './mqtt-core.service';
+import { EdgeBundlePublisherService } from './services/edge-bundle-publisher.service';
 
 interface PublishCommandPayload {
   homeUniqueId: string;
@@ -17,7 +19,23 @@ interface PublishCommandPayload {
 export class MqttCoreController {
   private readonly logger = new Logger(MqttCoreController.name);
 
-  constructor(private readonly mqttCoreService: MqttCoreService) {}
+  constructor(
+    private readonly mqttCoreService: MqttCoreService,
+    private readonly edgeBundlePublisher: EdgeBundlePublisherService,
+  ) {}
+
+  @EventPattern(EDGE_PATTERNS.PUBLISH_BUNDLE)
+  async publishEdgeBundle(
+    @Payload() payload: { homeUniqueId: string },
+  ): Promise<void> {
+    try {
+      await this.edgeBundlePublisher.publish(payload.homeUniqueId);
+    } catch (error: any) {
+      this.logger.error(
+        `publishEdgeBundle failed for ${payload?.homeUniqueId}: ${error?.message}`,
+      );
+    }
+  }
 
   @MessagePattern('mqtt-core.publish-command')
   async publishCommand(

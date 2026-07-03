@@ -37,7 +37,11 @@
       "@app/mqtt": ["libs/mqtt/src"],
       "@app/mqtt/*": ["libs/mqtt/src/*"],
       "@app/nats-client": ["libs/nats-client/src"],
-      "@app/nats-client/*": ["libs/nats-client/src/*"]
+      "@app/nats-client/*": ["libs/nats-client/src/*"],
+      "@app/rules-evaluator": ["libs/rules-evaluator/src"],
+      "@app/rules-evaluator/*": ["libs/rules-evaluator/src/*"],
+      "@app/edge-bundle": ["libs/edge-bundle/src"],
+      "@app/edge-bundle/*": ["libs/edge-bundle/src/*"]
     }
   }
 }

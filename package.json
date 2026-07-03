@@ -129,6 +129,8 @@
       "^@app/models(|/.*)$": "<rootDir>/libs/models/src/$1",
       "^@app/mqtt(|/.*)$": "<rootDir>/libs/mqtt/src/$1",
       "^@app/nats-client(|/.*)$": "<rootDir>/libs/nats-client/src/$1",
+      "^@app/rules-evaluator(|/.*)$": "<rootDir>/libs/rules-evaluator/src/$1",
+      "^@app/edge-bundle(|/.*)$": "<rootDir>/libs/edge-bundle/src/$1",
       "^generated/prisma(|/.*)$": "<rootDir>/generated/prisma$1",
       "^(\\.{1,2}/.*)\\.js$": "$1"
     }

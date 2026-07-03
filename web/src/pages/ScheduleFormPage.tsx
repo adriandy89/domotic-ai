@@ -93,6 +93,7 @@ export default function ScheduleFormPage() {
   // Form state
   const [name, setName] = useState('');
   const [active, setActive] = useState(true);
+  const [runOffline, setRunOffline] = useState(false);
   const [frequency, setFrequency] = useState<ScheduleFrequency>('DAILY');
   const [date, setDate] = useState<string>(''); // local input value
   const [days, setDays] = useState<ScheduleDay[]>([]);
@@ -123,6 +124,7 @@ export default function ScheduleFormPage() {
     if (currentSchedule && isEditMode) {
       setName(currentSchedule.name);
       setActive(currentSchedule.active);
+      setRunOffline(!!currentSchedule.run_offline);
       setFrequency(currentSchedule.frequency);
       setDate(toLocalInputValue(currentSchedule.date));
       setDays(currentSchedule.days);
@@ -265,6 +267,7 @@ export default function ScheduleFormPage() {
     const payload: CreateScheduleRequest = {
       name: name.trim(),
       active,
+      run_offline: runOffline,
       date: localInputValueToISO(date),
       frequency,
       days: frequency === 'CUSTOM' ? days : [],
@@ -356,9 +359,17 @@ export default function ScheduleFormPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 pt-2">
-            <Switch checked={active} onCheckedChange={setActive} />
-            <Label>{t('schedules.form.active')}</Label>
+          <div className="flex items-center gap-4 pt-2">
+            <div className="flex items-center gap-2">
+              <Switch checked={active} onCheckedChange={setActive} />
+              <Label>{t('schedules.form.active')}</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={runOffline} onCheckedChange={setRunOffline} />
+              <Label title={t('schedules.form.runOfflineHint')}>
+                {t('schedules.form.runOffline')}
+              </Label>
+            </div>
           </div>
         </CardContent>
       </Card>

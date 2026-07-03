@@ -40,6 +40,9 @@ export const schedules = {
     home: 'Home *',
     selectHome: 'Select home',
     active: 'Active',
+    runOffline: 'Run offline',
+    runOfflineHint:
+      'Keep this schedule working without internet on edge-enabled homes.',
     whenToRun: 'When to run',
     dateTime: 'Date and time *',
     timeAnchor: 'Time anchor *',

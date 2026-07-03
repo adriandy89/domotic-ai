@@ -16,11 +16,14 @@ import {
   WATCHDOG_QUEUE_NAME,
   WATCHDOG_SCHEDULER_ID,
 } from './watchdog-queue.constants';
-import { isWithinExecutionWindow } from '../execution-window';
-
-// Values that count as "active" for a presence/contact-style attribute when
-// stored as a string in device_state_events.
-const ACTIVE_VALUES = new Set(['true', 'on', '1', 'detected', 'open']);
+import {
+  isWithinExecutionWindow,
+  isStale,
+  isInactive,
+  isFresh,
+  isActiveValue,
+  parseForSeconds,
+} from '@app/rules-evaluator';
 
 type WatchdogRule = {
   id: string;
@@ -122,6 +125,9 @@ export class WatchdogService implements OnModuleInit {
         conditions: {
           some: { operation: { in: [Operation.INACTIVE, Operation.STALE] } },
         },
+        // Edge-enabled homes run their own local watchdog; silence the central
+        // one for them to avoid duplicate/contradictory absence alerts.
+        home: { edge_enabled: false },
       },
       select: {
         id: true,
@@ -302,8 +308,8 @@ export class WatchdogService implements OnModuleInit {
     condition: WatchdogRule['conditions'][number],
     lastAlertAt: Date | null,
   ): Promise<{ met: boolean; fresh: boolean; reason: string }> {
-    const forSeconds = Number(condition.data?.forSeconds);
-    if (!Number.isFinite(forSeconds) || forSeconds <= 0) {
+    const forSeconds = parseForSeconds(condition.data);
+    if (forSeconds === null) {
       this.logger.warn(
         `Condition ${condition.id} has no valid data.forSeconds; skipping`,
       );
@@ -311,6 +317,7 @@ export class WatchdogService implements OnModuleInit {
     }
     const now = Date.now();
     const thresholdMs = forSeconds * 1000;
+    const lastAlertMs = lastAlertAt ? lastAlertAt.getTime() : null;
 
     if (condition.operation === Operation.STALE) {
       const last = await this.dbService.sensorDataLast.findUnique({
@@ -319,17 +326,17 @@ export class WatchdogService implements OnModuleInit {
       });
       // No data ever → measure silence from when the rule was created.
       const lastReport = last?.timestamp ?? rule.created_at;
-      const met = now - lastReport.getTime() > thresholdMs;
+      const met = isStale(now, lastReport.getTime(), thresholdMs);
       // Re-arm only once the device reports again after our last alert.
-      const fresh = !lastAlertAt || lastReport > lastAlertAt;
+      const fresh = isFresh(lastAlertMs, lastReport.getTime());
       return { met, fresh, reason: 'stale' };
     }
 
     // INACTIVE: attribute hasn't reached its active value for `forSeconds`.
     const lastActive = await this.lastActiveAt(rule, condition);
-    const met = now - lastActive.getTime() > thresholdMs;
+    const met = isInactive(now, lastActive.getTime(), thresholdMs);
     // Re-arm once activity resumes after the last alert.
-    const fresh = !lastAlertAt || lastActive > lastAlertAt;
+    const fresh = isFresh(lastAlertMs, lastActive.getTime());
     return { met, fresh, reason: 'inactive' };
   }
 
@@ -383,14 +390,7 @@ export class WatchdogService implements OnModuleInit {
     value: unknown,
     condition: WatchdogRule['conditions'][number],
   ): boolean {
-    const v = String(value).toLowerCase();
-    const target = condition.data?.value;
-    if (target !== undefined && target !== null && target !== '') {
-      // Match the configured target, but also accept the canonical "active"
-      // tokens so a sensor reporting "ON" still counts when the target is `true`.
-      if (v === String(target).toLowerCase()) return true;
-    }
-    return ACTIVE_VALUES.has(v);
+    return isActiveValue(value, condition.data?.value);
   }
 
   private async lastAlertAt(ruleId: string): Promise<Date | null> {

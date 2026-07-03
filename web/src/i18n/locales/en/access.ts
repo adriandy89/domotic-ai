@@ -16,6 +16,9 @@ export const access = {
     nameRequired: 'Name *',
     saveChanges: 'Save Changes',
     disabledLabel: 'Disabled',
+    edgeEnabledLabel: 'Offline edge',
+    edgeEnabledHint:
+      'Run the local edge stack (broker + rules engine) so run_offline rules and schedules keep working without internet.',
     optionalDescription: 'Optional description',
   },
 
