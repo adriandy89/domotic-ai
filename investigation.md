@@ -242,14 +242,26 @@ allow_anonymous false
 password_file /mosquitto/config/passwords
 listener 1883
 
-# ── Bridge bidireccional store-and-forward a TBMQ central ────────
+# ── Bridge store-and-forward a TBMQ central (MQTT 3.1.1 por defecto) ─
 connection central-bridge
 address your-tbmq-server.com:1883
 remote_username HOME_UNIQUE_ID
 remote_password HOME_MQTT_PASSWORD
 remote_clientid HOME_UNIQUE_ID-bridge
-# Mismos topics que zigbee2mqtt usaba directo: telemetría sube, comandos bajan
-topic home/id/HOME_UNIQUE_ID/# both 1
+# Mapa DIRECCIONAL: in-set y out-set no se solapan, así el /set que el edge
+# ejecuta localmente nunca sube y no puede rebotar desde TBMQ y reejecutarse.
+# NO usar bridge_protocol_version mqttv50: TBMQ 2.2.0 no respeta el flag
+# no-local del SUBSCRIBE del bridge y la BAJADA deja de entregar (comandos +
+# bundle de reglas). En 3.1.1 la bajada funciona y el mapa previene el eco.
+# DOWN (in): comandos + bundle de reglas retenido
+topic home/id/HOME_UNIQUE_ID/+/+/set in 1
+topic home/id/HOME_UNIQUE_ID/edge/rules in 1
+# UP (out): solo telemetría (nunca /set)
+topic home/id/HOME_UNIQUE_ID/+/+ out 1
+topic home/id/HOME_UNIQUE_ID/+/+/state out 1
+topic home/id/HOME_UNIQUE_ID/+/bridge/# out 1
+topic home/id/HOME_UNIQUE_ID/+/+/availability out 1
+topic home/id/HOME_UNIQUE_ID/discovery/# out 1
 # Persistencia del bridge: encola mientras no hay internet
 try_private false
 start_type automatic
@@ -257,8 +269,6 @@ restart_timeout 5 30
 cleansession false
 max_queued_messages 100000
 max_inflight_messages 0
-# QoS de la cola
-bridge_qos 1
 local_cleansession false
 ```
 
