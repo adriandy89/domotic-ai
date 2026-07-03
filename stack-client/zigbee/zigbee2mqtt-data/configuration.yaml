@@ -23,8 +23,8 @@ advanced:
   network_key: GENERATE
   channel: 20
   last_seen: epoch
+  log_level: info
 homeassistant:
   enabled: false
 device_options: {}
 devices:
-
