@@ -1,0 +1,20 @@
+# Opt-in override for homes with the edge stack (../edge). Joins zigbee2mqtt to
+# the `edge` docker network so it can resolve the local `mosquitto` broker by name.
+#
+# Enable (edge homes only — the `edge` network must already exist, so bring
+# ../edge up first):
+#   cp docker-compose.edge.yml docker-compose.override.yml
+#   docker compose up -d --force-recreate
+#
+# Disable (back to direct TBMQ): delete docker-compose.override.yml, revert the
+# `mqtt.server` in zigbee2mqtt-data/configuration.yaml, and recreate.
+
+services:
+  zigbee2mqtt:
+    networks:
+      - default
+      - edge
+
+networks:
+  edge:
+    external: true

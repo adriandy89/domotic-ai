@@ -34,11 +34,22 @@ talks to TBMQ from the home changes (the bridge instead of zigbee2mqtt directly)
 1. **Credentials + config.** Copy `.env.example` → `.env` and fill the per-home values
    from the dashboard (Integrations → Edge).
 
-2. **Local broker password.** Create the mosquitto password file for the engine's local
-   client:
+2. **Local broker passwords.** Create the mosquitto password file with the engine's
+   local client, then **add** every client that will publish locally — at minimum
+   zigbee2mqtt's user (the home `unique_id`, with the same password it already used
+   against TBMQ). Do this **before** `docker compose up`: the compose bind-mounts
+   `./mosquitto/passwords`, and if it doesn't exist docker creates a *directory* in its
+   place and mosquitto crash-loops with `Error: Unable to open pwfile`.
    ```bash
+   # engine user — -c CREATES the file (and overwrites it if it exists!)
    docker run --rm -it -v "$PWD/mosquitto:/m" eclipse-mosquitto:2-openssl \
      mosquitto_passwd -c /m/passwords "$EDGE_MQTT_USER"
+   # zigbee2mqtt user — no -c, APPENDS to the file
+   docker run --rm -it -v "$PWD/mosquitto:/m" eclipse-mosquitto:2-openssl \
+     mosquitto_passwd /m/passwords "$HOME_UNIQUE_ID"
+
+    # Important:
+    chmod 644 mosquitto/passwords
    ```
 
 3. **Bridge credentials.** In `mosquitto/mosquitto.conf`, replace `HOME_UNIQUE_ID`,
@@ -51,13 +62,24 @@ talks to TBMQ from the home changes (the bridge instead of zigbee2mqtt directly)
    mqtt:
      server: mqtt://mosquitto:1883   # was: mqtt://your-tbmq-server.com:1883
    ```
-   Keep the same `user`/`password`/`client_id`/`base_topic`. Put zigbee2mqtt on the
-   `edge` docker network (or run both stacks so they share it). This is **reversible**:
-   point `server` back at TBMQ to disable the edge path.
+   Keep the same `user`/`password`/`client_id`/`base_topic`, and make sure that user is
+   in the local password file (step 2) — mosquitto has `allow_anonymous false`.
 
-5. **Start it.**
+   The container name `mosquitto` only resolves if both containers share a docker
+   network, so join zigbee2mqtt to the `edge` network with the override shipped in the
+   zigbee stack:
+   ```bash
+   cd ../zigbee
+   cp docker-compose.edge.yml docker-compose.override.yml
+   ```
+   This is **reversible**: delete `docker-compose.override.yml`, point `server` back at
+   TBMQ and recreate to disable the edge path.
+
+5. **Start it** — the edge stack **first** (it creates the `edge` network the override
+   declares as external), then recreate zigbee2mqtt:
    ```bash
    docker compose up -d
+   cd ../zigbee && docker compose up -d --force-recreate
    ```
 
 ## What works offline
@@ -77,3 +99,18 @@ talks to TBMQ from the home changes (the bridge instead of zigbee2mqtt directly)
 - **TBMQ persistent session** must be enabled for client id `{unique_id}-bridge`, or the
   store-and-forward queue is lost on reconnect.
 - **Clock:** local schedules depend on the device clock — run NTP/chrony on the host.
+
+
+EXAMPLE:
+
+cd stack-client/edge
+docker compose down
+rmdir mosquitto/passwords        # el directorio fantasma que creó Docker
+docker run --rm -it -v "$PWD/mosquitto:/m" eclipse-mosquitto:2-openssl \
+  mosquitto_passwd -c /m/passwords edge-rules
+docker run --rm -it -v "$PWD/mosquitto:/m" eclipse-mosquitto:2-openssl \
+  mosquitto_passwd /m/passwords home_id_here_as_user   # password de TBMQ
+# pon la password de edge-rules en EDGE_MQTT_PASS del .env (sigue en placeholder)
+
+chmod 644 mosquitto/passwords
+docker compose up -d
