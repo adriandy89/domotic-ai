@@ -245,12 +245,23 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
         ...(formData.timezone ? { timezone: formData.timezone } : {}),
       });
       setShowAddModal(false);
-      setFormData({ name: '', description: '', disabled: false, edge_enabled: false, latitude: null, longitude: null, address: null, timezone: null });
+      setFormData({
+        name: '',
+        description: '',
+        disabled: false,
+        edge_enabled: false,
+        latitude: null,
+        longitude: null,
+        address: null,
+        timezone: null,
+      });
       fetchHomes();
       onDataChange?.();
     } catch (error: any) {
       console.error('Failed to add home:', error);
-      setModalError(error.response?.data?.message || t('access.homes.addError'));
+      setModalError(
+        error.response?.data?.message || t('access.homes.addError'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -273,7 +284,16 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       });
       setShowEditModal(false);
       setEditTarget(null);
-      setFormData({ name: '', description: '', disabled: false, edge_enabled: false, latitude: null, longitude: null, address: null, timezone: null });
+      setFormData({
+        name: '',
+        description: '',
+        disabled: false,
+        edge_enabled: false,
+        latitude: null,
+        longitude: null,
+        address: null,
+        timezone: null,
+      });
       fetchHomes();
       onDataChange?.();
     } catch (error: any) {
@@ -323,6 +343,7 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
       longitude: null,
       address: null,
       timezone: null,
+      edge_enabled: false,
     });
     setModalError(null);
     setShowAddModal(true);
@@ -376,7 +397,9 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
           />
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium">{t('common.description')}</label>
+          <label className="text-sm font-medium">
+            {t('common.description')}
+          </label>
           <Input
             placeholder={t('access.form.optionalDescription')}
             value={formData.description}
@@ -395,7 +418,10 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
             }
             className="h-4 w-4 rounded border-border"
           />
-          <label htmlFor={`disabled_${idSuffix}`} className="text-sm font-medium">
+          <label
+            htmlFor={`disabled_${idSuffix}`}
+            className="text-sm font-medium"
+          >
             {t('access.form.disabledLabel')}
           </label>
         </div>
@@ -698,7 +724,9 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                         <Badge
                           variant={home.disabled ? 'destructive' : 'success'}
                         >
-                          {home.disabled ? t('common.disabled') : t('common.enabled')}
+                          {home.disabled
+                            ? t('common.disabled')
+                            : t('common.enabled')}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
@@ -750,7 +778,8 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
                                   {t('common.description')}
                                 </span>
                                 <p className="font-medium">
-                                  {home.description || t('common.noDescription')}
+                                  {home.description ||
+                                    t('common.noDescription')}
                                 </p>
                               </div>
                               <div>
@@ -1426,7 +1455,10 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
 
       {/* Add Home Modal */}
       <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-        <DialogContent onClose={() => setShowAddModal(false)} className="sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          onClose={() => setShowAddModal(false)}
+          className="sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+        >
           <DialogHeader>
             <DialogTitle>{t('access.homes.addTitle')}</DialogTitle>
             <DialogDescription>{t('access.homes.addDesc')}</DialogDescription>
@@ -1458,7 +1490,10 @@ export default function HomesTable({ onDataChange }: HomesTableProps) {
 
       {/* Edit Home Modal */}
       <Dialog open={showEditModal} onOpenChange={setShowEditModal}>
-        <DialogContent onClose={() => setShowEditModal(false)} className="sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          onClose={() => setShowEditModal(false)}
+          className="sm:max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+        >
           <DialogHeader>
             <DialogTitle>{t('access.homes.editTitle')}</DialogTitle>
             <DialogDescription>{t('access.homes.editDesc')}</DialogDescription>
