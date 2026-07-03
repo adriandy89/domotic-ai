@@ -98,11 +98,15 @@ talks to TBMQ from the home changes (the bridge instead of zigbee2mqtt directly)
 
 - **TBMQ persistent session** must be enabled for client id `{unique_id}-bridge`, or the
   store-and-forward queue is lost on reconnect.
-- **The bridge must speak MQTT v5** (`bridge_protocol_version mqttv50`, already in the
-  shipped `mosquitto.conf`). It subscribes to the same topic tree it publishes into, and
-  v5's *no-local* flag is what stops TBMQ echoing our own messages back. Without it, the
-  offline backlog (including executed rule `/set` commands) bounces back on reconnect
-  and **re-executes every rule action from the outage**.
+- **Do NOT set `bridge_protocol_version mqttv50`.** TBMQ 2.2.0 does not honour a bridge
+  SUBSCRIBE that carries the MQTT v5 *no-local* option: with v5 the **downlink silently
+  stops** (commands from the dashboard and the retained rules bundle never reach the
+  home) while the uplink telemetry keeps working. Stay on mosquitto's 3.1.1 default.
+- **Echo/loop is prevented by the directional `topic` map, not by no-local.** The bridge
+  subscribes on TBMQ only to `.../+/+/set` and `.../edge/rules` (the DOWN traffic) and
+  publishes UP only telemetry (never `/set`). in-set and out-set don't overlap, so a
+  command the edge engine runs locally is never shipped up and can't bounce back and
+  re-execute. See the comments in `mosquitto/mosquitto.conf`.
 - **Passwords file permissions:** `mosquitto_passwd` run via `docker run` leaves the file
   owned by root; the in-container `chown` fails on the `:ro` mount, so make it readable
   (`chmod 644 mosquitto/passwords`) or mosquitto dies with `Unable to open pwfile`.

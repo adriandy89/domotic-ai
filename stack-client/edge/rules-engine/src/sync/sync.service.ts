@@ -34,10 +34,13 @@ export class SyncService implements OnModuleInit {
     });
     this.mqtt.subscribe(this.config.rulesSyncTopic);
 
-    // If we have no bundle yet, try an initial HTTP pull (bridge/internet permitting).
-    if (this.store.version === 0) {
-      void this.pull();
-    }
+    // Always reconcile with central at boot (best-effort, internet permitting).
+    // The retained bundle is NOT guaranteed to survive the MQTT 3.1.1 bridge —
+    // mosquitto does not preserve the retain flag on bridged-down messages, so a
+    // restart would otherwise keep running the last SQLite-cached bundle and miss
+    // any change made while this engine was down, until the next central publish.
+    // `apply()` ignores a bundle that isn't newer, so pulling unconditionally is safe.
+    void this.pull();
   }
 
   private onRetained(payload: Buffer): void {
