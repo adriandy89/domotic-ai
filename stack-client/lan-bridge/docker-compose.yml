@@ -5,7 +5,12 @@ name: lan-bridge
 # stack that runs mosquitto on port 1883).
 #
 # Host networking is REQUIRED: SSDP discovery (multicast 239.255.255.250) and
-# Wake-on-LAN (broadcast) don't cross Docker's bridge network.
+# Wake-on-LAN (broadcast) don't cross Docker's bridge network. Docker does NOT
+# allow combining network_mode: host with other networks (e.g. the external
+# "zigbee" network) — and it isn't needed: in host mode the bridge reaches
+# mosquitto through the port the edge stack publishes on the host
+# (mqtt://127.0.0.1:1883). Docker-network hostnames like "mosquitto" do NOT
+# resolve in host mode.
 #
 # Fill the per-home values in ./.env (copy from ./.env.example).
 
