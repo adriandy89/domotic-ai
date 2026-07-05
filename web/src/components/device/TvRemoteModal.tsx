@@ -89,7 +89,7 @@ export default function TvRemoteModal({
             <div className="flex justify-center">
               <button
                 onClick={() => onChange(power.property, isOn ? powerOff : powerOn)}
-                title={isOn ? powerOff : powerOn}
+                title={String(isOn ? powerOff : powerOn)}
                 className={cn(
                   'h-16 w-16 rounded-full border-2 flex items-center justify-center transition-all',
                   isOn
