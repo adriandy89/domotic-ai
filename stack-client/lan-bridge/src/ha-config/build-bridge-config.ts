@@ -39,6 +39,16 @@ export function buildBridgeConfig(
         stat_t: '~/state',
         val_tpl: '{{value_json.discovered}}',
       },
+      // Android TV pairing: the TV shows a 6-char code on screen; the user
+      // types it here (settable text → editable input on the card).
+      pairing_code: {
+        p: 'text',
+        name: 'Pairing code',
+        uniq_id: `${bridgeId}_pairing_code`,
+        stat_t: '~/state',
+        val_tpl: '{{value_json.pairing_code}}',
+        cmd_t: '~/set/pairing_code',
+      },
     },
   };
 }

@@ -1,4 +1,5 @@
 import { DeviceDefinition, DeviceDriver, DriverHost } from '../types';
+import { AndroidTvDriver } from './androidtv/androidtv.driver';
 import { WebosDriver } from './webos/webos.driver';
 
 export function createDriver(
@@ -9,6 +10,8 @@ export function createDriver(
   switch (def.type) {
     case 'webos':
       return new WebosDriver(def, host, dataDir);
+    case 'androidtv':
+      return new AndroidTvDriver(def, host, dataDir);
     default:
       throw new Error(`Unknown driver type: ${def.type as string}`);
   }

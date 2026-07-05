@@ -177,6 +177,11 @@ function haComponentToExpose(
       if (objectId === 'schedule') {
         return { ...base, type: 'schedule', access: FeatureAccessMode.STATE };
       }
+      // Free-text input when the component declares a command topic (e.g. the
+      // lan-bridge pairing code); read-only value display otherwise.
+      if (cp.command_topic !== undefined) {
+        return { ...base, type: 'text' };
+      }
       return { ...base, type: 'value', access: FeatureAccessMode.STATE };
     case 'sensor':
     default:

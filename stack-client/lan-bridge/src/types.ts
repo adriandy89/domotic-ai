@@ -1,5 +1,5 @@
 /** Driver types the bridge knows how to instantiate. */
-export type DriverType = 'webos';
+export type DriverType = 'webos' | 'androidtv';
 
 /** One LAN device the bridge manages, as declared in DEVICES / DEVICES_FILE. */
 export interface DeviceDefinition {

@@ -2,6 +2,11 @@ import { EventEmitter } from 'events';
 import { BridgeConfig } from '../config';
 import { PairingService, PairingEvents } from './pairing.service';
 
+jest.mock('../drivers/androidtv/cert-store', () => ({
+  loadCert: jest.fn(),
+  saveCert: jest.fn(),
+}));
+
 jest.useFakeTimers();
 
 const config: BridgeConfig = {
@@ -31,6 +36,7 @@ function makeService(candidates: Array<{ ip: string; usn?: string; location?: st
   service.bind(events);
 
   (service as any).scanFn = jest.fn().mockResolvedValue(candidates);
+  (service as any).mdnsFn = jest.fn().mockResolvedValue([]);
   (service as any).nameFn = jest.fn().mockResolvedValue('Salón TV');
   (service as any).macFn = jest.fn().mockResolvedValue('AA:BB:CC:DD:EE:FF');
   (service as any).connectFn = jest.fn((opts: { url: string }) => {
@@ -103,6 +109,61 @@ describe('PairingService', () => {
     const lastCall = (events.onStateChange as jest.Mock).mock.calls.at(-1)![0];
     expect(lastCall.pairing).toBe('OFF');
     expect(lastCall.discovered).toContain('not paired');
+  });
+
+  it('pairs an Android TV once the user submits the on-screen code', async () => {
+    const { service, events } = makeService([]);
+    class FakeAndroidRemote extends EventEmitter {
+      started = false;
+      sentCode?: string;
+      stopped = false;
+      start = jest.fn(async () => {
+        this.started = true;
+        return true;
+      });
+      sendCode(code: string) {
+        this.sentCode = code;
+        this.emit('ready');
+        return true;
+      }
+      getCertificate() {
+        return { key: 'K', cert: 'C' };
+      }
+      stop() {
+        this.stopped = true;
+      }
+    }
+    const androidRemote = new FakeAndroidRemote();
+    (service as any).mdnsFn = jest
+      .fn()
+      .mockResolvedValue([{ ip: '192.168.1.60', name: 'Salón Google TV', port: 6466 }]);
+    (service as any).androidFn = jest.fn().mockReturnValue(androidRemote);
+
+    service.setPairing(true);
+    await jest.advanceTimersByTimeAsync(10);
+    expect(androidRemote.started).toBe(true);
+
+    // The TV shows its code…
+    androidRemote.emit('secret');
+    await jest.advanceTimersByTimeAsync(10);
+    const secretState = (events.onStateChange as jest.Mock).mock.calls.at(-1)![0];
+    expect(secretState.discovered).toContain('Pairing code');
+
+    // …and the user types it on the card.
+    service.submitCode(' 1a2b3c ');
+    await jest.advanceTimersByTimeAsync(10);
+
+    expect(androidRemote.sentCode).toBe('1A2B3C');
+    expect(events.onPaired).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'androidtv',
+        id: 'androidtv_192_168_1_60',
+        name: 'Salón Google TV',
+        ip: '192.168.1.60',
+        mac: 'AA:BB:CC:DD:EE:FF',
+      }),
+    );
+    expect(androidRemote.stopped).toBe(true);
   });
 
   it('setPairing(false) closes the window early', async () => {

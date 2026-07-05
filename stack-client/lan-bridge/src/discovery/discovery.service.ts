@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { BRIDGE_CONFIG, BridgeConfig } from '../config';
 import { DeviceStoreService } from '../store/device-store.service';
+import { ANDROIDTV_MDNS_TYPE, mdnsSearch } from './mdns';
 import { ssdpSearch, WEBOS_ST } from './ssdp';
 
 const SCAN_WINDOW_MS = 5000;
@@ -42,14 +43,28 @@ export class DiscoveryService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async scan(): Promise<void> {
-    const candidates = await ssdpSearch(WEBOS_ST, SCAN_WINDOW_MS);
-    for (const c of candidates) {
-      if (this.deviceStore.hasIp(c.ip) || this.announced.has(c.ip)) continue;
-      this.announced.add(c.ip);
-      this.logger.log(
-        `LG webOS TV discovered at ${c.ip} — not paired yet. ` +
-          'Turn ON "Pairing mode" on the LAN Bridge card (or send {"pairing":"ON"}) and accept the prompt on the TV.',
+    const [webos, android] = await Promise.all([
+      ssdpSearch(WEBOS_ST, SCAN_WINDOW_MS),
+      mdnsSearch(ANDROIDTV_MDNS_TYPE, SCAN_WINDOW_MS),
+    ]);
+    for (const c of webos) {
+      this.report('LG webOS TV', c.ip, 'accept the prompt on the TV');
+    }
+    for (const c of android) {
+      this.report(
+        `Android TV "${c.name}"`,
+        c.ip,
+        'type the on-screen code in "Pairing code"',
       );
     }
+  }
+
+  private report(kind: string, ip: string, how: string): void {
+    if (this.deviceStore.hasIp(ip) || this.announced.has(ip)) return;
+    this.announced.add(ip);
+    this.logger.log(
+      `${kind} discovered at ${ip} — not paired yet. ` +
+        `Turn ON "Pairing mode" on the LAN Bridge card and ${how}.`,
+    );
   }
 }

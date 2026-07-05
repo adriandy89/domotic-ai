@@ -75,6 +75,16 @@ export function buildTvConfig(
       cmd_t: '~/set/app',
       ops: caps.apps,
     };
+  } else if (def.type === 'androidtv') {
+    // The Remote v2 protocol reports the foreground app but can't enumerate
+    // launchable apps — expose it read-only.
+    cmps.app = {
+      p: 'sensor',
+      name: 'App',
+      uniq_id: `${def.id}_app`,
+      stat_t: '~/state',
+      val_tpl: '{{value_json.app}}',
+    };
   }
 
   return {

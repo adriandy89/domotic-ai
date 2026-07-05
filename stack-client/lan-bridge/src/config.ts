@@ -15,7 +15,10 @@ export interface BridgeConfig {
   discoveryEnabled: boolean;
 }
 
-const DRIVER_TYPES: ReadonlySet<string> = new Set<DriverType>(['webos']);
+const DRIVER_TYPES: ReadonlySet<string> = new Set<DriverType>([
+  'webos',
+  'androidtv',
+]);
 
 function required(name: string): string {
   const v = process.env[name];

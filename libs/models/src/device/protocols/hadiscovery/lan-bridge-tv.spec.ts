@@ -186,6 +186,14 @@ describe("lan-bridge's own device (pairing switch) through the adapter", () => {
         stat_t: '~/state',
         val_tpl: '{{value_json.discovered}}',
       },
+      pairing_code: {
+        p: 'text',
+        name: 'Pairing code',
+        uniq_id: 'lanbridge_home-uui_pairing_code',
+        stat_t: '~/state',
+        val_tpl: '{{value_json.pairing_code}}',
+        cmd_t: '~/set/pairing_code',
+      },
     },
   };
 
@@ -194,21 +202,25 @@ describe("lan-bridge's own device (pairing switch) through the adapter", () => {
     payload: bridgeConfig,
   })!;
 
-  it('registers as wifi with a single settable pairing action', () => {
+  it('registers as wifi with pairing switch + pairing_code text actions', () => {
     expect(discovered.protocol).toBe(DeviceProtocol.WIFI);
     const actions = adapter.getAvailableActions(discovered.attributes);
-    expect(actions).toHaveLength(1);
-    expect(actions[0]).toMatchObject({
-      property: 'pairing',
+    const byProp = Object.fromEntries(actions.map((a) => [a.property, a]));
+    expect(actions).toHaveLength(2);
+    expect(byProp.pairing).toMatchObject({
       type: 'binary',
       valueOn: 'ON',
       valueOff: 'OFF',
     });
+    expect(byProp.pairing_code).toMatchObject({ type: 'text' });
   });
 
-  it('routes {pairing:"ON"} to the set topic the bridge subscribes', () => {
+  it('routes pairing + pairing_code commands to their set topics', () => {
     const actions = adapter.getAvailableActions(discovered.attributes);
     expect(adapter.validateCommand({ pairing: 'ON' }, actions).valid).toBe(true);
+    expect(
+      adapter.validateCommand({ pairing_code: '1A2B3C' }, actions).valid,
+    ).toBe(true);
     const messages = adapter.buildCommandMessages(
       {
         homeUniqueId: HOME,
@@ -216,10 +228,15 @@ describe("lan-bridge's own device (pairing switch) through the adapter", () => {
         protocol: DeviceProtocol.WIFI,
         attributes: discovered.attributes,
       },
-      { pairing: 'ON' },
+      { pairing: 'ON', pairing_code: '1A2B3C' },
     );
-    expect(messages).toEqual([
-      { topic: `${bridgeBase}/set/pairing`, payload: 'ON' },
-    ]);
+    expect(messages).toContainEqual({
+      topic: `${bridgeBase}/set/pairing`,
+      payload: 'ON',
+    });
+    expect(messages).toContainEqual({
+      topic: `${bridgeBase}/set/pairing_code`,
+      payload: '1A2B3C',
+    });
   });
 });

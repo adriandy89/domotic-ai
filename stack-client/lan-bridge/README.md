@@ -45,9 +45,16 @@ logs unpaired TVs every 10 min (`DISCOVERY_ENABLED`).
 - **webos** (LG TVs): persistent websocket on port 3000 via `lgtv2`. The
   pairing client key is persisted in `DATA_DIR`. Power-on uses Wake-on-LAN
   (`mac`, auto-detected when pairing — enable "LG Connect Apps" /
-  "Mobile TV On" on the TV).
+  "Mobile TV On" on the TV). Pairing = accept the prompt on the TV.
+- **androidtv** (Android/Google TV): Remote v2 protocol (TLS 6466/6467) via
+  `androidtv-remote`, discovered over mDNS (`_androidtvremote2._tcp`). Pairing =
+  the TV shows a 6-char code; type it in the **Pairing code** field of the
+  LAN Bridge card. The trusted client certificate is persisted in `DATA_DIR`.
+  Controls: power, volume 0-100 (paced key steps — the protocol has no absolute
+  set), mute; the foreground app is exposed read-only. Power works from standby
+  (the remote service stays up), no Wake-on-LAN needed.
 
-Planned: `tizen` (Samsung), `androidtv` (Google TV), `broadlink` (IR).
+Planned: `tizen` (Samsung), `broadlink` (IR).
 
 ## Configuration (env)
 

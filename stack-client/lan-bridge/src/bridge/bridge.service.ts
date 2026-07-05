@@ -67,6 +67,7 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
     for (const def of this.deviceStore.load()) this.attachDevice(def);
     this.publishState(this.bridgeId, {
       pairing: 'OFF',
+      pairing_code: '',
       devices: this.drivers.size,
     });
   }
@@ -179,6 +180,8 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
     if (deviceId === this.bridgeId) {
       if (property === 'pairing') {
         this.pairing.setPairing(value.toUpperCase() === 'ON');
+      } else if (property === 'pairing_code') {
+        this.pairing.submitCode(value);
       }
       return;
     }

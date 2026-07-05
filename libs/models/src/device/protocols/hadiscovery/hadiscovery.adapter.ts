@@ -153,6 +153,18 @@ export class HaDiscoveryAdapter implements ProtocolAdapter {
           valueOn: entity.payloadOn ?? 'LOCK',
           valueOff: entity.payloadOff ?? 'UNLOCK',
         });
+      } else if (
+        entity.component === 'text' &&
+        entity.property !== 'schedule'
+      ) {
+        // Free-text input (e.g. the lan-bridge pairing code). `schedule` keeps
+        // its dedicated wrapped-payload handling below. Validation passes any
+        // value (validate-command's default case), matching zigbee text exposes.
+        actions.push({
+          property: entity.property,
+          type: 'text',
+          label: entity.name,
+        });
       }
     }
 
