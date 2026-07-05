@@ -20,8 +20,13 @@ import { makeDedupKey } from '../util/dedup';
 @Injectable()
 export class EngineService {
   private readonly logger = new Logger(EngineService.name);
-  /** Rules with a pending delayed (interval) fire, to avoid stacking timers. */
-  private readonly pending = new Set<string>();
+  /**
+   * Pending delayed (interval) fires, keyed by rule id. Mirrors the central
+   * engine's `rule:{id}:pending-job` contract: one timer per rule (no stacking
+   * while conditions keep matching), CANCELLED as soon as an event makes the
+   * rule evaluate false, so the countdown restarts from zero on the next match.
+   */
+  private readonly pending = new Map<string, NodeJS.Timeout>();
 
   constructor(
     private readonly store: RulesStoreService,
@@ -70,19 +75,48 @@ export class EngineService {
       return;
     }
 
-    if (!evaluateRule(rule, currentDeviceId, data, otherData)) return;
+    if (!evaluateRule(rule, currentDeviceId, data, otherData)) {
+      // Conditions broke: a pending delayed fire is no longer valid (e.g.
+      // presence returned during the "off after 1 min" countdown). Cancel it —
+      // the next matching event arms a fresh timer with the full delay.
+      const timer = this.pending.get(rule.id);
+      if (timer) {
+        clearTimeout(timer);
+        this.pending.delete(rule.id);
+        this.logger.log(
+          `Rule ${rule.id}: conditions no longer met — pending delayed execution cancelled`,
+        );
+      }
+      return;
+    }
 
     const delayMs = Math.max(0, (rule.interval ?? 0) * 1000);
     if (delayMs === 0) {
       this.fire(rule, currentDeviceId);
     } else if (!this.pending.has(rule.id)) {
-      // Don't stack timers while the conditions keep matching during the delay.
-      this.pending.add(rule.id);
-      setTimeout(() => {
+      // Don't stack timers while the conditions keep matching during the delay
+      // (like central, the original fire time stands until met/cancelled).
+      const timer = setTimeout(() => {
         this.pending.delete(rule.id);
         this.fire(rule, currentDeviceId);
-      }, delayMs).unref();
+      }, delayMs);
+      timer.unref();
+      this.pending.set(rule.id, timer);
     }
+  }
+
+  /**
+   * Cancel every pending delayed fire. Called when a new rules bundle replaces
+   * the current one: armed timers hold closures over the OLD rule objects and
+   * must not fire a rule that may have been edited, disabled or removed.
+   */
+  clearPending(): void {
+    if (this.pending.size === 0) return;
+    for (const timer of this.pending.values()) clearTimeout(timer);
+    this.logger.log(
+      `Cleared ${this.pending.size} pending delayed execution(s) (bundle replaced)`,
+    );
+    this.pending.clear();
   }
 
   private fire(rule: EdgeRule, triggerDeviceId: string): void {

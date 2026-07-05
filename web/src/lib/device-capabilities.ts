@@ -16,6 +16,7 @@ import {
   Gauge,
   Lightbulb,
   Thermometer,
+  Tv,
   Volume2,
   Wind,
   Zap,
@@ -237,6 +238,26 @@ export function getReadableExposes(device: Device): DeviceExpose[] {
   );
 }
 
+/**
+ * Media device (TV, streamer): a settable binary `power`, a settable numeric
+ * `volume` and a settable enum `input` or `app`. The type checks keep zigbee
+ * false-positives out (a plug's `power` is a numeric W measurement, a siren's
+ * `volume` is an enum) — only remote-controllable media devices match.
+ */
+export function isMediaDevice(device: Device): boolean {
+  const byProp = new Map(
+    flattenExposes(getDeviceExposes(device)).map((e) => [e.property, e]),
+  );
+  const settable = (e: DeviceExpose | undefined, type: string) =>
+    !!e && e.type === type && (e.access & FeatureAccessMode.SET) !== 0;
+
+  return (
+    settable(byProp.get('power'), 'binary') &&
+    settable(byProp.get('volume'), 'numeric') &&
+    (settable(byProp.get('input'), 'enum') || settable(byProp.get('app'), 'enum'))
+  );
+}
+
 /** True if the device exposes any property/name in `names`. */
 export function hasExpose(device: Device, names: string[]): boolean {
   const wanted = new Set(names);
@@ -257,6 +278,7 @@ export function getDeviceIcon(device: Device): LucideIcon {
   );
   const has = (...keys: string[]) => keys.some((k) => names.has(k));
 
+  if (isMediaDevice(device)) return Tv;
   if (has('state', 'switch')) return Lightbulb;
   if (has('temperature')) return Thermometer;
   if (has('humidity', 'water_leak')) return Droplets;

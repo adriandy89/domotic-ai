@@ -33,6 +33,10 @@ export const devices: DevicesNS = {
     confirmRemove: 'Voulez-vous vraiment retirer cet appareil ?',
     commandFailed: 'Commande rejetée par l’appareil',
     commandError: 'Échec de l’envoi de la commande',
+    remote: 'Télécommande',
+  },
+  remote: {
+    offHint: 'L’appareil est éteint — l’allumage utilise le Wake-on-LAN.',
   },
   ir: {
     title: 'Apprendre une nouvelle commande IR',

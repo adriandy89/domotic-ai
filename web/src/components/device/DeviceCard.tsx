@@ -11,6 +11,7 @@ import {
   BarChart3,
   Edit,
   MoreVertical,
+  Tv as TvIcon,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatRelativeTime } from '../../lib/format';
@@ -21,12 +22,14 @@ import { Feature } from './Feature';
 import DeviceImage from './DeviceImage';
 import LearnIRModal from './LearnIRModal';
 import CommandSelector from './CommandSelector';
+import TvRemoteModal from './TvRemoteModal';
 import type { Device, DeviceData } from '../../store/useDevicesStore';
 import {
   getDeviceExposes,
   getDeviceFooterMeta,
   getDeviceIcon,
   getDeviceMeta,
+  isMediaDevice,
 } from '../../lib/device-capabilities';
 
 interface DeviceCardProps {
@@ -60,6 +63,7 @@ export default function DeviceCard({
   const [editName, setEditName] = useState(device.name);
   const [showLearnIR, setShowLearnIR] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
+  const [showRemote, setShowRemote] = useState(false);
 
   const data = deviceData?.data || {};
   const lastUpdateTimestamp = deviceData?.timestamp;
@@ -88,6 +92,7 @@ export default function DeviceCard({
 
   const footer = getDeviceFooterMeta(device, data);
   const { vendor, model, description } = getDeviceMeta(device);
+  const isMedia = useMemo(() => isMediaDevice(device), [device]);
 
   // Handle feature change
   const handleChange = useCallback(
@@ -219,6 +224,29 @@ export default function DeviceCard({
             </div>
           )}
         </div>
+
+        {/* Media remote (TVs and other media devices) */}
+        {isMedia && onCommand && (
+          <div className="px-3 py-2 border-b border-border/30">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRemote(true)}
+              className="w-full text-xs h-7"
+            >
+              <TvIcon className="h-3.5 w-3.5 mr-1.5" />
+              {t('devices.card.remote')}
+            </Button>
+
+            <TvRemoteModal
+              device={device}
+              data={data}
+              isOpen={showRemote}
+              onClose={() => setShowRemote(false)}
+              onChange={handleChange}
+            />
+          </div>
+        )}
 
         {/* IR Remote Controls */}
         {exposes.some((e) => e.name === 'learn_ir_code') && (

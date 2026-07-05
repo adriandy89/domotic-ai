@@ -1,0 +1,36 @@
+name: lan-bridge
+
+# LAN device bridge: Smart TVs (and future LAN appliances) exposed to the
+# platform through HA MQTT Discovery on the local broker (see ../edge or any
+# stack that runs mosquitto on port 1883).
+#
+# Host networking is REQUIRED: SSDP discovery (multicast 239.255.255.250) and
+# Wake-on-LAN (broadcast) don't cross Docker's bridge network.
+#
+# Fill the per-home values in ./.env (copy from ./.env.example).
+
+services:
+  lan-bridge:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: lan-bridge
+    restart: always
+    network_mode: host
+    environment:
+      - TZ=${TZ:-Europe/Madrid}
+      # Local MQTT broker (host networking → localhost):
+      - MQTT_URL=${MQTT_URL:-mqtt://127.0.0.1:1883}
+      - MQTT_USERNAME=${MQTT_USERNAME}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
+      # Home identity (same unique_id as the other bridges):
+      - HOME_UNIQUE_ID=${HOME_UNIQUE_ID}
+      # Managed devices (JSON array; see .env.example):
+      - DEVICES=${DEVICES}
+      - DATA_DIR=/data
+      - DISCOVERY_ENABLED=${DISCOVERY_ENABLED:-true}
+    volumes:
+      - lan-bridge-data:/data
+
+volumes:
+  lan-bridge-data:
