@@ -5,6 +5,7 @@ import {
   verifyBundle,
 } from '../vendor/rules-evaluator';
 import { EDGE_CONFIG, EdgeConfig } from '../config';
+import { EngineService } from '../engine/engine.service';
 import { MqttService } from '../mqtt/mqtt.service';
 import { SqliteService } from '../store/sqlite.service';
 import { RulesStoreService } from '../rules/rules-store.service';
@@ -26,6 +27,7 @@ export class SyncService implements OnModuleInit {
     private readonly sqlite: SqliteService,
     private readonly store: RulesStoreService,
     private readonly schedules: SchedulesService,
+    private readonly engine: EngineService,
   ) {}
 
   onModuleInit(): void {
@@ -88,6 +90,9 @@ export class SyncService implements OnModuleInit {
 
     this.sqlite.saveBundle(bundle);
     this.store.setBundle(bundle);
+    // Armed delayed fires hold closures over rules from the OLD bundle — a rule
+    // may have been edited/disabled/removed, so they must not fire.
+    this.engine.clearPending();
     this.schedules.reload();
     this.logger.log(
       `Applied bundle v${bundle.version} via ${via}: ${bundle.rules.length} rules, ${bundle.schedules.length} schedules`,

@@ -124,6 +124,88 @@ describe('EngineService (event-driven, offline)', () => {
     expect(published).toHaveLength(1);
   });
 
+  describe('delayed (interval) rules — sustained conditions', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    /** Rule with `interval: 60` (fire only after 60s of sustained match). */
+    function makeDelayedEngine() {
+      const parts = makeEngine();
+      const b = bundle();
+      b.rules[0].interval = 60;
+      parts.store.setBundle(b);
+      return parts;
+    }
+
+    it('fires only after the delay when conditions stay met', () => {
+      const { engine, published } = makeDelayedEngine();
+
+      engine.onTelemetry('sensor-a', { temperature: 35 });
+      expect(published).toHaveLength(0); // not immediate
+
+      jest.advanceTimersByTime(59_000);
+      expect(published).toHaveLength(0);
+
+      jest.advanceTimersByTime(1_000);
+      expect(published).toHaveLength(1);
+      expect(JSON.parse(published[0].payload)).toEqual({ state: 'ON' });
+    });
+
+    it('cancels the pending fire when conditions break during the delay', () => {
+      const { engine, published } = makeDelayedEngine();
+
+      engine.onTelemetry('sensor-a', { temperature: 35 }); // arm (met)
+      jest.advanceTimersByTime(10_000);
+      engine.onTelemetry('sensor-a', { temperature: 20 }); // break → cancel
+
+      jest.advanceTimersByTime(120_000);
+      expect(published).toHaveLength(0);
+    });
+
+    it('restarts the countdown from zero when conditions match again', () => {
+      const { engine, published } = makeDelayedEngine();
+
+      engine.onTelemetry('sensor-a', { temperature: 35 }); // arm
+      jest.advanceTimersByTime(30_000);
+      engine.onTelemetry('sensor-a', { temperature: 20 }); // break → cancel
+      jest.advanceTimersByTime(5_000);
+      engine.onTelemetry('sensor-a', { temperature: 35 }); // re-arm from zero
+
+      jest.advanceTimersByTime(59_000);
+      expect(published).toHaveLength(0); // old timer would have fired by now
+
+      jest.advanceTimersByTime(1_000);
+      expect(published).toHaveLength(1);
+    });
+
+    it('does not stack timers while conditions keep matching', () => {
+      const { engine, published } = makeDelayedEngine();
+
+      engine.onTelemetry('sensor-a', { temperature: 35 });
+      jest.advanceTimersByTime(20_000);
+      engine.onTelemetry('sensor-a', { temperature: 36 });
+      jest.advanceTimersByTime(20_000);
+      engine.onTelemetry('sensor-a', { temperature: 37 });
+
+      // Original fire time stands: 60s after the FIRST match.
+      jest.advanceTimersByTime(20_000);
+      expect(published).toHaveLength(1);
+
+      jest.advanceTimersByTime(120_000);
+      expect(published).toHaveLength(1); // and only once
+    });
+
+    it('clearPending() drops armed timers (bundle replaced)', () => {
+      const { engine, published } = makeDelayedEngine();
+
+      engine.onTelemetry('sensor-a', { temperature: 35 }); // arm
+      engine.clearPending();
+
+      jest.advanceTimersByTime(120_000);
+      expect(published).toHaveLength(0);
+    });
+  });
+
   it('AND mode waits for cross-device state stored locally', () => {
     const { engine, sqlite, store, published } = makeEngine();
     const b = bundle();
