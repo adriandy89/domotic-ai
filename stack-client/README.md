@@ -3,8 +3,11 @@
 This repository contains the **edge stack** that runs in the customer's home. Each
 protocol runs an **official upstream image** (never forked) that publishes to the home's
 MQTT broker; the Domotic-AI backend ingests everything over MQTT — via **Home Assistant
-discovery** (Z-Wave, WiFi, BLE) or via the **native zigbee2mqtt bridge** (Zigbee). No
-custom firmware logic lives here: this repo is just `docker compose` + per-home config.
+discovery** (Z-Wave, WiFi, BLE, LAN Bridge) or via the **native zigbee2mqtt bridge**
+(Zigbee). The only Domotic-AI code that runs here are two self-contained sidecars:
+the **Edge rules engine** ([edge/](edge/), keeps `run_offline` rules working without
+internet) and the **LAN Bridge** ([lan-bridge/](lan-bridge/), Smart TVs and other LAN
+appliances). Everything else is just `docker compose` + per-home config.
 
 ## 🧩 How it works (read this first)
 
@@ -38,6 +41,8 @@ and BLE devices are **registered disabled** — enable them from the dashboard.
 | **Z-Wave** (zwave-js-ui) | ⬜ | `zwavejs/zwave-js-ui` | ✅ | Z-Wave USB stick | creates `zwave` |
 | **WiFi** (native firmware) | ⬜ | `domotic-ai` firmware | ⬜ (no container) | — | device's own WiFi |
 | **BLE** (Theengs Gateway) | ⬜ | `theengs/gateway` | ✅ | Bluetooth adapter | host network |
+| **Edge (offline)** (mosquitto + rules engine) | ⬜ | `eclipse-mosquitto` + [edge/rules-engine](edge/rules-engine/) | ✅ | — | creates `edge`, mosquitto publishes `:1883` |
+| **LAN Bridge** (Smart TVs, LAN appliances) | ⬜ | [lan-bridge/](lan-bridge/) | ✅ | — | host network (SSDP/mDNS/WoL) |
 | **Portainer** | ⬜ | `portainer/portainer-ce` | ✅ | — | joins `zigbee` |
 | **Cloudflare Tunnel** | ⬜ | `cloudflare/cloudflared` | ✅ | — | joins `zigbee` |
 
@@ -188,7 +193,59 @@ dashboard.
 
 ---
 
-## 5️⃣ Portainer Setup (optional)
+## 5️⃣ Edge (offline rules) Setup — optional
+
+The **edge stack** keeps `run_offline` rules, schedules and the care watchdog working
+when the home loses internet. It runs a **local mosquitto broker** (store-and-forward
+bridge to central TBMQ, published on host port `1883`) plus the **edge rules engine**
+(standalone NestJS + SQLite — the shared pure evaluator is vendored, so offline behavior
+is identical to central). Enable it per home with the `edge_enabled` toggle.
+
+```bash
+cd edge
+# Copy the ready-to-paste .env + mosquitto bridge lines from the dashboard →
+# Integrations → Edge (offline), then:
+docker compose up -d
+```
+
+Delayed (interval) rules are cancelled the moment their conditions stop being met and
+restart from zero on the next match — same semantics as the central engine.
+
+👉 **Full instructions:** [edge/README.md](edge/README.md) and
+[edge/rules-engine/README.md](edge/rules-engine/README.md)
+
+---
+
+## 6️⃣ LAN Bridge (Smart TVs & LAN appliances) Setup — optional
+
+The **LAN bridge** integrates devices that speak proprietary LAN protocols — LG webOS
+TVs (websocket + Wake-on-LAN) and Android/Google TVs (Remote v2) today — and exposes
+them through the standard **HA MQTT Discovery** contract, so they show up as `wifi`
+devices (plug & play) with no backend changes.
+
+It registers **itself** as a device too: the **LAN Bridge card** in the dashboard has a
+`Pairing mode` switch (zigbee2mqtt `permit_join`-style). Turn it ON, and:
+- **LG webOS**: accept the prompt the TV shows → paired.
+- **Android TV**: the TV shows a 6-char code → type it in the card's **Pairing code**
+  field → paired.
+
+Paired devices persist in the `lan-bridge-data` volume; MAC for Wake-on-LAN is
+auto-detected. **Host networking is required** (SSDP/mDNS multicast + WoL broadcast),
+so it reaches the local broker via `mqtt://127.0.0.1:1883` — the port the edge stack
+publishes. The mosquitto bridge must include the per-property command downlink line
+(`topic home/id/{homeUniqueId}/+/+/set/+ in 1` — included in the dashboard snippet).
+
+```bash
+cd lan-bridge
+cp .env.example .env   # set HOME_UNIQUE_ID + MQTT credentials
+docker compose up -d
+```
+
+👉 **Full instructions:** [lan-bridge/README.md](lan-bridge/README.md)
+
+---
+
+## 7️⃣ Portainer Setup (optional)
 
 Portainer provides a web UI for managing Docker containers.
 
@@ -205,7 +262,7 @@ can view containers, logs and resource usage.
 
 ---
 
-## 6️⃣ Cloudflare Tunnel Setup (optional)
+## 8️⃣ Cloudflare Tunnel Setup (optional)
 
 Cloudflare Tunnel exposes your services remotely without opening router ports.
 
@@ -256,18 +313,26 @@ Zigbee:
    Z-Wave stack ─── creates its own "zwave" network (zwave-js-ui :8091, ws :3000)
    BLE stack    ─── host networking (Theengs Gateway + DBus)
    WiFi         ─── no container; devices use their own WiFi
+
+   Edge stack ──── creates the "edge" network:
+                   mosquitto (local broker, host port :1883, bridged ⇄ TBMQ)
+                   edge-rules-engine (offline rules, SQLite)
+
+   LAN Bridge ──── host networking (SSDP/mDNS discovery + Wake-on-LAN need the
+                   real LAN) → talks to mosquitto via 127.0.0.1:1883
 ```
 
 **Start order:** if you use Portainer or Cloudflare Tunnel, start the **Zigbee** stack
-first — it creates the `zigbee` network they attach to (`external: true`). Z-Wave, BLE and
-WiFi have no ordering dependency.
+first — it creates the `zigbee` network they attach to (`external: true`). The **LAN
+Bridge** needs the **Edge** stack's mosquitto (host port `1883`) up first. Z-Wave, BLE
+and WiFi have no ordering dependency.
 
 ---
 
 ## 📝 Maintenance & Troubleshooting
 
-Run these inside the relevant subfolder (`zigbee/`, `zwave/`, `ble/`, `portainer/`,
-`cloudflare/`):
+Run these inside the relevant subfolder (`zigbee/`, `zwave/`, `ble/`, `edge/`,
+`lan-bridge/`, `portainer/`, `cloudflare/`):
 
 ```bash
 docker compose logs -f       # view logs
@@ -294,6 +359,12 @@ docker compose pull && docker compose up -d   # update images
 
 **Portainer / Cloudflare can't find the network**
 - Start the Zigbee stack first: `docker network ls | grep zigbee`
+
+**LAN Bridge card toggles do nothing (uplink OK, no logs on the bridge)**
+- The mosquitto bridge section must include the per-property command downlink:
+  `topic home/id/{homeUniqueId}/+/+/set/+ in 1`. Add it and restart mosquitto.
+- With host networking, `MQTT_URL` must be `mqtt://127.0.0.1:1883` — Docker-network
+  hostnames like `mosquitto` do not resolve in host mode.
 
 **Cloudflare tunnel not connecting**
 - Verify the token and that the tunnel name matches the dashboard.

@@ -13,7 +13,13 @@ Domotic AI is a comprehensive home automation system designed to manage multiple
 ## 🚀 Features
 
 - **Multi-House Support**: Manage multiple distinct locations from a single instance.
-- **Zigbee2MQTT Integration**: Native support for Zigbee devices via MQTT.
+- **Multi-Protocol Devices**: Zigbee (native zigbee2mqtt), Z-Wave, WiFi and BLE via
+  Home Assistant MQTT Discovery — one protocol-adapter contract for all of them.
+- **Smart TV / LAN Appliance Integration**: the **LAN Bridge** sidecar pairs LG webOS
+  and Android/Google TVs from the dashboard (`Pairing mode`, zigbee2mqtt
+  `permit_join`-style) and controls them like any other device.
+- **Offline-First Edge**: the **Edge rules engine** keeps `run_offline` rules, schedules
+  and the care watchdog running on a local broker when the home loses internet.
 - **Real-time Updates**: Built on an event-driven architecture using NATS and SSE.
 - **Scalable Infrastructure**: Containerized with Docker for easy deployment and scaling.
 
@@ -86,7 +92,7 @@ The system is organized into separate stacks:
 
 1. **stack-docker** - Core infrastructure (TimescaleDB, Redis, NATS)
 2. **stack-tbmq** - MQTT Broker for IoT communication
-3. **stack-client** - Client-side services (Zigbee2MQTT, Portainer, Cloudflare Tunnel)
+3. **stack-client** - In-home services (Zigbee2MQTT, Z-Wave, BLE, Edge offline engine, LAN Bridge, Portainer, Cloudflare Tunnel)
 4. **Backend Services** - Main NestJS application
 
 ### Prerequisites
@@ -191,6 +197,11 @@ Client-side services for managing IoT devices at each location. This is optional
 **Services included:**
 
 - **Zigbee2MQTT** - Zigbee to MQTT bridge
+- **Z-Wave / BLE bridges** (optional) - zwave-js-ui, Theengs Gateway (HA MQTT Discovery)
+- **Edge (offline)** (optional) - local mosquitto (store-and-forward bridge to TBMQ) + the
+  standalone rules engine that keeps `run_offline` rules working without internet
+- **LAN Bridge** (optional) - Smart TVs (LG webOS, Android/Google TV) and other LAN
+  appliances, paired from the dashboard and exposed via HA MQTT Discovery
 - **Portainer** (optional) - Docker management UI
 - **Cloudflare Tunnel** (optional) - Remote access
 
@@ -316,11 +327,16 @@ flowchart TD
         TBMQ_SVC --> IE["Integration<br/>Executor"]
     end
 
-    subgraph CLIENT["STACK-CLIENT"]
+    subgraph CLIENT["STACK-CLIENT (customer home)"]
         direction TB
         Z2M["Zigbee2MQTT :8080"]
+        MOSQ["Edge mosquitto :1883<br/>(store-and-forward ⇄ TBMQ)"]
+        EDGE["Edge rules engine<br/>(offline run_offline rules)"]
+        LANB["LAN Bridge<br/>(Smart TVs via SSDP/mDNS)"]
         PTR["Portainer (Optional) :9000"]
         CF["Cloudflared Tunnel (Optional)"]
+        EDGE --- MOSQ
+        LANB --- MOSQ
     end
 
     subgraph BACKEND["BACKEND SERVICES"]
