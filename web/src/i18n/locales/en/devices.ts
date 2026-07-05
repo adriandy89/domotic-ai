@@ -31,6 +31,10 @@ export const devices = {
     confirmRemove: 'Are you sure you want to remove this device?',
     commandFailed: 'Command rejected by the device',
     commandError: 'Failed to send command',
+    remote: 'Remote control',
+  },
+  remote: {
+    offHint: 'The device is off — turning it on uses Wake-on-LAN.',
   },
   ir: {
     title: 'Learn New IR Command',

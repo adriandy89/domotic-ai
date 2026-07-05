@@ -33,6 +33,10 @@ export const devices: DevicesNS = {
     confirmRemove: '¿Seguro que quieres quitar este dispositivo?',
     commandFailed: 'Comando rechazado por el dispositivo',
     commandError: 'No se pudo enviar el comando',
+    remote: 'Mando a distancia',
+  },
+  remote: {
+    offHint: 'El dispositivo está apagado — encenderlo usa Wake-on-LAN.',
   },
   ir: {
     title: 'Aprender nuevo comando IR',
