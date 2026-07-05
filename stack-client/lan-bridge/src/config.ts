@@ -29,8 +29,12 @@ function required(name: string): string {
  *   { "type": "webos", "id": "tv_salon", "name": "TV Salón", "ip": "192.168.1.50", "mac": "AA:BB:CC:DD:EE:FF" }
  */
 function loadDevices(): DeviceDefinition[] {
-  const file = process.env.DEVICES_FILE;
-  const raw = file ? fs.readFileSync(file, 'utf8') : (process.env.DEVICES ?? '[]');
+  // Empty / unset means "no seed" — devices come from dashboard pairing.
+  // (docker-compose passes DEVICES= as an empty string when the var is unset.)
+  const file = process.env.DEVICES_FILE?.trim();
+  const raw = file
+    ? fs.readFileSync(file, 'utf8')
+    : process.env.DEVICES?.trim() || '[]';
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
