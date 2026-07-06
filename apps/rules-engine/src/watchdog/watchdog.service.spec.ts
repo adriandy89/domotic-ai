@@ -558,6 +558,25 @@ describe('WatchdogService re-arm episode (end-to-end scan)', () => {
   });
 });
 
+describe('WatchdogService edge-home delegation filter', () => {
+  it('loads only rules NOT (run_offline on an edge home) — mirrors the event engine', async () => {
+    const { service, db } = makeService();
+    await service.scan();
+    expect(db.rule.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          active: true,
+          NOT: { run_offline: true, home: { is: { edge_enabled: true } } },
+        }),
+      }),
+    );
+    // The old blanket `home: { edge_enabled: false }` must be gone, so a
+    // NON-offline absence rule on an edge home is still evaluated centrally.
+    const where = db.rule.findMany.mock.calls[0][0].where;
+    expect(where.home).toBeUndefined();
+  });
+});
+
 describe('WatchdogService episode isolation & resilience', () => {
   it('only counts the watchdog\'s own executions as the last alert', async () => {
     const { service, db } = makeService();

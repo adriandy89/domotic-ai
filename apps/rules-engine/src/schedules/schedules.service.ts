@@ -4,7 +4,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { Prisma } from 'generated/prisma/client';
-import { ScheduleFrequency } from 'generated/prisma/enums';
+import { ScheduleDays, ScheduleFrequency } from 'generated/prisma/enums';
 import {
   IScheduleJob,
   SCHEDULES_JOB_NAME,
@@ -19,15 +19,15 @@ type ScheduleForExecution = Prisma.ScheduleGetPayload<{
   };
 }>;
 
-type ScheduleForScheduling = Prisma.ScheduleGetPayload<{
-  select: {
-    id: true;
-    active: true;
-    date: true;
-    frequency: true;
-    days: true;
-  };
-}>;
+interface ScheduleForScheduling {
+  id: string;
+  active: boolean;
+  date: Date | null;
+  frequency: ScheduleFrequency;
+  days: ScheduleDays[];
+  /** Home IANA timezone; anchors the recurring cron to local wall time. */
+  timezone?: string | null;
+}
 
 @Injectable()
 export class SchedulesService implements OnModuleInit {
@@ -50,11 +50,19 @@ export class SchedulesService implements OnModuleInit {
           date: true,
           frequency: true,
           days: true,
+          home: { select: { timezone: true } },
         },
       });
       this.logger.log(`Resyncing ${active.length} active schedule(s) on boot`);
       for (const s of active) {
-        await this.upsert(s);
+        await this.upsert({
+          id: s.id,
+          active: s.active,
+          date: s.date,
+          frequency: s.frequency,
+          days: s.days,
+          timezone: s.home?.timezone ?? null,
+        });
       }
     } catch (error: any) {
       this.logger.error('Failed to resync schedules on boot', error);
@@ -74,6 +82,7 @@ export class SchedulesService implements OnModuleInit {
       frequency: schedule.frequency,
       date: schedule.date,
       days: schedule.days,
+      timezone: schedule.timezone ?? null,
     });
 
     if (timing.kind === 'invalid') {

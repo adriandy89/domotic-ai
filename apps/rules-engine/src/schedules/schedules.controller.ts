@@ -10,6 +10,7 @@ interface ScheduleUpsertPayload {
   date: Date | string | null;
   frequency: ScheduleFrequency;
   days: ScheduleDays[];
+  home?: { timezone: string | null } | null;
 }
 
 @Controller()
@@ -27,6 +28,7 @@ export class SchedulesController {
       date: payload.date ? new Date(payload.date) : null,
       frequency: payload.frequency,
       days: payload.days ?? [],
+      timezone: payload.home?.timezone ?? null,
     });
   }
 

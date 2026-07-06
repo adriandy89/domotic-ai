@@ -35,18 +35,30 @@ export class IngestService implements OnModuleInit {
     const slash = rest.indexOf('/');
     if (slash < 0) return;
     const protocol = rest.slice(0, slash);
-    const devicePath = rest.slice(slash + 1);
+    let devicePath = rest.slice(slash + 1);
 
     // Ignore non-state topics.
     if (protocol === 'edge') return; // rules bundle — handled by sync
     if (
       devicePath === 'bridge' ||
       devicePath.startsWith('bridge/') || // zigbee2mqtt bridge metadata
-      devicePath.endsWith('/set') || // our own command echoes
+      // Command echoes: depth-2 `.../set` (Zigbee) AND depth-3 per-property
+      // `.../set/{prop}` (lan-bridge/HA), which we publish ourselves.
+      devicePath.endsWith('/set') ||
+      devicePath.includes('/set/') ||
       devicePath.endsWith('/get') ||
+      devicePath.includes('/get/') ||
       devicePath.endsWith('/availability')
     ) {
       return;
+    }
+
+    // HA-Discovery / lan-bridge devices publish their aggregate state on
+    // `.../{protocol}/{id}/state` (depth-3). Strip the `/state` suffix so the
+    // device key matches the bundle's unique_id (`{id}`, no suffix). Zigbee state
+    // is depth-2 (`.../zigbee/{id}`, no `/state`) and is left untouched.
+    if (devicePath.endsWith('/state')) {
+      devicePath = devicePath.slice(0, -'/state'.length);
     }
 
     const deviceUniqueId = devicePath;

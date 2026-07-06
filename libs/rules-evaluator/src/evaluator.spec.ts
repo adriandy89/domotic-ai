@@ -117,6 +117,67 @@ describe('buildJobTiming', () => {
       tz: 'UTC',
     });
   });
+
+  // DST correctness: recurring schedules must anchor to the home's LOCAL wall
+  // time, not UTC, so a "daily at 08:00" never drifts across DST boundaries.
+  describe('timezone-aware (DST-stable) recurrence', () => {
+    it('DAILY: 08:00 local in summer (Madrid UTC+2) → cron in the home tz', () => {
+      const date = new Date(Date.UTC(2026, 6, 6, 6, 0, 0)); // 06:00Z = 08:00 Madrid (DST)
+      expect(
+        buildJobTiming(
+          { frequency: ScheduleFrequency.DAILY, date, days: [], timezone: 'Europe/Madrid' },
+          now,
+        ),
+      ).toEqual({ kind: 'repeat', pattern: '0 8 * * *', tz: 'Europe/Madrid' });
+    });
+
+    it('DAILY: same local 08:00 in winter (Madrid UTC+1) yields the SAME cron', () => {
+      const date = new Date(Date.UTC(2026, 0, 6, 7, 0, 0)); // 07:00Z = 08:00 Madrid (no DST)
+      expect(
+        buildJobTiming(
+          { frequency: ScheduleFrequency.DAILY, date, days: [], timezone: 'Europe/Madrid' },
+          now,
+        ),
+      ).toEqual({ kind: 'repeat', pattern: '0 8 * * *', tz: 'Europe/Madrid' });
+    });
+
+    it('CUSTOM: a near-midnight local time keeps the correct local day + hour', () => {
+      // 22:30Z in summer is 00:30 the NEXT day in Madrid. The old UTC scheme would
+      // have produced "30 22 ... MONDAY" (wrong hour, effectively wrong day).
+      const date = new Date(Date.UTC(2026, 6, 6, 22, 30, 0));
+      expect(
+        buildJobTiming(
+          {
+            frequency: ScheduleFrequency.CUSTOM,
+            date,
+            days: [ScheduleDays.MONDAY],
+            timezone: 'Europe/Madrid',
+          },
+          now,
+        ),
+      ).toEqual({ kind: 'repeat', pattern: '30 0 * * 1', tz: 'Europe/Madrid' });
+    });
+
+    it('falls back to UTC wall time when the timezone is invalid', () => {
+      const date = new Date(Date.UTC(2026, 5, 25, 8, 30, 0));
+      expect(
+        buildJobTiming(
+          { frequency: ScheduleFrequency.DAILY, date, days: [], timezone: 'Not/AZone' },
+          now,
+        ),
+      ).toEqual({ kind: 'repeat', pattern: '30 8 * * *', tz: 'UTC' });
+    });
+
+    it('ONCE ignores timezone (absolute instant)', () => {
+      const date = new Date(now.getTime() + 120_000);
+      expect(
+        buildJobTiming(
+          { frequency: ScheduleFrequency.ONCE, date, days: [], timezone: 'Europe/Madrid' },
+          now,
+        ),
+      ).toEqual({ kind: 'once', delayMs: 120_000 });
+    });
+  });
 });
 
 describe('watchdog helpers', () => {

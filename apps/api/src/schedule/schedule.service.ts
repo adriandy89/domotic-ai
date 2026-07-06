@@ -38,6 +38,9 @@ export class ScheduleService {
     date: true,
     frequency: true,
     days: true,
+    // The home timezone travels with the payload so the executor anchors the
+    // recurring cron to the home's local wall time (DST-stable).
+    home: { select: { timezone: true } },
   };
 
   constructor(

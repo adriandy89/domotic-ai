@@ -12,8 +12,16 @@ import {
 import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from 'generated/prisma/client';
 import { DeviceRegistryService } from './device-registry.service';
+import { EdgeBundlePublisherService } from './edge-bundle-publisher.service';
 import { HomeRegistryService } from './home-registry.service';
 import { SensorIngestionService } from './sensor-ingestion.service';
+
+/**
+ * Debounce window before an edge home's rules bundle is republished after a
+ * device's discovery attributes change. HA discovery arrives as a burst of
+ * retained configs on (re)connect; coalesce them into one republish.
+ */
+const EDGE_REPUBLISH_DEBOUNCE_MS = 10_000;
 
 /**
  * Home Assistant MQTT Discovery ingestion (Z-Wave / WiFi / BLE): discovery
@@ -38,12 +46,41 @@ export class HaIngestionService {
   /** Devices/properties already warned about an unapplied value_template. */
   private readonly templateFallbackWarned = new Set<string>();
 
+  /** Pending debounced edge-bundle republish timers, keyed by home unique_id. */
+  private readonly edgeRepublishTimers = new Map<string, NodeJS.Timeout>();
+
   constructor(
     private readonly dbService: DbService,
     private readonly homeRegistry: HomeRegistryService,
     private readonly deviceRegistry: DeviceRegistryService,
     private readonly sensorIngestion: SensorIngestionService,
+    private readonly edgeBundlePublisher: EdgeBundlePublisherService,
   ) {}
+
+  /**
+   * A device's discovery attributes changed. If the home runs the offline edge
+   * engine, its rules bundle snapshots device attributes at build time, so it
+   * must be republished — otherwise the edge keeps stale/empty command topics
+   * (e.g. a TV whose `power` switch landed after the rule was last edited) and
+   * silently maps offline commands to nothing. Debounced per home to coalesce
+   * the discovery burst on (re)connect. Fire-and-forget; never throws.
+   */
+  private scheduleEdgeBundleRepublish(homeUniqueId: string): void {
+    const existing = this.edgeRepublishTimers.get(homeUniqueId);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      this.edgeRepublishTimers.delete(homeUniqueId);
+      this.edgeBundlePublisher.publish(homeUniqueId).catch((err: unknown) =>
+        this.logger.warn(
+          `Edge bundle republish after discovery change failed for ${homeUniqueId}: ${
+            (err as Error)?.message
+          }`,
+        ),
+      );
+    }, EDGE_REPUBLISH_DEBOUNCE_MS);
+    timer.unref?.();
+    this.edgeRepublishTimers.set(homeUniqueId, timer);
+  }
 
   // ── HA-Discovery (zwave/wifi/ble) ──────────────────────────────────────────
   async handleHaDiscovery(
@@ -82,7 +119,7 @@ export class HaIngestionService {
 
     const home = await this.dbService.home.findUnique({
       where: { unique_id: homeUniqueId, disabled: false },
-      select: { id: true, organization_id: true },
+      select: { id: true, organization_id: true, edge_enabled: true },
     });
     if (!home) {
       this.logger.error(`HA discovery: home not found = ${homeUniqueId}`);
@@ -105,8 +142,13 @@ export class HaIngestionService {
 
     let deviceId: string;
     let finalAttributes: unknown;
+    // Whether the stored discovery attributes actually changed — gates the edge
+    // bundle republish so identical retained re-deliveries don't churn it.
+    let attributesChanged = false;
     if (existing) {
       finalAttributes = mergeWith(existing.attributes);
+      attributesChanged =
+        JSON.stringify(existing.attributes) !== JSON.stringify(finalAttributes);
       await this.dbService.device.update({
         where: { id: existing.id },
         data: {
@@ -157,6 +199,8 @@ export class HaIngestionService {
         });
         if (!now) return;
         finalAttributes = mergeWith(now.attributes);
+        attributesChanged =
+          JSON.stringify(now.attributes) !== JSON.stringify(finalAttributes);
         await this.dbService.device.update({
           where: { id: now.id },
           data: {
@@ -167,6 +211,13 @@ export class HaIngestionService {
         });
         deviceId = now.id;
       }
+    }
+
+    // Edge homes snapshot device attributes into the offline rules bundle; a
+    // changed discovery config (e.g. a newly-landed command topic) must be
+    // pushed so offline rules/schedules can command the device. Debounced.
+    if (home.edge_enabled && attributesChanged) {
+      this.scheduleEdgeBundleRepublish(homeUniqueId);
     }
 
     this.indexHaStateTopics(deviceId, finalAttributes);

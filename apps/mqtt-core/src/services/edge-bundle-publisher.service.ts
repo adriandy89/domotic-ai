@@ -29,6 +29,13 @@ export class EdgeBundlePublisherService {
       );
       return;
     }
+    // Only edge homes run the offline engine; never publish a bundle to a home
+    // that has no consumer (keeps the retained topic clean for non-edge homes).
+    const home = await this.dbService.home.findUnique({
+      where: { unique_id: homeUniqueId },
+      select: { edge_enabled: true },
+    });
+    if (!home?.edge_enabled) return;
     // Sign with the home's derived token (the same value the edge holds).
     const token = deriveEdgeToken(this.masterSecret, homeUniqueId);
     const signed = await buildSignedEdgeBundle(

@@ -94,6 +94,51 @@ talks to TBMQ from the home changes (the bridge instead of zigbee2mqtt directly)
 | AI assistant | ❌ needs the backend |
 | Historical telemetry | ⏳ buffered, delivered on reconnect |
 
+## Updating the engine (redeploy after a code change)
+
+The `edge-rules-engine` image is **built on the home's machine** from source (the
+Dockerfile vendors the platform's pure logic and compiles it — no monorepo needed). So a
+fix to rules/schedules/lan-bridge support only reaches a home after the image is rebuilt:
+
+```bash
+cd stack-client/edge
+git pull                                   # get the new source
+docker compose build edge-rules-engine     # re-vendor + tsc → new image
+docker compose up -d                        # recreate the container
+docker logs -f edge-rules-engine            # watch it apply the bundle
+```
+
+A **stale image** is a common cause of "my offline rule/schedule does nothing": e.g. an
+image predating WiFi/HA (lan-bridge) support logs `Unknown protocol "wifi"; skipping` and
+drops the command.
+
+## Diagnosing an offline rule/schedule that didn't fire
+
+Read `docker logs edge-rules-engine` and look, in order:
+
+1. **Bundle synced?** `Applied bundle vN … R rules, S schedules` — the timestamp must be
+   *after* you created/edited the rule. If it never appears, the edge is running an old
+   bundle: check `CENTRAL_API_URL` / `EDGE_AUTH_TOKEN` in `.env` and that the home is
+   `edge_enabled`. The retained bundle does **not** survive the 3.1.1 bridge across a
+   restart, so the boot-time HTTP pull is what reconciles — it must be able to reach the
+   backend.
+2. **Schedule armed?** `Scheduled … {id}`. `skipped: ONCE schedule date is in the past`
+   means a one-off whose time had already passed when the bundle arrived.
+3. **It fired?** `Schedule {id} fired (N command(s))` / `Rule {id} fired (N command(s))`
+   plus a `→ home/id/{home}/wifi/{tv}/set/power ON` line. If `N = 0`, look for:
+   - `Unknown protocol "wifi"` → stale image (rebuild, see above).
+   - `Command for … rejected` → the value failed validation.
+   - `mapped to no messages` → the bundle holds **stale/empty device attributes** (the
+     device's discovery config changed after the rule's last edit; the backend now
+     republishes the bundle on discovery changes, so re-pull/rebuild fixes it).
+   - `unknown target/device` → the bundle predates the target device.
+4. **Condition-triggered rule never evaluates?** The engine only reacts to telemetry that
+   arrives on the **local** broker for a device in the rule's *conditions*. HA/lan-bridge
+   devices report aggregate state on `.../wifi/{id}/state`.
+
+The edge also uploads an audit row per fire (`edge_execution` table); an `executed:false`
+row confirms the rule *fired* but produced no command.
+
 ## Notes
 
 - **TBMQ persistent session** must be enabled for client id `{unique_id}-bridge`, or the

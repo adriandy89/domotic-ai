@@ -80,7 +80,11 @@ export class RuleService {
       await this.edgeSync.notifyByHomeId(home_id);
       return rule;
     } catch (error: any) {
-      console.error('Error creating rule: ', error);
+      // Don't swallow: a silent `undefined` return makes the client believe the
+      // rule was created when it wasn't. Surface it as a 500.
+      throw new InternalServerErrorException(
+        `Error creating rule: ${error?.message ?? error}`,
+      );
     }
   }
 

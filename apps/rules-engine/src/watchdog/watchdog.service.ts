@@ -125,9 +125,12 @@ export class WatchdogService implements OnModuleInit {
         conditions: {
           some: { operation: { in: [Operation.INACTIVE, Operation.STALE] } },
         },
-        // Edge-enabled homes run their own local watchdog; silence the central
-        // one for them to avoid duplicate/contradictory absence alerts.
-        home: { edge_enabled: false },
+        // Only offline (run_offline) absence rules on edge homes are delegated to
+        // the local edge watchdog; run centrally everything else. This mirrors the
+        // event-engine filter (rules-engine.service.ts) so a NON-offline absence
+        // rule on an edge home is NOT dropped by both sides (the edge bundle only
+        // carries run_offline rules).
+        NOT: { run_offline: true, home: { is: { edge_enabled: true } } },
       },
       select: {
         id: true,

@@ -58,6 +58,7 @@ export class SchedulesService implements OnModuleInit, OnModuleDestroy {
       frequency: s.frequency,
       date: s.date ? new Date(s.date) : null,
       days: s.days,
+      timezone: this.store.timezone,
     });
 
     if (timing.kind === 'invalid') {
