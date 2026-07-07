@@ -67,6 +67,20 @@ services:
       init:
         condition: service_started
 
+  appliance-monitor:
+    container_name: appliance-monitor
+    env_file:
+      - ./.env.local
+    build:
+      context: .
+      target: production
+      args:
+        - SERVICE_NAME=appliance-monitor
+    restart: always
+    depends_on:
+      init:
+        condition: service_started
+
   ai-service:
     container_name: ai-service
     env_file:

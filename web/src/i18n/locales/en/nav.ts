@@ -5,6 +5,7 @@ export const nav = {
   reports: 'Reports',
   rules: 'Rules',
   schedules: 'Schedules',
+  applianceMonitors: 'Appliances',
   access: 'Access',
   activity: 'Activity',
   settings: 'Settings',

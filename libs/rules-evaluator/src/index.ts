@@ -8,3 +8,4 @@ export * from './execution-window';
 export * from './build-command';
 export * from './cron-from-schedule';
 export * from './watchdog';
+export * from './appliance-state';

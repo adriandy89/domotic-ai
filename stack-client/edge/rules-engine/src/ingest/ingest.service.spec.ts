@@ -4,6 +4,7 @@ import type { MqttMessageHandler } from '../mqtt/mqtt.service';
 import type { MqttService } from '../mqtt/mqtt.service';
 import type { SqliteService } from '../store/sqlite.service';
 import type { EngineService } from '../engine/engine.service';
+import type { PowerMonitorService } from '../power-monitor/power-monitor.service';
 
 const config: EdgeConfig = {
   homeUniqueId: 'home-1',
@@ -44,7 +45,11 @@ function makeIngest() {
       telemetry.push({ id, data }),
   } as unknown as EngineService;
 
-  const ingest = new IngestService(config, mqtt, sqlite, engine);
+  const powerMonitor = {
+    onTelemetry: () => {},
+  } as unknown as PowerMonitorService;
+
+  const ingest = new IngestService(config, mqtt, sqlite, engine, powerMonitor);
   ingest.onModuleInit();
 
   const feed = (topic: string, payload: unknown) =>

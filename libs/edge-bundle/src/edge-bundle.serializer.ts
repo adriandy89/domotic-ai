@@ -1,5 +1,6 @@
 import { DbService } from '@app/db';
 import {
+  EdgeApplianceMonitor,
   EdgeBundle,
   EdgeDeviceMeta,
   EdgeRule,
@@ -88,6 +89,20 @@ export async function serializeEdgeBundle(
           },
         },
       },
+      appliance_monitors: {
+        where: { active: true },
+        select: {
+          id: true,
+          source_device_unique_id: true,
+          appliance_unique_id: true,
+          power_field: true,
+          run_threshold_w: true,
+          idle_threshold_w: true,
+          min_run_seconds: true,
+          min_finish_seconds: true,
+          active: true,
+        },
+      },
     },
   });
 
@@ -95,38 +110,38 @@ export async function serializeEdgeBundle(
 
   const rules: EdgeRule[] = home.rules
     .map((r) => ({
-    id: r.id,
-    name: r.name,
-    type: r.type,
-    active: r.active,
-    all: r.all,
-    interval: r.interval,
-    window_active: r.window_active,
-    window_days: r.window_days,
-    window_all_day: r.window_all_day,
-    window_start: r.window_start,
-    window_end: r.window_end,
-    created_at: r.created_at.toISOString(),
-    conditions: r.conditions.map((c) => ({
-      id: c.id,
-      device_id: c.device_id,
-      attribute: c.attribute,
-      operation: c.operation,
-      data: c.data,
-    })),
-    // Offline only ever acts via COMMAND results.
-    results: r.results
-      .filter((res) => res.type === ResultType.COMMAND)
-      .map((res) => ({
-        id: res.id,
-        device_id: res.device_id,
-        event: res.event,
-        attribute: res.attribute,
-        data: res.data,
-        type: res.type,
-        channel: res.channel,
-        resend_after: res.resend_after,
+      id: r.id,
+      name: r.name,
+      type: r.type,
+      active: r.active,
+      all: r.all,
+      interval: r.interval,
+      window_active: r.window_active,
+      window_days: r.window_days,
+      window_all_day: r.window_all_day,
+      window_start: r.window_start,
+      window_end: r.window_end,
+      created_at: r.created_at.toISOString(),
+      conditions: r.conditions.map((c) => ({
+        id: c.id,
+        device_id: c.device_id,
+        attribute: c.attribute,
+        operation: c.operation,
+        data: c.data,
       })),
+      // Offline only ever acts via COMMAND results.
+      results: r.results
+        .filter((res) => res.type === ResultType.COMMAND)
+        .map((res) => ({
+          id: res.id,
+          device_id: res.device_id,
+          event: res.event,
+          attribute: res.attribute,
+          data: res.data,
+          type: res.type,
+          channel: res.channel,
+          resend_after: res.resend_after,
+        })),
     }))
     // A rule with no COMMAND result does nothing offline (notifications are
     // central-only), so keep the bundle lean by dropping those.
@@ -165,6 +180,20 @@ export async function serializeEdgeBundle(
       attributes: d.attributes,
     }));
 
+  const applianceMonitors: EdgeApplianceMonitor[] = home.appliance_monitors.map(
+    (m) => ({
+      id: m.id,
+      sourceDeviceUniqueId: m.source_device_unique_id,
+      applianceUniqueId: m.appliance_unique_id,
+      powerField: m.power_field,
+      runThresholdW: Number(m.run_threshold_w),
+      idleThresholdW: Number(m.idle_threshold_w),
+      minRunSeconds: m.min_run_seconds,
+      minFinishSeconds: m.min_finish_seconds,
+      active: m.active,
+    }),
+  );
+
   return {
     homeUniqueId: home.unique_id,
     organizationId: home.organization_id,
@@ -173,6 +202,7 @@ export async function serializeEdgeBundle(
     devices,
     rules,
     schedules,
+    applianceMonitors,
   };
 }
 

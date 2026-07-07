@@ -1,5 +1,6 @@
 import { activity } from './activity';
 import { access } from './access';
+import { applianceMonitors } from './applianceMonitors';
 import { auth } from './auth';
 import { common } from './common';
 import { dashboard } from './dashboard';
@@ -28,6 +29,7 @@ const en = {
   reports,
   rules,
   schedules,
+  applianceMonitors,
 };
 
 export type TranslationResource = typeof en;

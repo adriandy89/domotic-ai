@@ -13,6 +13,7 @@ import RulesPage from './pages/RulesPage';
 import RuleFormPage from './pages/RuleFormPage';
 import SchedulesPage from './pages/SchedulesPage';
 import ScheduleFormPage from './pages/ScheduleFormPage';
+import ApplianceMonitorsPage from './pages/ApplianceMonitorsPage';
 import AccessPage from './pages/AccessPage';
 import HomesPage from './pages/HomesPage';
 import HomeMapPage from './pages/HomeMapPage';
@@ -108,6 +109,10 @@ function App() {
             <Route path="/schedules" element={<SchedulesPage />} />
             <Route path="/schedules/new" element={<ScheduleFormPage />} />
             <Route path="/schedules/edit/:id" element={<ScheduleFormPage />} />
+            <Route
+              path="/appliance-monitors"
+              element={<ApplianceMonitorsPage />}
+            />
             <Route path="/access" element={<AccessPage />} />
             <Route path="/activity" element={<ActivityPage />} />
             <Route path="/settings" element={<SettingsPage />} />

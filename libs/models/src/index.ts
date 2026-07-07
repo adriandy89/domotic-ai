@@ -1,3 +1,4 @@
+export * from './appliance-monitor';
 export * from './common';
 export * from './device';
 export * from './home';
