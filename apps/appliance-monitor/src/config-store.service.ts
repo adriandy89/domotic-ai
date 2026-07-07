@@ -52,7 +52,10 @@ export class ConfigStoreService implements OnModuleInit, OnModuleDestroy {
 
   private async reload(): Promise<void> {
     const rows = await this.db.applianceMonitor.findMany({
-      where: { active: true },
+      // Edge-enabled homes run the detector locally (stack-client/edge/rules-engine)
+      // and publish the same derived state — exclude them so we never double-write
+      // a monitor's appliance_state (single-writer invariant).
+      where: { active: true, home: { edge_enabled: false } },
       select: {
         id: true,
         source_device_id: true,
