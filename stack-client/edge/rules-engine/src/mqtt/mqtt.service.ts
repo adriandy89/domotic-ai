@@ -67,9 +67,14 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     this.handlers.push(handler);
   }
 
-  publish(topic: string, payload: string): void {
-    this.client.publish(topic, payload, { qos: 1 }, (err) => {
-      if (err) this.logger.error(`Publish ${topic} failed: ${err.message}`);
-    });
+  publish(topic: string, payload: string, opts?: { retain?: boolean }): void {
+    this.client.publish(
+      topic,
+      payload,
+      { qos: 1, retain: opts?.retain ?? false },
+      (err) => {
+        if (err) this.logger.error(`Publish ${topic} failed: ${err.message}`);
+      },
+    );
   }
 }

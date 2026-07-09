@@ -3,6 +3,7 @@ import { EDGE_CONFIG, EdgeConfig } from '../config';
 import { MqttService } from '../mqtt/mqtt.service';
 import { SqliteService } from '../store/sqlite.service';
 import { EngineService } from '../engine/engine.service';
+import { PowerMonitorService } from '../power-monitor/power-monitor.service';
 
 /**
  * Subscribes to local device telemetry on the mosquitto broker, persists the
@@ -19,6 +20,7 @@ export class IngestService implements OnModuleInit {
     private readonly mqtt: MqttService,
     private readonly sqlite: SqliteService,
     private readonly engine: EngineService,
+    private readonly powerMonitor: PowerMonitorService,
   ) {
     this.base = `home/id/${this.config.homeUniqueId}`;
   }
@@ -81,5 +83,6 @@ export class IngestService implements OnModuleInit {
 
     this.sqlite.upsertDeviceState(deviceUniqueId, data);
     this.engine.onTelemetry(deviceUniqueId, data);
+    this.powerMonitor.onTelemetry(deviceUniqueId, data);
   }
 }

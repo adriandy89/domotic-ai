@@ -76,6 +76,7 @@ model Home {
   rules                Rule[]
   schedules            Schedule[]
   edge_executions      EdgeExecution[]
+  appliance_monitors   ApplianceMonitor[]
 
   @@index([name], map: "idx_home_name")
   @@index([unique_id], map: "idx_home_uniqueid")
@@ -152,6 +153,7 @@ model Device {
   command_executions CommandExecution[]
   rule_executions    RuleExecution[]
   state_events       DeviceStateEvent[]
+  appliance_monitors ApplianceMonitor[]
 
   @@unique([unique_id, organization_id], map: "uq_devices_uniqueid_organization")
   @@index([organization_id], map: "idx_device_organization")
@@ -162,6 +164,44 @@ model Device {
   @@index([organization_id, disabled], map: "idx_device_organization_disabled")
   @@index([home_id, disabled], map: "idx_device_home_disabled")
   @@map("devices")
+}
+
+/// "Power-monitoring appliance state" config: one row per monitored appliance
+/// (e.g. a washing machine on a metered smart plug). A threshold + hysteresis
+/// state machine — hosted at the edge for edge-enabled homes, else centrally —
+/// derives an `appliance_state` (idle/running/finished) from the source plug's
+/// power telemetry and publishes it as an ordinary HA-aggregate-state message
+/// on `home/id/{home_unique_id}/wifi/{appliance_unique_id}/state`, so it flows
+/// through the unchanged ingestion/rules/notification/frontend pipeline.
+/// Config only — no secrets. Runtime phase is persisted at the edge (SQLite kv).
+model ApplianceMonitor {
+  id                      String    @id(map: "pk_appliance_monitor_id") @default(uuid())
+  name                    String    @db.VarChar(128)
+  /// The source smart plug whose power telemetry drives the state machine.
+  source_device_id        String
+  source_device           Device    @relation(fields: [source_device_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  /// Denormalized so the edge/central publisher builds topics without a lookup.
+  source_device_unique_id String    @db.VarChar(128)
+  power_field             String    @default("power") @db.VarChar(64)
+  /// Derived virtual device unique_id (`apmon-<uuid>`); reserved + collision-checked on create.
+  appliance_unique_id     String    @unique(map: "uq_appliance_monitor_unique_id") @db.VarChar(128)
+  appliance_type          String    @default("washing_machine") @db.VarChar(64)
+  /// Hysteresis band: idle_threshold_w MUST be < run_threshold_w (anti-flapping).
+  run_threshold_w         Decimal   @default(10) @db.Decimal(8, 2)
+  idle_threshold_w        Decimal   @default(2) @db.Decimal(8, 2)
+  min_run_seconds         Int       @default(30)
+  min_finish_seconds      Int       @default(120)
+  active                  Boolean   @default(true)
+  home_id                 String
+  home                    Home      @relation(fields: [home_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  home_unique_id          String    @db.VarChar(128)
+  created_at              DateTime  @default(dbgenerated("('now'::text)::timestamp with time zone")) @db.Timestamptz(6)
+  updated_at              DateTime? @updatedAt @db.Timestamptz(6)
+
+  @@index([home_id], map: "idx_appliance_monitor_home")
+  @@index([source_device_id], map: "idx_appliance_monitor_source_device")
+  @@index([active], map: "idx_appliance_monitor_active")
+  @@map("appliance_monitors")
 }
 
 model SensorData {

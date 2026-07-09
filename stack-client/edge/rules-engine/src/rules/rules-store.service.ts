@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import {
+  EdgeApplianceMonitor,
   EdgeBundle,
   EdgeDeviceMeta,
   EdgeRule,
@@ -19,6 +20,8 @@ export class RulesStoreService implements OnModuleInit {
   private devicesByUniqueId = new Map<string, EdgeDeviceMeta>();
   /** internal device id → rules that reference it in a condition. */
   private rulesByDeviceId = new Map<string, EdgeRule[]>();
+  /** source plug unique_id → the active appliance monitor watching it. */
+  private monitorsBySource = new Map<string, EdgeApplianceMonitor>();
 
   constructor(private readonly sqlite: SqliteService) {}
 
@@ -50,6 +53,11 @@ export class RulesStoreService implements OnModuleInit {
         this.rulesByDeviceId.set(id, list);
       }
     }
+    this.monitorsBySource = new Map(
+      (bundle.applianceMonitors ?? [])
+        .filter((m) => m.active)
+        .map((m) => [m.sourceDeviceUniqueId, m]),
+    );
   }
 
   get version(): number {
@@ -79,5 +87,14 @@ export class RulesStoreService implements OnModuleInit {
   /** Active rules whose conditions reference this internal device id. */
   rulesForDevice(deviceId: string): EdgeRule[] {
     return this.rulesByDeviceId.get(deviceId) ?? [];
+  }
+
+  /** The active appliance monitor watching this source plug, if any. */
+  monitorForSource(sourceUniqueId: string): EdgeApplianceMonitor | undefined {
+    return this.monitorsBySource.get(sourceUniqueId);
+  }
+
+  get applianceMonitors(): EdgeApplianceMonitor[] {
+    return this.bundle?.applianceMonitors ?? [];
   }
 }

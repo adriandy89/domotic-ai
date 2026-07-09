@@ -7,6 +7,7 @@ export const nav: NavNS = {
   reports: 'Rapports',
   rules: 'Règles',
   schedules: 'Planifications',
+  applianceMonitors: 'Électroménager',
   access: 'Accès',
   activity: 'Activité',
   settings: 'Paramètres',

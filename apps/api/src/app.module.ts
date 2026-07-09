@@ -16,6 +16,7 @@ import { PricingModule } from './pricing';
 import { ReportsModule } from './reports';
 import { RuleModule } from './rule';
 import { ScheduleModule } from './schedule';
+import { ApplianceMonitorModule } from './appliance-monitor/appliance-monitor.module';
 import { SSEModule } from './sse';
 import { UserModule } from './user';
 
@@ -39,6 +40,7 @@ import { UserModule } from './user';
     DeviceModule,
     RuleModule,
     ScheduleModule,
+    ApplianceMonitorModule,
     EdgeModule,
     ReportsModule,
     PricingModule,

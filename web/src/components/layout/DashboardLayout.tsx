@@ -11,6 +11,7 @@ import {
   LogOut,
   Menu,
   Settings,
+  WashingMachine,
   X,
   Zap,
 } from 'lucide-react';
@@ -39,6 +40,11 @@ export default function DashboardLayout() {
     { icon: BarChart3, label: t('nav.reports'), href: '/reports' },
     { icon: Zap, label: t('nav.rules'), href: '/rules' },
     { icon: CalendarClock, label: t('nav.schedules'), href: '/schedules' },
+    {
+      icon: WashingMachine,
+      label: t('nav.applianceMonitors'),
+      href: '/appliance-monitors',
+    },
     { icon: KeyRound, label: t('nav.access'), href: '/access' },
     { icon: Activity, label: t('nav.activity'), href: '/activity' },
     { icon: Settings, label: t('nav.settings'), href: '/settings' },

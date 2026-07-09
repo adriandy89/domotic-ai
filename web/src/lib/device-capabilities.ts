@@ -18,6 +18,7 @@ import {
   Thermometer,
   Tv,
   Volume2,
+  WashingMachine,
   Wind,
   Zap,
   type LucideIcon,
@@ -283,6 +284,7 @@ export function getDeviceIcon(device: Device): LucideIcon {
   );
   const has = (...keys: string[]) => keys.some((k) => names.has(k));
 
+  if (has('appliance_state')) return WashingMachine;
   if (isMediaDevice(device)) return Tv;
   if (has('state', 'switch')) return Lightbulb;
   if (has('temperature')) return Thermometer;

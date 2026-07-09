@@ -10,6 +10,9 @@ core:
 rules:
 	npm run start:dev rules-engine
 
+appliance-monitor:
+	pnpm run start:dev appliance-monitor
+
 ai:
 	pnpm run start:dev ai-service
 
@@ -21,7 +24,8 @@ all:
 	"pnpm run start:dev api" \
 	"pnpm run start:dev mqtt-core" \
 	"pnpm run start:dev rules-engine" \
+	"pnpm run start:dev appliance-monitor" \
 	"pnpm run start:dev ai-service" \
 	"pnpm run start:dev integrations"
 
-.PHONY: all init api core rules ai integrations
+.PHONY: all init api core rules appliance-monitor ai integrations

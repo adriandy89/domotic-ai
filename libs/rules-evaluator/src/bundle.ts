@@ -54,6 +54,25 @@ export interface EdgeSchedule {
   actions: EdgeScheduleAction[];
 }
 
+/**
+ * Config for one power-monitoring appliance monitor, resolved for the edge host.
+ * The edge runs the pure {@link stepApplianceState} machine over the source
+ * plug's local power telemetry and publishes the derived `appliance_state`.
+ */
+export interface EdgeApplianceMonitor {
+  id: string;
+  /** MQTT unique_id of the source smart plug (matches the ingest device key). */
+  sourceDeviceUniqueId: string;
+  /** Derived virtual device unique_id → topic `.../wifi/{applianceUniqueId}/state`. */
+  applianceUniqueId: string;
+  powerField: string;
+  runThresholdW: number;
+  idleThresholdW: number;
+  minRunSeconds: number;
+  minFinishSeconds: number;
+  active: boolean;
+}
+
 export interface EdgeBundle {
   homeUniqueId: string;
   organizationId: string;
@@ -63,6 +82,8 @@ export interface EdgeBundle {
   devices: EdgeDeviceMeta[];
   rules: EdgeRule[];
   schedules: EdgeSchedule[];
+  /** Optional (back-compat): power-monitoring appliance monitors for the edge host. */
+  applianceMonitors?: EdgeApplianceMonitor[];
 }
 
 /** Signed envelope published to `home/id/{uuid}/edge/rules` (retained). */

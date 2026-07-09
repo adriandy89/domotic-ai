@@ -135,6 +135,15 @@
         "tsConfigPath": "apps/rules-engine/tsconfig.app.json"
       }
     },
+    "appliance-monitor": {
+      "type": "application",
+      "root": "apps/appliance-monitor",
+      "entryFile": "main",
+      "sourceRoot": "apps/appliance-monitor/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/appliance-monitor/tsconfig.app.json"
+      }
+    },
     "rules-evaluator": {
       "type": "library",
       "root": "libs/rules-evaluator",

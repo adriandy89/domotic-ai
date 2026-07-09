@@ -6,6 +6,7 @@ export const NATS_QUEUE = {
   SCHEDULES: 'schedules_queue',
   AI_SERVICE: 'ai_service_queue',
   INTEGRATIONS: 'integrations_queue',
+  APPLIANCE_MONITOR: 'appliance_monitor_queue',
 } as const;
 
 export const SCHEDULES_PATTERNS = {
