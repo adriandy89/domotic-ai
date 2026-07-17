@@ -82,7 +82,7 @@ export class IngestService implements OnModuleInit {
     }
 
     this.sqlite.upsertDeviceState(deviceUniqueId, data);
-    this.engine.onTelemetry(deviceUniqueId, data);
+    this.engine.onTelemetry(deviceUniqueId, data, prev);
     this.powerMonitor.onTelemetry(deviceUniqueId, data);
   }
 }

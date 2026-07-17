@@ -9,6 +9,7 @@ import {
   Save,
   HeartPulse,
   CalendarClock,
+  HelpCircle,
 } from 'lucide-react';
 import { useRulesStore } from '../store/useRulesStore';
 import type {
@@ -23,6 +24,7 @@ import type {
 } from '../store/useRulesStore';
 import { useHomesStore } from '../store/useHomesStore';
 import { useDevicesStore, type DeviceExpose } from '../store/useDevicesStore';
+import { RuleHelpPanel } from '../components/rule/RuleHelpPanel';
 import {
   getDeviceExposes as deviceExposes,
   getPublishableExposes as devicePublishableExposes,
@@ -130,6 +132,7 @@ export default function RuleFormPage() {
   const [intervalUnit, setIntervalUnit] = useState<DurationUnit>('minutes');
   const [active, setActive] = useState(true);
   const [all, setAll] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [runOffline, setRunOffline] = useState(false);
   const [homeId, setHomeId] = useState('');
   const [conditions, setConditions] = useState<Omit<Condition, 'id'>[]>([]);
@@ -331,7 +334,13 @@ export default function RuleFormPage() {
   const addCondition = () => {
     setConditions([
       ...conditions,
-      { device_id: '', attribute: '', operation: 'EQ', data: { value: '' } },
+      {
+        device_id: '',
+        attribute: '',
+        operation: 'EQ',
+        data: { value: '' },
+        trigger: true,
+      },
     ]);
   };
 
@@ -584,6 +593,7 @@ export default function RuleFormPage() {
         attribute: LOW_BATTERY_ADDON.attribute,
         operation: LOW_BATTERY_ADDON.operation,
         data: { value: LOW_BATTERY_ADDON.value, addon: 'lowBattery' },
+        trigger: true,
       });
     }
     if (addonSilent && primaryDeviceId) {
@@ -592,12 +602,24 @@ export default function RuleFormPage() {
         attribute: '',
         operation: SILENT_ADDON.operation,
         data: { forSeconds: SILENT_ADDON.forSeconds, addon: 'silent' },
+        trigger: true,
       });
     }
 
     const finalConditions = [...baseConditions, ...addonConditions];
     // Any add-on means "alert if primary OR add-on" → OR semantics.
     const useAll = addonConditions.length > 0 ? false : all;
+
+    // AND mode: at least one condition must be a trigger, or the rule could
+    // never initiate (neither by data nor by the absence watchdog).
+    if (
+      useAll &&
+      finalConditions.length > 0 &&
+      finalConditions.every((c) => c.trigger === false)
+    ) {
+      toast.error(t('rules.form.toast.triggerRequired'));
+      return;
+    }
 
     const data: CreateRuleRequest = {
       name: name.trim(),
@@ -677,7 +699,23 @@ export default function RuleFormPage() {
         <h1 className="text-2xl font-bold">
           {isEditMode ? t('rules.form.editTitle') : t('rules.form.createTitle')}
         </h1>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="ml-auto text-muted-foreground hover:text-primary"
+          onClick={() => setHelpOpen((v) => !v)}
+          aria-label={t('rules.help.open')}
+          title={t('rules.help.open')}
+        >
+          <HelpCircle className="w-5 h-5" />
+        </Button>
       </div>
+
+      <RuleHelpPanel
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        hasConditions={conditions.length > 0}
+      />
 
       {/* Template band (creation only) */}
       {!isEditMode && (
@@ -1128,6 +1166,24 @@ export default function RuleFormPage() {
                         </p>
                       )}
                   </div>
+                  {/* AND mode only: trigger toggle. Off = evaluator-only
+                      condition (its data never initiates the rule). */}
+                  {all && (
+                    <div
+                      className="flex flex-col items-center gap-1 pt-1"
+                      title={t('rules.form.triggerHint')}
+                    >
+                      <Switch
+                        checked={condition.trigger !== false}
+                        onCheckedChange={(v: boolean) =>
+                          updateCondition(index, 'trigger', v)
+                        }
+                      />
+                      <Label className="text-xs text-muted-foreground">
+                        {t('rules.form.trigger')}
+                      </Label>
+                    </div>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"

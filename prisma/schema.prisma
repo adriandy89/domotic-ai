@@ -340,6 +340,10 @@ model Condition {
   operation Operation
   attribute String
   data      Json      @db.JsonB
+  // AND-mode ("all") rules only: when false, incoming data for this condition
+  // never initiates rule evaluation — it only participates as an evaluator
+  // against its last-known state. Ignored in OR mode.
+  trigger   Boolean   @default(true)
   device_id String
   device    Device    @relation(fields: [device_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   rule_id   String

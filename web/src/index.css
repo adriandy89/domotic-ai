@@ -141,3 +141,18 @@ body {
 .animation-delay-4000 {
   animation-delay: 4s;
 }
+
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.25s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-in-right {
+    animation: none;
+  }
+}

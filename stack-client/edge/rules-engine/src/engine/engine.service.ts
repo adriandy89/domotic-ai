@@ -39,13 +39,17 @@ export class EngineService {
   }
 
   /** Called by ingest whenever a device reports new telemetry. */
-  onTelemetry(deviceUniqueId: string, data: Record<string, any>): void {
+  onTelemetry(
+    deviceUniqueId: string,
+    data: Record<string, any>,
+    prevData?: Record<string, any>,
+  ): void {
     const device = this.store.deviceByUniqueId(deviceUniqueId);
     if (!device) return; // device not referenced by any offline rule
 
     for (const rule of this.store.rulesForDevice(device.id)) {
       try {
-        this.evaluate(rule, device.id, data);
+        this.evaluate(rule, device.id, data, prevData);
       } catch (e: any) {
         this.logger.error(`Rule ${rule.id} failed: ${e?.message}`);
       }
@@ -56,6 +60,7 @@ export class EngineService {
     rule: EdgeRule,
     currentDeviceId: string,
     data: Record<string, any>,
+    prevData?: Record<string, any>,
   ): void {
     // Build cross-device data (ALL mode) from local SQLite state.
     const otherData = new Map<string, Record<string, any>>();
@@ -66,6 +71,36 @@ export class EngineService {
         const meta = this.store.deviceById(c.device_id);
         const state = meta && this.sqlite.getDeviceState(meta.uniqueId);
         if (state) otherData.set(c.device_id, state.data);
+      }
+    }
+
+    // ALL-mode trigger gate: data for an evaluator-only (trigger=false)
+    // condition never initiates evaluation — it may only cancel a pending
+    // delayed fire when it breaks the conditions. The gate only engages when
+    // the rule actually has an evaluator-only condition on this device, so
+    // default rules and old bundles (no `trigger` field) behave as before.
+    if (rule.all) {
+      const hasPassive = rule.conditions.some(
+        (c) => c.device_id === currentDeviceId && c.trigger === false,
+      );
+      if (hasPassive) {
+        const initiates = rule.conditions.some(
+          (c) =>
+            c.device_id === currentDeviceId &&
+            c.trigger !== false &&
+            data[c.attribute] !== prevData?.[c.attribute],
+        );
+        if (!initiates) {
+          const timer = this.pending.get(rule.id);
+          if (timer && !evaluateRule(rule, currentDeviceId, data, otherData)) {
+            clearTimeout(timer);
+            this.pending.delete(rule.id);
+            this.logger.log(
+              `Rule ${rule.id}: evaluator-only data broke conditions — pending delayed execution cancelled`,
+            );
+          }
+          return;
+        }
       }
     }
 
