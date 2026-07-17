@@ -50,6 +50,9 @@ export const rules = {
     eventMessage: 'Event message',
     allMatch: 'All match',
     anyMatch: 'Any match',
+    trigger: 'Trigger',
+    triggerHint:
+      'On: data from this condition starts rule evaluation. Off: the condition is only checked against its last known state.',
     runOffline: 'Run offline',
     runOfflineHint:
       'Keep this rule working without internet on edge-enabled homes (COMMAND actions only).',
@@ -96,6 +99,7 @@ export const rules = {
       attributeRequired:
         'Pick the attribute to watch for the "Inactive for" condition.',
       resultRequired: 'At least one result is required',
+      triggerRequired: 'At least one condition must have the trigger enabled',
       updated: 'Rule updated successfully',
       created: 'Rule created successfully',
     },

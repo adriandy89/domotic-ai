@@ -17,6 +17,9 @@ export interface ICreateCondition {
   operation: Operation;
   // `value` for comparison ops; `forSeconds` for absence ops (INACTIVE/STALE).
   data: { value?: any; forSeconds?: number };
+  // AND-mode rules only: false = evaluator-only condition (its data never
+  // initiates evaluation). Missing = true.
+  trigger?: boolean;
 }
 
 export interface ICreateResult {

@@ -52,6 +52,9 @@ export const rules: RulesNS = {
     eventMessage: 'Message de l’événement',
     allMatch: 'Toutes',
     anyMatch: 'N’importe laquelle',
+    trigger: 'Déclencheur',
+    triggerHint:
+      'Activé : les données de cette condition lancent l’évaluation de la règle. Désactivé : la condition n’est vérifiée qu’avec son dernier état connu.',
     runOffline: 'Exécuter hors ligne',
     runOfflineHint:
       'Garde cette règle active sans internet sur les maisons edge (actions COMMAND uniquement).',
@@ -98,6 +101,8 @@ export const rules: RulesNS = {
       attributeRequired:
         'Choisissez l’attribut à surveiller pour la condition « Inactif pendant ».',
       resultRequired: 'Au moins un résultat est requis',
+      triggerRequired:
+        'Au moins une condition doit avoir le déclencheur activé',
       updated: 'Règle mise à jour avec succès',
       created: 'Règle créée avec succès',
     },

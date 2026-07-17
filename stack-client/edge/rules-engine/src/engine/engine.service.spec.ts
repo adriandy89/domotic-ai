@@ -227,4 +227,109 @@ describe('EngineService (event-driven, offline)', () => {
     engine.onTelemetry('sensor-a', { temperature: 35 });
     expect(published).toHaveLength(1);
   });
+
+  describe('ALL-mode trigger gate (evaluator-only conditions)', () => {
+    /**
+     * AND rule: cond A on device A (temperature > 30, trigger default = true)
+     * + cond B on device B (contact = open, trigger: false → evaluator-only).
+     */
+    function gateBundle(interval = 0): EdgeBundle {
+      const b = bundle();
+      b.rules[0].interval = interval;
+      b.rules[0].conditions.push({
+        id: 'c2',
+        device_id: 'B',
+        attribute: 'contact',
+        operation: Operation.EQ,
+        data: { value: 'open' },
+        trigger: false,
+      });
+      return b;
+    }
+
+    it('telemetry matching only the evaluator-only condition never initiates a fire', () => {
+      const { engine, sqlite, store, published } = makeEngine();
+      store.setBundle(gateBundle());
+      // Conditions overall TRUE: A is hot (stored state), B just reported open.
+      sqlite.upsertDeviceState('sensor-a', { temperature: 35 });
+
+      engine.onTelemetry('plug-b', { contact: 'open' }, { contact: 'closed' });
+      expect(published).toHaveLength(0); // gated: B's condition is evaluator-only
+
+      // Sanity: the very same state DOES fire when the trigger device reports.
+      sqlite.upsertDeviceState('plug-b', { contact: 'open' });
+      engine.onTelemetry('sensor-a', { temperature: 35 }, { temperature: 20 });
+      expect(published).toHaveLength(1);
+    });
+
+    describe('with a delayed rule (interval > 0)', () => {
+      beforeEach(() => jest.useFakeTimers());
+      afterEach(() => jest.useRealTimers());
+
+      /** interval: 60 and cross-device state so either report can evaluate. */
+      function makeDelayedGate() {
+        const parts = makeEngine();
+        parts.store.setBundle(gateBundle(60));
+        parts.sqlite.upsertDeviceState('sensor-a', { temperature: 35 });
+        parts.sqlite.upsertDeviceState('plug-b', { contact: 'open' });
+        return parts;
+      }
+
+      it('evaluator-only telemetry that breaks the conditions cancels the pending timer', () => {
+        const { engine, published } = makeDelayedGate();
+
+        engine.onTelemetry('sensor-a', { temperature: 35 }, { temperature: 20 }); // arm
+        jest.advanceTimersByTime(10_000);
+        // B (evaluator-only) reports "closed" → conditions no longer hold → cancel.
+        engine.onTelemetry('plug-b', { contact: 'closed' }, { contact: 'open' });
+
+        jest.advanceTimersByTime(120_000);
+        expect(published).toHaveLength(0);
+      });
+
+      it('evaluator-only telemetry that keeps the conditions true leaves the timer armed', () => {
+        const { engine, published } = makeDelayedGate();
+
+        engine.onTelemetry('sensor-a', { temperature: 35 }, { temperature: 20 }); // arm
+        jest.advanceTimersByTime(30_000);
+        // B still "open" → conditions still hold → no cancel, no re-arm, no fire.
+        engine.onTelemetry('plug-b', { contact: 'open' }, { contact: 'open' });
+
+        jest.advanceTimersByTime(29_000);
+        expect(published).toHaveLength(0);
+        jest.advanceTimersByTime(1_000);
+        expect(published).toHaveLength(1); // 60s after the ORIGINAL arm
+      });
+    });
+
+    it('rules without the trigger field (old bundles) keep the pre-gate behavior', () => {
+      const { engine, sqlite, store, published } = makeEngine();
+      const b = bundle();
+      b.rules[0].conditions.push({
+        id: 'c2',
+        device_id: 'B',
+        attribute: 'contact',
+        operation: Operation.EQ,
+        data: { value: 'open' },
+        // no `trigger` field at all — pre-feature bundle
+      });
+      store.setBundle(b);
+      sqlite.upsertDeviceState('sensor-a', { temperature: 35 });
+
+      // Any referenced device's matching telemetry may initiate — even without
+      // prevData (old call sites) there is no change-gate.
+      engine.onTelemetry('plug-b', { contact: 'open' });
+      expect(published).toHaveLength(1);
+    });
+
+    it('OR rules ignore the flag: a trigger:false condition still fires from its own data', () => {
+      const { engine, store, published } = makeEngine();
+      const b = gateBundle();
+      b.rules[0].all = false;
+      store.setBundle(b);
+
+      engine.onTelemetry('plug-b', { contact: 'open' }, { contact: 'open' });
+      expect(published).toHaveLength(1);
+    });
+  });
 });

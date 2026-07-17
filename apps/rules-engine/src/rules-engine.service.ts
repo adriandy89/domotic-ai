@@ -51,6 +51,7 @@ type RuleSelected = {
     attribute: string;
     operation: Operation;
     data: any;
+    trigger: boolean;
   }[];
   results: {
     id: string;
@@ -161,6 +162,7 @@ export class RulesEngineService {
             attribute: true,
             operation: true,
             data: true,
+            trigger: true,
           },
         },
         results: {
@@ -216,14 +218,43 @@ export class RulesEngineService {
       return;
     }
 
-    // Anti-spam: check if relevant attribute changed
-    const hasRelevantChange = currentDeviceConditions.some((condition) => {
-      const newValue = newData[condition.attribute];
-      const oldValue = prevData?.[condition.attribute];
-      return newValue !== oldValue;
-    });
+    // Anti-spam: check if relevant attribute changed. In ALL mode, only
+    // trigger-enabled conditions may initiate evaluation; trigger=false
+    // ("evaluator-only") conditions are excluded from the gate. In OR mode
+    // the flag is ignored.
+    const changed = (condition: { attribute: string }) =>
+      newData[condition.attribute] !== prevData?.[condition.attribute];
+    const gateConditions = rule.all
+      ? currentDeviceConditions.filter((c) => c.trigger !== false)
+      : currentDeviceConditions;
+    const initiates = gateConditions.some(changed);
 
-    if (!hasRelevantChange) {
+    if (!initiates) {
+      // A change on an evaluator-only condition never initiates the rule, but
+      // it must still cancel a pending delayed fire when it breaks the
+      // conditions — the delayed job does NOT re-check conditions at fire time.
+      if (
+        rule.all &&
+        currentDeviceConditions.some((c) => c.trigger === false && changed(c))
+      ) {
+        const pendingJobId = await this.cacheService.get<string>(
+          getKeyRulePendingJob(rule.id),
+        );
+        if (pendingJobId) {
+          const met = await this.evaluateRule(
+            rule,
+            currentDeviceId,
+            newData,
+            prevData,
+          );
+          if (!met) {
+            await this.cancelDelayedJob(rule.id, pendingJobId);
+            this.logger.log(
+              `Rule ${rule.id}: evaluator-only data broke conditions — pending delayed execution cancelled`,
+            );
+          }
+        }
+      }
       this.logger.verbose(`Rule ${rule.id}: No relevant attribute change`);
       return;
     }

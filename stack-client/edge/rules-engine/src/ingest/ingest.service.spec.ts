@@ -39,10 +39,17 @@ function makeIngest() {
       events.push({ id, key, value }),
   } as unknown as SqliteService;
 
-  const telemetry: Array<{ id: string; data: Record<string, any> }> = [];
+  const telemetry: Array<{
+    id: string;
+    data: Record<string, any>;
+    prev: Record<string, any>;
+  }> = [];
   const engine = {
-    onTelemetry: (id: string, data: Record<string, any>) =>
-      telemetry.push({ id, data }),
+    onTelemetry: (
+      id: string,
+      data: Record<string, any>,
+      prev: Record<string, any>,
+    ) => telemetry.push({ id, data, prev }),
   } as unknown as EngineService;
 
   const powerMonitor = {
@@ -68,7 +75,7 @@ describe('IngestService — device key derivation & echo filtering', () => {
     feed('home/id/home-1/wifi/tv1/state', { power: 'ON', volume: 14 });
 
     expect(telemetry).toEqual([
-      { id: 'tv1', data: { power: 'ON', volume: 14 } },
+      { id: 'tv1', data: { power: 'ON', volume: 14 }, prev: {} },
     ]);
     expect(state.get('tv1')?.data).toEqual({ power: 'ON', volume: 14 });
     // NOT stored under the corrupt "tv1/state" key.
@@ -79,7 +86,7 @@ describe('IngestService — device key derivation & echo filtering', () => {
     const { feed, telemetry } = makeIngest();
     feed('home/id/home-1/zigbee/sensor-a', { temperature: 22 });
     expect(telemetry).toEqual([
-      { id: 'sensor-a', data: { temperature: 22 } },
+      { id: 'sensor-a', data: { temperature: 22 }, prev: {} },
     ]);
   });
 
@@ -121,5 +128,14 @@ describe('IngestService — device key derivation & echo filtering', () => {
     // Only the changed attribute is recorded, under the clean key "tv1".
     expect(events).toContainEqual({ id: 'tv1', key: 'power', value: 'ON' });
     expect(state.get('tv1')?.data).toEqual({ power: 'ON' });
+  });
+
+  it('passes the previous state to the engine so it can gate on changes', () => {
+    const { feed, telemetry } = makeIngest();
+    feed('home/id/home-1/wifi/tv1/state', { power: 'OFF' });
+    feed('home/id/home-1/wifi/tv1/state', { power: 'ON' });
+
+    expect(telemetry[0].prev).toEqual({}); // first report → no previous state
+    expect(telemetry[1].prev).toEqual({ power: 'OFF' });
   });
 });

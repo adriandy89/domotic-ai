@@ -70,10 +70,16 @@ export class WatchdogService implements OnModuleInit, OnModuleDestroy {
 
   private evaluate(rule: EdgeRule, absence: EvaluatorCondition[]): void {
     const lastAlertMs = this.lastAlert(rule.id);
-    const results = absence.map((c) => this.evalCondition(rule, c, lastAlertMs));
+    const results = absence.map((c) => ({
+      condition: c,
+      ...this.evalCondition(rule, c, lastAlertMs),
+    }));
 
+    // AND mode: only trigger-enabled absence conditions may initiate ("fresh");
+    // trigger=false conditions still count toward met (mirrors the central).
     const met = rule.all
-      ? results.every((r) => r.met) && results.some((r) => r.fresh)
+      ? results.every((r) => r.met) &&
+        results.some((r) => r.fresh && r.condition.trigger !== false)
       : results.some((r) => r.met && r.fresh);
     if (!met) return;
 

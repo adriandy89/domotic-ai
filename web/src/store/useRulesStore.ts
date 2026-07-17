@@ -55,6 +55,9 @@ export interface Condition {
   operation: Operation;
   attribute: string;
   data: Record<string, unknown>;
+  // AND-mode ("all") rules only: false = evaluator-only condition, its data
+  // never initiates rule evaluation. Missing = true.
+  trigger?: boolean;
 }
 
 // Result type for API responses

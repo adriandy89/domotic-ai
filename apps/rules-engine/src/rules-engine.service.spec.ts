@@ -93,6 +93,7 @@ function rule(overrides: Record<string, any> = {}) {
         attribute: 'temperature',
         operation: Operation.GT,
         data: { value: 30 },
+        trigger: true,
       },
     ],
     results: [
@@ -400,6 +401,162 @@ describe('RulesEngineService.processNewData lifecycle', () => {
     expect(db.ruleExecution.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ conditions_met: false }),
+      }),
+    );
+  });
+});
+
+describe('RulesEngineService per-condition trigger gate', () => {
+  // AND rule: condition A (deviceA d1) may trigger, condition B (deviceB d2)
+  // is evaluator-only (trigger=false) — data from d2 must never INITIATE the
+  // rule, but must still be able to cancel a pending delayed fire.
+  const andTriggerRule = (overrides: Record<string, any> = {}) =>
+    rule({
+      all: true,
+      conditions: [
+        {
+          id: 'ca',
+          device_id: 'd1',
+          attribute: 'temperature',
+          operation: Operation.GT,
+          data: { value: 30 },
+          trigger: true,
+        },
+        {
+          id: 'cb',
+          device_id: 'd2',
+          attribute: 'contact',
+          operation: Operation.EQ,
+          data: { value: 'open' },
+          trigger: false,
+        },
+      ],
+      ...overrides,
+    });
+
+  it('AND: evaluator-only (trigger=false) data does not initiate — no schedule, no fire, no execution row', async () => {
+    const { service, db, cache, queue, nats } = makeService();
+    db.rule.findMany.mockResolvedValue([andTriggerRule({ interval: 0 })]);
+    await service.processNewData({
+      ruleIds: ['r1'],
+      deviceId: 'd2',
+      timestamp: new Date(),
+      data: { contact: 'open' },
+      prevData: { contact: 'closed' }, // B's attribute changed
+    });
+    expect(queue.add).not.toHaveBeenCalled();
+    expect(nats.emit).not.toHaveBeenCalled();
+    expect(db.ruleExecution.create).not.toHaveBeenCalled();
+    expect(cache.del).not.toHaveBeenCalled();
+  });
+
+  it('AND + pending job: evaluator-only data that BREAKS conditions cancels the delayed job', async () => {
+    const { service, db, cache, queue } = makeService();
+    db.rule.findMany.mockResolvedValue([andTriggerRule({ interval: 120 })]);
+    cache.get.mockResolvedValue('job-evt'); // delayed fire already scheduled
+    const remove = jest.fn().mockResolvedValue(undefined);
+    queue.getJob.mockResolvedValue({ remove });
+    // deviceA still satisfies its condition; deviceB's contact just closed → AND broken
+    db.sensorDataLast.findMany.mockResolvedValue([
+      { device_id: 'd1', data: { temperature: 35 } },
+    ]);
+    await service.processNewData({
+      ruleIds: ['r1'],
+      deviceId: 'd2',
+      timestamp: new Date(),
+      data: { contact: 'closed' },
+      prevData: { contact: 'open' },
+    });
+    expect(queue.getJob).toHaveBeenCalledWith('job-evt');
+    expect(remove).toHaveBeenCalled();
+    expect(cache.del).toHaveBeenCalled();
+    // still evaluator-only: never initiates, never records an execution
+    expect(queue.add).not.toHaveBeenCalled();
+    expect(db.ruleExecution.create).not.toHaveBeenCalled();
+  });
+
+  it('AND + pending job: evaluator-only data that KEEPS conditions true leaves the job alone', async () => {
+    const { service, db, cache, queue } = makeService();
+    db.rule.findMany.mockResolvedValue([andTriggerRule({ interval: 120 })]);
+    cache.get.mockResolvedValue('job-evt');
+    db.sensorDataLast.findMany.mockResolvedValue([
+      { device_id: 'd1', data: { temperature: 35 } },
+    ]);
+    await service.processNewData({
+      ruleIds: ['r1'],
+      deviceId: 'd2',
+      timestamp: new Date(),
+      data: { contact: 'open' }, // B flips but the rule still holds
+      prevData: { contact: 'closed' },
+    });
+    expect(queue.getJob).not.toHaveBeenCalled();
+    expect(cache.del).not.toHaveBeenCalled();
+    expect(queue.add).not.toHaveBeenCalled();
+    expect(db.ruleExecution.create).not.toHaveBeenCalled();
+  });
+
+  it('OR (all=false): the trigger flag is ignored and evaluator-only data still fires', async () => {
+    const { service, db, nats } = makeService();
+    db.rule.findMany.mockResolvedValue([
+      andTriggerRule({ all: false, interval: 0 }),
+    ]);
+    await service.processNewData({
+      ruleIds: ['r1'],
+      deviceId: 'd2',
+      timestamp: new Date(),
+      data: { contact: 'open' },
+      prevData: { contact: 'closed' },
+    });
+    expect(nats.emit).toHaveBeenCalledWith(
+      'notification.email',
+      expect.objectContaining({ email: 'owner@example.com' }),
+    );
+    expect(db.ruleExecution.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ conditions_met: true, executed: true }),
+      }),
+    );
+  });
+
+  it('AND with every condition trigger=true (default) behaves as before', async () => {
+    const { service, db, nats } = makeService();
+    const r = rule({
+      all: true,
+      interval: 0,
+      conditions: [
+        {
+          id: 'ca',
+          device_id: 'd1',
+          attribute: 'temperature',
+          operation: Operation.GT,
+          data: { value: 30 },
+          trigger: true,
+        },
+        {
+          id: 'cb',
+          device_id: 'd1',
+          attribute: 'humidity',
+          operation: Operation.LT,
+          data: { value: 50 },
+          trigger: true,
+        },
+      ],
+    });
+    db.rule.findMany.mockResolvedValue([r]);
+    await service.processNewData({
+      ruleIds: ['r1'],
+      deviceId: 'd1',
+      timestamp: new Date(),
+      data: { temperature: 35, humidity: 40 },
+      prevData: { temperature: 20, humidity: 40 },
+    });
+    expect(nats.emit).toHaveBeenCalledWith(
+      'notification.email',
+      expect.objectContaining({ email: 'owner@example.com' }),
+    );
+    expect(db.ruleExecution.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ conditions_met: true, executed: true }),
       }),
     );
   });

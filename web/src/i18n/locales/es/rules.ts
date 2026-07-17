@@ -52,6 +52,9 @@ export const rules: RulesNS = {
     eventMessage: 'Mensaje del evento',
     allMatch: 'Todas',
     anyMatch: 'Cualquiera',
+    trigger: 'Disparador',
+    triggerHint:
+      'Activado: los datos de esta condición inician la evaluación de la regla. Desactivado: la condición solo se comprueba con su último estado conocido.',
     runOffline: 'Ejecutar sin conexión',
     runOfflineHint:
       'Mantén esta regla funcionando sin internet en hogares con edge (solo acciones COMMAND).',
@@ -98,6 +101,8 @@ export const rules: RulesNS = {
       attributeRequired:
         'Elige el atributo a vigilar para la condición "Inactivo durante".',
       resultRequired: 'Se requiere al menos un resultado',
+      triggerRequired:
+        'Al menos una condición debe tener el disparador activado',
       updated: 'Regla actualizada correctamente',
       created: 'Regla creada correctamente',
     },

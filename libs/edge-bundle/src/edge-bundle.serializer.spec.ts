@@ -41,7 +41,9 @@ function homeFixture() {
       baseRule({
         id: 'r1',
         conditions: [
-          { id: 'c1', device_id: 'plug', attribute: 'state', operation: 'EQ', data: { value: 'ON' } },
+          { id: 'c1', device_id: 'plug', attribute: 'state', operation: 'EQ', data: { value: 'ON' }, trigger: true },
+          // evaluator-only condition: must survive serialization with trigger:false
+          { id: 'c2', device_id: 'plug', attribute: 'power', operation: 'GT', data: { value: 5 }, trigger: false },
         ],
         results: [
           { id: 'x1', device_id: 'tv1', event: 'on', attribute: 'power', data: { value: 'ON' }, type: ResultType.COMMAND, channel: [], resend_after: null },
@@ -67,6 +69,7 @@ function homeFixture() {
         actions: [{ device_id: 'tv1', attribute: 'power', data: { value: 'ON' } }],
       },
     ],
+    appliance_monitors: [],
   };
 }
 
@@ -98,6 +101,22 @@ describe('serializeEdgeBundle', () => {
     const ids = bundle!.devices.map((d) => d.id).sort();
     // tv1 (result + schedule) and plug (condition) are referenced; unref is not.
     expect(ids).toEqual(['plug', 'tv1']);
+  });
+
+  it('carries the per-condition trigger flag into the bundle', async () => {
+    const bundle = await serializeEdgeBundle(makeDb(homeFixture()), 'home-1');
+    const conditions = bundle!.rules[0].conditions;
+    expect(conditions).toEqual([
+      expect.objectContaining({ id: 'c1', trigger: true }),
+      expect.objectContaining({ id: 'c2', trigger: false }),
+    ]);
+  });
+
+  it('selects the trigger column so the edge receives it', async () => {
+    const db = makeDb(homeFixture());
+    await serializeEdgeBundle(db, 'home-1');
+    const arg = db.home.findUnique.mock.calls[0][0];
+    expect(arg.select.rules.select.conditions.select.trigger).toBe(true);
   });
 
   it('only queries active + run_offline rules and schedules', async () => {
