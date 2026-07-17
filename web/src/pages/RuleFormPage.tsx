@@ -9,6 +9,7 @@ import {
   Save,
   HeartPulse,
   CalendarClock,
+  HelpCircle,
 } from 'lucide-react';
 import { useRulesStore } from '../store/useRulesStore';
 import type {
@@ -23,6 +24,7 @@ import type {
 } from '../store/useRulesStore';
 import { useHomesStore } from '../store/useHomesStore';
 import { useDevicesStore, type DeviceExpose } from '../store/useDevicesStore';
+import { RuleHelpPanel } from '../components/rule/RuleHelpPanel';
 import {
   getDeviceExposes as deviceExposes,
   getPublishableExposes as devicePublishableExposes,
@@ -130,6 +132,7 @@ export default function RuleFormPage() {
   const [intervalUnit, setIntervalUnit] = useState<DurationUnit>('minutes');
   const [active, setActive] = useState(true);
   const [all, setAll] = useState(true);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [runOffline, setRunOffline] = useState(false);
   const [homeId, setHomeId] = useState('');
   const [conditions, setConditions] = useState<Omit<Condition, 'id'>[]>([]);
@@ -696,7 +699,23 @@ export default function RuleFormPage() {
         <h1 className="text-2xl font-bold">
           {isEditMode ? t('rules.form.editTitle') : t('rules.form.createTitle')}
         </h1>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="ml-auto text-muted-foreground hover:text-primary"
+          onClick={() => setHelpOpen((v) => !v)}
+          aria-label={t('rules.help.open')}
+          title={t('rules.help.open')}
+        >
+          <HelpCircle className="w-5 h-5" />
+        </Button>
       </div>
+
+      <RuleHelpPanel
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        hasConditions={conditions.length > 0}
+      />
 
       {/* Template band (creation only) */}
       {!isEditMode && (
