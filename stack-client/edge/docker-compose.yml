@@ -10,12 +10,20 @@ name: edge
 #
 # Fill the per-home values in ./.env (copy from ./.env.example).
 
+# Rotación de logs para que el json-file no crezca sin límite en el host.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
 services:
   # ───────────────────────────────────────────────────────────────
   # Local MQTT broker (lightweight, Alpine). zigbee2mqtt publishes here.
   # Bidirectional store-and-forward bridge to central TBMQ.
   # ───────────────────────────────────────────────────────────────
   mosquitto:
+    logging: *default-logging
     image: eclipse-mosquitto:2-openssl
     container_name: mosquitto
     restart: always
@@ -34,6 +42,7 @@ services:
   # only the local MQTT broker + embedded SQLite. Added in Phase 3.
   # ───────────────────────────────────────────────────────────────
   edge-rules-engine:
+    logging: *default-logging
     build:
       context: ./rules-engine
       dockerfile: Dockerfile

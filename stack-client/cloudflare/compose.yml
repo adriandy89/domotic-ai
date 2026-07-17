@@ -1,5 +1,13 @@
+# Rotación de logs para que el json-file no crezca sin límite en el host.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
 services:
   cloudflared:
+    logging: *default-logging
     image: cloudflare/cloudflared:latest
     container_name: cloudflared
     command: tunnel --no-autoupdate run --token cloudflared-token-xyz
