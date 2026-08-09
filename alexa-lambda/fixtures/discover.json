@@ -1,0 +1,13 @@
+{
+  "directive": {
+    "header": {
+      "namespace": "Alexa.Discovery",
+      "name": "Discover",
+      "payloadVersion": "3",
+      "messageId": "fixture-discover-1"
+    },
+    "payload": {
+      "scope": { "type": "BearerToken", "token": "REPLACE_WITH_ACCESS_TOKEN" }
+    }
+  }
+}

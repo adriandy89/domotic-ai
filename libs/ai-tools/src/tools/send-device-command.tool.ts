@@ -4,6 +4,8 @@ import { NatsClientService } from '@app/nats-client';
 import { createTool } from '@mastra/core/tools';
 import z from 'zod';
 
+export type CommandSource = 'api' | 'ai' | 'rule' | 'schedule' | 'alexa';
+
 export interface ExecuteOneCommandResult {
   success: boolean;
   message?: string;
@@ -30,11 +32,13 @@ export async function executeOneCommand(
     natsClient: NatsClientService;
     organizationId: string;
     userId: string;
+    /** Audit source recorded in command_executions; defaults to 'ai'. */
+    source?: CommandSource;
   },
   deviceId: string,
   command: Record<string, unknown>,
 ): Promise<ExecuteOneCommandResult> {
-  const { dbService, natsClient, organizationId, userId } = deps;
+  const { dbService, natsClient, organizationId, userId, source = 'ai' } = deps;
 
   const device = await dbService.device.findUnique({
     where: {
@@ -91,7 +95,7 @@ export async function executeOneCommand(
       deviceUniqueId: string;
       organizationId: string;
       command: Record<string, unknown>;
-      source: 'ai';
+      source: CommandSource;
       userId?: string;
     }
   >('mqtt-core.publish-command', {
@@ -99,7 +103,7 @@ export async function executeOneCommand(
     deviceUniqueId: device.unique_id,
     organizationId,
     command: normalized,
-    source: 'ai',
+    source,
     userId,
   });
 

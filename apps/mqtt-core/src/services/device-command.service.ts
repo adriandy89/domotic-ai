@@ -59,7 +59,7 @@ export class DeviceCommandService implements OnModuleInit, OnModuleDestroy {
     organizationId: string;
     command: Record<string, unknown>;
     /** Origin of the command — used for the audit trail. */
-    source?: 'api' | 'ai' | 'rule' | 'schedule';
+    source?: 'api' | 'ai' | 'rule' | 'schedule' | 'alexa';
     /** Optional originating user id for the audit trail. */
     userId?: string;
   }): Promise<PublishCommandResult> {
@@ -244,7 +244,7 @@ export class DeviceCommandService implements OnModuleInit, OnModuleDestroy {
   private async recordCommandExecution(input: {
     deviceId: string;
     userId?: string;
-    source: 'api' | 'ai' | 'rule' | 'schedule';
+    source: 'api' | 'ai' | 'rule' | 'schedule' | 'alexa';
     command: Record<string, unknown>;
     result: PublishCommandResult;
   }): Promise<void> {

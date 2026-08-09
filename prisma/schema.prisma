@@ -28,6 +28,7 @@ model Organization {
   users       User[]
   devices     Device[]
   ai_usage    AiUsage[]
+  alexa_oauth_client AlexaOAuthClient?
 
   @@map("organizations")
 }
@@ -115,6 +116,10 @@ model User {
   ai_usage                   AiUsage[]
   mcp_tokens                 McpToken[]
   xiaozhi_integrations       XiaozhiIntegration[]
+  alexa_auth_codes           AlexaAuthCode[]
+  alexa_access_tokens        AlexaAccessToken[]
+  alexa_refresh_tokens       AlexaRefreshToken[]
+  alexa_event_grant          AlexaEventGrant?
   organization               Organization          @relation(fields: [organization_id], references: [id])
 
   @@index([name], map: "idx_user_name")
@@ -581,7 +586,7 @@ model CommandExecution {
   user      User?    @relation(fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   device_id String
   device    Device   @relation(fields: [device_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  // 'api' | 'ai' | 'rule' | 'schedule'
+  // 'api' | 'ai' | 'rule' | 'schedule' | 'alexa'
   source    String   @db.VarChar(20)
   command   Json     @db.JsonB
   ok        Boolean
@@ -651,4 +656,87 @@ model XiaozhiIntegration {
   @@index([user_id], map: "idx_xiaozhi_integration_user")
   @@index([enabled, user_id], map: "idx_xiaozhi_integration_enabled_user")
   @@map("xiaozhi_integrations")
+}
+
+// ==================== ALEXA SMART HOME ====================
+// OAuth2 account-linking server for the per-organization Alexa skill.
+// One skill (= one OAuth client) per organization, provisioned by the org
+// admin (User.is_org_admin). "Linked" is derived state: a user is linked
+// while they hold a non-revoked AlexaRefreshToken.
+
+model AlexaOAuthClient {
+  id                 String       @id(map: "pk_alexa_oauth_client_id") @default(uuid())
+  organization_id    String       @unique(map: "uq_alexa_oauth_client_org")
+  organization       Organization @relation(fields: [organization_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  client_id          String       @unique(map: "uq_alexa_oauth_client_client_id") @db.VarChar(128)
+  client_secret_hash String       @db.VarChar(64)
+  name               String       @db.VarChar(80)
+  // Allowlist of Alexa redirect URLs (layla/pitangui/alexa.amazon.co.jp)
+  redirect_uris      String[]
+  disabled           Boolean      @default(false)
+  created_at         DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime?    @updatedAt @db.Timestamptz(6)
+
+  @@map("alexa_oauth_clients")
+}
+
+model AlexaAuthCode {
+  code_hash             String    @id(map: "pk_alexa_auth_code_hash") @db.VarChar(64)
+  client_id             String    @db.VarChar(128)
+  user_id               String
+  user                  User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  redirect_uri          String    @db.Text
+  scope                 String?   @db.VarChar(256)
+  // PKCE seam (app-to-app linking); web linking authenticates with the secret
+  code_challenge        String?   @db.VarChar(128)
+  code_challenge_method String?   @db.VarChar(10)
+  expires_at            DateTime  @db.Timestamptz(6)
+  consumed_at           DateTime? @db.Timestamptz(6)
+  created_at            DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id], map: "idx_alexa_auth_code_user")
+  @@index([expires_at], map: "idx_alexa_auth_code_expires")
+  @@map("alexa_auth_codes")
+}
+
+model AlexaAccessToken {
+  token_hash String   @id(map: "pk_alexa_access_token_hash") @db.VarChar(64)
+  client_id  String   @db.VarChar(128)
+  user_id    String
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  scope      String?  @db.VarChar(256)
+  expires_at DateTime @db.Timestamptz(6)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id], map: "idx_alexa_access_token_user")
+  @@index([expires_at], map: "idx_alexa_access_token_expires")
+  @@map("alexa_access_tokens")
+}
+
+model AlexaRefreshToken {
+  token_hash   String    @id(map: "pk_alexa_refresh_token_hash") @db.VarChar(64)
+  client_id    String    @db.VarChar(128)
+  user_id      String
+  user         User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  scope        String?   @db.VarChar(256)
+  revoked_at   DateTime? @db.Timestamptz(6)
+  last_used_at DateTime? @db.Timestamptz(6)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([user_id], map: "idx_alexa_refresh_token_user")
+  @@index([user_id, revoked_at], map: "idx_alexa_refresh_token_user_active")
+  @@map("alexa_refresh_tokens")
+}
+
+// Alexa.Authorization/AcceptGrant seam for v2 proactive reporting: stores the
+// LWA grant code so a future ChangeReporter can exchange it for event-gateway
+// tokens. Encrypted with @app/crypto (AES-GCM), like Xiaozhi endpoints.
+model AlexaEventGrant {
+  user_id              String    @id(map: "pk_alexa_event_grant_user")
+  user                 User      @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  grant_code_encrypted String    @db.Text
+  created_at           DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime? @updatedAt @db.Timestamptz(6)
+
+  @@map("alexa_event_grants")
 }

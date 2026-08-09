@@ -5,6 +5,7 @@ import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AiModule } from './ai';
+import { AlexaModule } from './alexa/alexa.module';
 import { AuthModule } from './auth';
 import { DeviceModule } from './device';
 import { EdgeModule } from './edge/edge.module';
@@ -48,6 +49,7 @@ import { UserModule } from './user';
     AiModule,
     McpModule,
     XiaozhiIntegrationModule,
+    AlexaModule,
   ],
   controllers: [],
   providers: [],

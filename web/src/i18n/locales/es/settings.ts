@@ -141,6 +141,64 @@ export const settings: SettingsNS = {
     deleteError: 'No se pudo eliminar la integración',
   },
 
+  alexa: {
+    title: 'Amazon Alexa',
+    description:
+      'Controla tus dispositivos por voz mediante una skill privada de Alexa Smart Home.',
+    linked: 'Cuenta de Alexa vinculada',
+    linkedSince: 'desde {{date}}',
+    notLinked: 'Tu cuenta de Alexa aún no está vinculada.',
+    unlink: 'Desvincular',
+    noClient:
+      'Esta organización aún no tiene integración de Alexa. Créala para obtener las credenciales OAuth de tu skill.',
+    createClient: 'Crear integración',
+    namePlaceholder: 'p. ej. Skill de casa',
+    clientCreated: 'Creada: {{date}}',
+    clientId: 'Client ID',
+    clientSecret: 'Client secret',
+    authorizationUri: 'Authorization URI',
+    tokenUri: 'Access Token URI',
+    redirectUris: 'URLs de redirección de Alexa (una por línea)',
+    redirectUrisHint:
+      'Copia las 3 URLs de redirección de la página de Account Linking de la skill.',
+    rotateSecret: 'Rotar secreto',
+    deleteClient: 'Eliminar integración',
+    deleteTitle: 'Eliminar integración de Alexa',
+    deleteDesc:
+      'El cliente OAuth y todas las cuentas de Alexa vinculadas de esta organización dejarán de funcionar. Esto no se puede deshacer.',
+    secretTitle: 'Credenciales OAuth de Alexa',
+    secretDesc:
+      'Copia el client secret ahora: solo se muestra una vez. Pega ambos valores en la página de Account Linking de la skill.',
+    secretWarning:
+      'Trata el secreto como una contraseña. Si lo pierdes, rótalo para obtener uno nuevo.',
+    savedIt: 'Lo he guardado',
+    copy: 'Copiar',
+    copied: 'Copiado ✓',
+    memberHint:
+      'La skill de la organización está configurada. Vincula tu cuenta desde la app de Alexa (Skills → tu skill → Activar y vincular).',
+    askAdmin:
+      'Pide al administrador de tu organización que configure primero la integración de Alexa.',
+    setupInstructions: 'Instrucciones de configuración (admin de la org)',
+    setupStep1:
+      'Crea la integración arriba y copia el Client ID, el secreto y ambas URIs.',
+    setupStep2:
+      'En la Amazon Developer Console crea una skill Smart Home (payload v3).',
+    setupStep3:
+      'Crea un AWS Lambda (Node 20/22) con alexa-lambda/index.mjs, define PUBLIC_APP_URL, añade el trigger "Alexa Smart Home" y pega su ARN como endpoint de la skill.',
+    setupStep4:
+      'En Account Linking elige Auth Code Grant y pega las URIs + credenciales; copia aquí las 3 URLs de redirección de Alexa y guarda.',
+    setupStep5:
+      'Vincula la cuenta en la app de Alexa y di «Alexa, descubre dispositivos».',
+    setupDocs: 'Guía completa: <a>docs/alexa-integration-guide.md</a>.',
+    loadError: 'No se pudo cargar la integración de Alexa',
+    createError: 'No se pudo crear la integración',
+    redirectUrisError:
+      'No se pudieron guardar las URLs de redirección (solo se permiten hosts de Alexa)',
+    rotateError: 'No se pudo rotar el secreto',
+    deleteError: 'No se pudo eliminar la integración',
+    unlinkError: 'No se pudo desvincular la cuenta',
+  },
+
   ai: {
     title: 'Configuración de IA',
     description: 'Configura el proveedor de IA para tu organización.',

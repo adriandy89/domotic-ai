@@ -141,6 +141,64 @@ export const settings = {
     deleteError: 'Could not delete integration',
   },
 
+  alexa: {
+    title: 'Amazon Alexa',
+    description:
+      'Control your devices by voice through a private Alexa Smart Home skill.',
+    linked: 'Alexa account linked',
+    linkedSince: 'since {{date}}',
+    notLinked: 'Your Alexa account is not linked yet.',
+    unlink: 'Unlink',
+    noClient:
+      'No Alexa integration configured for this organization yet. Create one to get the OAuth credentials for your skill.',
+    createClient: 'Create integration',
+    namePlaceholder: 'e.g. Home skill',
+    clientCreated: 'Created: {{date}}',
+    clientId: 'Client ID',
+    clientSecret: 'Client secret',
+    authorizationUri: 'Authorization URI',
+    tokenUri: 'Access Token URI',
+    redirectUris: 'Alexa redirect URLs (one per line)',
+    redirectUrisHint:
+      'Copy the 3 redirect URLs from the skill’s Account Linking page.',
+    rotateSecret: 'Rotate secret',
+    deleteClient: 'Delete integration',
+    deleteTitle: 'Delete Alexa integration',
+    deleteDesc:
+      'The OAuth client and every linked Alexa account in this organization will stop working. This cannot be undone.',
+    secretTitle: 'Alexa OAuth credentials',
+    secretDesc:
+      'Copy the client secret now — it is shown only once. Paste both values into the skill’s Account Linking page.',
+    secretWarning:
+      'Treat the secret like a password. If you lose it, rotate it to get a new one.',
+    savedIt: 'I saved it',
+    copy: 'Copy',
+    copied: 'Copied ✓',
+    memberHint:
+      'The organization skill is configured. Link your account from the Alexa app (Skills → your skill → Enable and link).',
+    askAdmin:
+      'Ask your organization admin to set up the Alexa integration first.',
+    setupInstructions: 'Setup instructions (org admin)',
+    setupStep1:
+      'Create the integration above and copy the Client ID, secret and both URIs.',
+    setupStep2:
+      'In the Amazon Developer Console create a Smart Home skill (payload v3).',
+    setupStep3:
+      'Create an AWS Lambda (Node 20/22) with alexa-lambda/index.mjs, set PUBLIC_APP_URL, add the "Alexa Smart Home" trigger and paste its ARN as the skill endpoint.',
+    setupStep4:
+      'In Account Linking choose Auth Code Grant and paste the URIs + credentials; copy the 3 Alexa redirect URLs back here and save.',
+    setupStep5:
+      'Link the account in the Alexa app, then say "Alexa, discover devices".',
+    setupDocs: 'Full runbook: <a>docs/alexa-integration-guide.md</a>.',
+    loadError: 'Could not load the Alexa integration',
+    createError: 'Could not create the integration',
+    redirectUrisError:
+      'Could not save the redirect URLs (only Alexa hosts are allowed)',
+    rotateError: 'Could not rotate the secret',
+    deleteError: 'Could not delete the integration',
+    unlinkError: 'Could not unlink the account',
+  },
+
   ai: {
     title: 'AI Configuration',
     description: 'Configure the AI provider for your organization.',

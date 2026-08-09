@@ -17,7 +17,13 @@ export default function LoginPage() {
     // Redirect to backend auth endpoint
     // Assuming api is at localhost:3000/api/v1 (proxied or direct)
     // We use window.location.href because it's an external redirect
-    window.location.href = `${import.meta.env.VITE_API_URL || 'http://localhost:3017/api/v1'}/auth/${provider}`;
+    const base = `${import.meta.env.VITE_API_URL || 'http://localhost:3017/api/v1'}/auth/${provider}`;
+    // Forward a post-login destination (e.g. the Alexa account-linking
+    // /authorize URL); the API only honors same-origin relative paths.
+    const next = new URLSearchParams(window.location.search).get('next');
+    window.location.href = next
+      ? `${base}?next=${encodeURIComponent(next)}`
+      : base;
   };
 
   return (

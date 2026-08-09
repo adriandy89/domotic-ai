@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import ActiveSessionsCard from '../components/settings/ActiveSessionsCard';
 import AiConfigCard from '../components/settings/AiConfigCard';
+import AlexaIntegrationCard from '../components/settings/AlexaIntegrationCard';
 import MarketProvidersSection from '../components/settings/energy/MarketProvidersSection';
 import TariffSection from '../components/settings/energy/TariffSection';
 import LanguageCard from '../components/settings/LanguageCard';
@@ -86,6 +87,7 @@ export default function SettingsPage() {
         <TabsContent value="integrations" className="space-y-3">
           <McpEndpointCard />
           <XiaozhiIntegrationCard />
+          <AlexaIntegrationCard />
           {user?.role === 'ADMIN' && <AiConfigCard />}
         </TabsContent>
 

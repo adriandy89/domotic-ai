@@ -22,23 +22,7 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   async googleAuthCallback(@Req() req: Request, @Res() res: Response) {
-    // Explicitly login user to save in session
-    if (!req.user) {
-      return res.status(401).json({ message: 'Authentication failed' });
-    }
-    req.login(req.user, async (err) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error logging in' });
-      }
-      if (req.user) {
-        await this.userService.saveUserSession(
-          (req.user as any).id,
-          req.sessionID,
-        );
-      }
-      // Redirect to frontend dashboard or home
-      res.redirect('/'); // Change this to your frontend URL
-    });
+    return this.finishLogin(req, res);
   }
 
   // ==================== MICROSOFT OAUTH ====================
@@ -52,22 +36,7 @@ export class AuthController {
   @Get('microsoft/callback')
   @UseGuards(AuthGuard('microsoft'))
   async microsoftAuthCallback(@Req() req: Request, @Res() res: Response) {
-    // Explicitly login user to save in session
-    if (!req.user) {
-      return res.status(401).json({ message: 'Authentication failed' });
-    }
-    req.login(req.user, async (err) => {
-      if (err) {
-        return res.status(500).json({ message: 'Error logging in' });
-      }
-      if (req.user) {
-        await this.userService.saveUserSession(
-          (req.user as any).id,
-          req.sessionID,
-        );
-      }
-      res.redirect('/');
-    });
+    return this.finishLogin(req, res);
   }
 
   // ==================== GITHUB OAUTH ====================
@@ -81,11 +50,20 @@ export class AuthController {
   @Get('github/callback')
   @UseGuards(AuthGuard('github'))
   async githubAuthCallback(@Req() req: Request, @Res() res: Response) {
-    // Explicitly login user to save in session
+    return this.finishLogin(req, res);
+  }
+
+  /**
+   * Explicitly login user to save in session, then send them back to where
+   * they started (session.returnTo, captured from `?next=` on the entry
+   * route) or the dashboard. keepSessionInfo preserves returnTo across
+   * passport's session regeneration.
+   */
+  private finishLogin(req: Request, res: Response) {
     if (!req.user) {
       return res.status(401).json({ message: 'Authentication failed' });
     }
-    req.login(req.user, async (err) => {
+    req.login(req.user, { session: true, keepSessionInfo: true }, async (err) => {
       if (err) {
         return res.status(500).json({ message: 'Error logging in' });
       }
@@ -95,7 +73,9 @@ export class AuthController {
           req.sessionID,
         );
       }
-      res.redirect('/');
+      const returnTo = req.session.returnTo ?? '/';
+      delete req.session.returnTo;
+      res.redirect(returnTo);
     });
   }
 

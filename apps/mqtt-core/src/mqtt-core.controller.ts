@@ -10,7 +10,7 @@ interface PublishCommandPayload {
   organizationId: string;
   command: Record<string, unknown>;
   /** Origin of the command — used for audit. Defaults to 'api'. */
-  source?: 'api' | 'ai' | 'rule' | 'schedule';
+  source?: 'api' | 'ai' | 'rule' | 'schedule' | 'alexa';
   /** User id originating the command (for audit). */
   userId?: string;
 }

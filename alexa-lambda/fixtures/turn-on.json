@@ -1,0 +1,16 @@
+{
+  "directive": {
+    "header": {
+      "namespace": "Alexa.PowerController",
+      "name": "TurnOn",
+      "payloadVersion": "3",
+      "messageId": "fixture-turnon-1",
+      "correlationToken": "fixture-correlation-token"
+    },
+    "endpoint": {
+      "scope": { "type": "BearerToken", "token": "REPLACE_WITH_ACCESS_TOKEN" },
+      "endpointId": "dev:REPLACE_WITH_DEVICE_UUID"
+    },
+    "payload": {}
+  }
+}
