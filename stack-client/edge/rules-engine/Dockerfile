@@ -6,7 +6,12 @@
 # addon de better-sqlite3 se compila una sola vez en todo el build.
 
 # ── build ────────────────────────────────────────────────────────────────────
-FROM node:24-bookworm-slim AS build
+# node:22 NO es arbitrario: better-sqlite3@11.10.0 es anterior a Node 24 y su
+# Statement::~Statement() aborta el proceso contra el runtime 24
+# ("Assertion failed: (env) != nullptr" en RemoveEnvironmentCleanupHook).
+# Node 24 exige subir a better-sqlite3 v12+. Además, en 22 hay prebuild arm64,
+# así que el addon ni se compila.
+FROM node:22-bookworm-slim AS build
 WORKDIR /app
 RUN corepack enable
 # Toolchain for the better-sqlite3 native addon. Se queda en esta etapa: nunca
@@ -26,7 +31,7 @@ RUN pnpm prune --prod
 
 # ── runtime ──────────────────────────────────────────────────────────────────
 # Sin toolchain, sin corepack, sin devDeps: solo el runtime de Node y la app.
-FROM node:24-bookworm-slim AS production
+FROM node:22-bookworm-slim AS production
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=build /app/node_modules ./node_modules
