@@ -20,8 +20,12 @@ import { StateMachineService } from './state-machine.service';
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     DbModule,
-    // Distinct client id so we don't evict mqtt-core's shared-env MQTT connection.
-    MqttModule.forRootAsync({ clientIdSuffix: '-appliance-monitor' }),
+    // Own MQTT_APPLIANCE_MONITOR_* credentials (fallback: shared MQTT_* with a
+    // distinct client id) so we don't evict mqtt-core's MQTT connection.
+    MqttModule.forRootAsync({
+      envPrefix: 'MQTT_APPLIANCE_MONITOR',
+      clientIdSuffix: '-appliance-monitor',
+    }),
   ],
   controllers: [ApplianceMonitorController],
   providers: [ConfigStoreService, StateMachineService],
