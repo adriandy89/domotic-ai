@@ -6,7 +6,7 @@
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.25.0",
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.14"
   },
   "scripts": {
     "vendor": "bash scripts/vendor-libs.sh",
@@ -21,14 +21,14 @@
     "@nestjs/common": "^12.3.2",
     "@nestjs/core": "^12.3.2",
     "@nestjs/schedule": "^12.0.2",
-    "better-sqlite3": "^11.10.0",
+    "better-sqlite3": "^13.0.3",
     "cron-parser": "^4.9.0",
     "mqtt": "^5.16.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11",
+    "@types/better-sqlite3": "^9.6.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.20.5",
     "jest": "^30.5.2",

@@ -58,6 +58,7 @@ pnpm test
 ```
 
 NestJS 12 ships as ESM only; this CommonJS project loads it through `require(esm)`.
-The runtime needs Node >= 22.12, but Jest can only do that on **Node >= 24.9**
-with `--experimental-vm-modules` (already passed by `pnpm test`). On Node 22 the
-suites fail with "Must use import to load ES Module".
+The runtime needs Node >= 22.14 (better-sqlite3 13 needs Node-API 10), but Jest
+can only load ESM via `require` on **Node >= 24.9** with `--experimental-vm-modules`
+(already passed by `pnpm test`). On Node 22 the suites fail with "Must use import
+to load ES Module".
