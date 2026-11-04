@@ -4,7 +4,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import parser from 'cron-parser';
+import { CronExpressionParser } from 'cron-parser';
 import {
   EdgeSchedule,
   buildJobTiming,
@@ -75,7 +75,9 @@ export class SchedulesService implements OnModuleInit, OnModuleDestroy {
     const armNext = () => {
       let nextMs: number;
       try {
-        const it = parser.parseExpression(timing.pattern, { tz: timing.tz });
+        const it = CronExpressionParser.parse(timing.pattern, {
+          tz: timing.tz,
+        });
         nextMs = it.next().toDate().getTime() - Date.now();
       } catch (e: any) {
         this.logger.error(`Bad cron for schedule ${s.id}: ${e?.message}`);
