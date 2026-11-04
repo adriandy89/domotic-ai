@@ -6,17 +6,17 @@
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.25.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "dev": "ts-node src/main.ts",
-    "test": "jest"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "dependencies": {
-    "@nestjs/common": "^11.2.8",
-    "@nestjs/core": "^11.2.8",
+    "@nestjs/common": "^12.3.2",
+    "@nestjs/core": "^12.3.2",
     "androidtv-remote": "^1.0.10",
     "bonjour-service": "^1.4.4",
     "lgtv2": "^1.6.0",
