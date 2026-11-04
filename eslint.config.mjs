@@ -29,6 +29,9 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
+      // Added to eslint:recommended in ESLint 10; existing findings are reported as warnings.
+      'preserve-caught-error': 'warn',
+      'no-useless-assignment': 'warn',
       "prettier/prettier": ["error", { endOfLine: "auto" }],
     },
   },
