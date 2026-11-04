@@ -39,7 +39,7 @@
     "@nestjs/swagger": "^11.4.8",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
-    "ai": "^6.0.322",
+    "ai": "^7.0.162",
     "axios": "^1.21.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.81.5",
