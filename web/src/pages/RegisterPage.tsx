@@ -1,5 +1,5 @@
-import { Github } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Github } from '../components/icons/github';
 import { Button } from '../components/ui/button';
 import {
   Card,
