@@ -43,6 +43,7 @@ type WatchdogRule = {
     attribute: string;
     operation: Operation;
     data: any;
+    trigger: boolean;
   }[];
   results: {
     id: string;
@@ -153,6 +154,7 @@ export class WatchdogService implements OnModuleInit {
             attribute: true,
             operation: true,
             data: true,
+            trigger: true,
           },
         },
         results: {
@@ -181,17 +183,22 @@ export class WatchdogService implements OnModuleInit {
 
     const lastAlertAt = await this.lastAlertAt(rule.id);
 
-    const results = await Promise.all(
-      absenceConditions.map((c) => this.evaluateCondition(rule, c, lastAlertAt)),
+    const evaluated = await Promise.all(
+      absenceConditions.map(async (condition) => ({
+        condition,
+        ...(await this.evaluateCondition(rule, condition, lastAlertAt)),
+      })),
     );
 
     // `all` (AND) requires every absence condition met; otherwise any one fires.
+    // In AND mode only trigger-enabled conditions may INITIATE a fire (be the
+    // "fresh" one); trigger=false conditions still count toward `met`.
     const met = rule.all
-      ? results.every((r) => r.met)
-      : results.some((r) => r.met);
+      ? evaluated.every((r) => r.met)
+      : evaluated.some((r) => r.met);
     const shouldFire = rule.all
-      ? results.every((r) => r.met) && results.some((r) => r.fresh)
-      : results.some((r) => r.met && r.fresh);
+      ? met && evaluated.some((r) => r.fresh && r.condition.trigger !== false)
+      : evaluated.some((r) => r.met && r.fresh);
 
     if (!met) return;
 
@@ -234,7 +241,11 @@ export class WatchdogService implements OnModuleInit {
       return;
     }
 
-    const reason = results.find((r) => r.met && r.fresh)?.reason ?? '';
+    const reason =
+      evaluated.find(
+        (r) =>
+          r.met && r.fresh && (!rule.all || r.condition.trigger !== false),
+      )?.reason ?? '';
     this.logger.log(`Watchdog rule ${rule.id} firing (${reason})`);
     await this.fire(rule, reason);
   }

@@ -1,8 +1,16 @@
 name: zigbee
 
+# Rotación de logs para que el json-file no crezca sin límite en el host.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
 services:
 
     zigbee2mqtt:
+        logging: *default-logging
         container_name: zigbee2mqtt
         restart: always
         image: koenkk/zigbee2mqtt

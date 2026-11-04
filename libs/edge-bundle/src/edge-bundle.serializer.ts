@@ -59,6 +59,7 @@ export async function serializeEdgeBundle(
               attribute: true,
               operation: true,
               data: true,
+              trigger: true,
             },
           },
           results: {
@@ -128,6 +129,7 @@ export async function serializeEdgeBundle(
         attribute: c.attribute,
         operation: c.operation,
         data: c.data,
+        trigger: c.trigger,
       })),
       // Offline only ever acts via COMMAND results.
       results: r.results

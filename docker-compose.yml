@@ -1,7 +1,15 @@
 name: domotic-ai
 
+# Rotación de logs para que el json-file no crezca sin límite en el host.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
 services:
   prisma-migrate:
+    logging: *default-logging
     container_name: prisma-migrate
     build:
       context: .
@@ -10,6 +18,7 @@ services:
       - ./.env.local
 
   init:
+    logging: *default-logging
     container_name: init
     env_file:
       - ./.env.local
@@ -24,6 +33,7 @@ services:
         condition: service_completed_successfully
 
   api:
+    logging: *default-logging
     container_name: api
     env_file:
       - ./.env.local
@@ -40,6 +50,7 @@ services:
         condition: service_started
 
   mqtt-core:
+    logging: *default-logging
     container_name: mqtt-core
     env_file:
       - ./.env.local
@@ -54,6 +65,7 @@ services:
         condition: service_started
 
   rules-engine:
+    logging: *default-logging
     container_name: rules-engine
     env_file:
       - ./.env.local
@@ -68,6 +80,7 @@ services:
         condition: service_started
 
   appliance-monitor:
+    logging: *default-logging
     container_name: appliance-monitor
     env_file:
       - ./.env.local
@@ -82,6 +95,7 @@ services:
         condition: service_started
 
   ai-service:
+    logging: *default-logging
     container_name: ai-service
     env_file:
       - ./.env.local
@@ -96,6 +110,7 @@ services:
         condition: service_started
 
   integrations:
+    logging: *default-logging
     container_name: integrations
     env_file:
       - ./.env.local

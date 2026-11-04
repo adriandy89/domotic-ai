@@ -14,8 +14,16 @@ name: lan-bridge
 #
 # Fill the per-home values in ./.env (copy from ./.env.example).
 
+# Rotación de logs para que el json-file no crezca sin límite en el host.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
 services:
   lan-bridge:
+    logging: *default-logging
     build:
       context: .
       dockerfile: Dockerfile

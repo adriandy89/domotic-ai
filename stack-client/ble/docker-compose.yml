@@ -11,8 +11,16 @@ name: ble
 # from the dashboard (Integrations → BLE). Needs host network + DBus for the Bluetooth
 # adapter.
 
+# Rotación de logs para que el json-file no crezca sin límite en el host.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
 services:
   theengs-gateway:
+    logging: *default-logging
     container_name: theengs-gateway
     image: theengs/gateway:latest
     restart: always

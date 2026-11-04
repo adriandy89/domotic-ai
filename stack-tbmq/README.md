@@ -182,6 +182,14 @@ MQTT_CONNECT_TIMEOUT=10000
 MQTT_RECONNECT_PERIOD=4000
 ```
 
+8. Repeat steps 3-6 for **appliance-monitor** (Application, Basic) with a **different Client ID** (e.g. `your_client_id-appliance-monitor`) and publish rights on `home/id/+/wifi/+/state`. A credential that pins a Client ID rejects any other id ("Not authorized"), so appliance-monitor cannot reuse the one above:
+
+```yaml
+MQTT_APPLIANCE_MONITOR_CLIENT_ID=your_client_id-appliance-monitor
+MQTT_APPLIANCE_MONITOR_USERNAME=your_am_username   # optional, falls back to MQTT_USERNAME
+MQTT_APPLIANCE_MONITOR_PASSWORD=your_am_password   # optional, falls back to MQTT_PASSWORD
+```
+
 ## 📊 Monitoring
 
 ### Service Health

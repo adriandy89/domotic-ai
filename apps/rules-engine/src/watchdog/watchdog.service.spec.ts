@@ -88,6 +88,7 @@ function inactiveRule(overrides: Record<string, any> = {}) {
         attribute: 'occupancy',
         operation: Operation.INACTIVE,
         data: { forSeconds: 60, value: true },
+        trigger: true,
       },
     ],
     results: [
@@ -379,6 +380,64 @@ describe('WatchdogService.evaluateRule combination semantics', () => {
     });
     await (service as any).evaluateRule(rule);
     expect(fire).not.toHaveBeenCalled();
+  });
+});
+
+describe('WatchdogService AND trigger gate (evaluator-only absence conditions)', () => {
+  const spyConds = (service: WatchdogService, results: any[]) => {
+    let i = 0;
+    jest
+      .spyOn(service as any, 'evaluateCondition')
+      .mockImplementation(async () => results[i++]);
+  };
+
+  // AND rule: the INACTIVE condition may initiate a fire (trigger=true), the
+  // STALE one is evaluator-only (trigger=false) — it counts toward `met` but
+  // must never be the "fresh" condition that initiates the alert.
+  const andTriggerRule = () =>
+    inactiveRule({
+      all: true,
+      conditions: [
+        {
+          id: 'a',
+          device_id: 'd1',
+          attribute: 'occupancy',
+          operation: Operation.INACTIVE,
+          data: { forSeconds: 60, value: true },
+          trigger: true,
+        },
+        {
+          id: 'b',
+          device_id: 'd2',
+          attribute: '',
+          operation: Operation.STALE,
+          data: { forSeconds: 60 },
+          trigger: false,
+        },
+      ],
+    });
+
+  it('does NOT fire when only the trigger=false condition is fresh', async () => {
+    const { service } = makeService();
+    const fire = jest.spyOn(service as any, 'fire').mockResolvedValue(undefined);
+    spyConds(service, [
+      { met: true, fresh: false, reason: 'inactive' }, // trigger=true, already alerted
+      { met: true, fresh: true, reason: 'stale' }, // fresh one is evaluator-only
+    ]);
+    await (service as any).evaluateRule(andTriggerRule());
+    expect(fire).not.toHaveBeenCalled();
+  });
+
+  it('fires when the trigger=true condition is fresh (trigger=false still counts toward met)', async () => {
+    const { service } = makeService();
+    const fire = jest.spyOn(service as any, 'fire').mockResolvedValue(undefined);
+    spyConds(service, [
+      { met: true, fresh: true, reason: 'inactive' }, // trigger=true initiates
+      { met: true, fresh: false, reason: 'stale' }, // trigger=false only gates `met`
+    ]);
+    await (service as any).evaluateRule(andTriggerRule());
+    expect(fire).toHaveBeenCalledTimes(1);
+    expect(fire).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1' }), 'inactive');
   });
 });
 

@@ -50,6 +50,9 @@ export const rules = {
     eventMessage: 'Event message',
     allMatch: 'All match',
     anyMatch: 'Any match',
+    trigger: 'Trigger',
+    triggerHint:
+      'On: data from this condition starts rule evaluation. Off: the condition is only checked against its last known state.',
     runOffline: 'Run offline',
     runOfflineHint:
       'Keep this rule working without internet on edge-enabled homes (COMMAND actions only).',
@@ -96,6 +99,7 @@ export const rules = {
       attributeRequired:
         'Pick the attribute to watch for the "Inactive for" condition.',
       resultRequired: 'At least one result is required',
+      triggerRequired: 'At least one condition must have the trigger enabled',
       updated: 'Rule updated successfully',
       created: 'Rule created successfully',
     },
@@ -140,6 +144,83 @@ export const rules = {
       'Leave empty to notify yourself via your enabled channels. Separate multiple emails with commas.',
     addonLowBattery: "Also alert me if this device's battery is low (< 20%)",
     addonSilent: 'Also alert me if this device stops reporting (> 1 day)',
+  },
+  help: {
+    open: 'Rule guide',
+    title: 'Rule guide',
+    close: 'Close guide',
+    intro:
+      'A rule watches your devices and acts on its own. Read this guide alongside the form: each section below matches a card on the left.',
+    exampleLabel: 'Example',
+    flow: {
+      data: 'A device reports',
+      conditions: 'Conditions match',
+      actions: 'Actions run',
+    },
+    overview: {
+      title: 'What is a rule?',
+      p1: 'A rule is an automation: WHEN your devices report data that meets every condition you define, THEN the actions run. You never have to press anything.',
+      p2: 'Each time a device in your home reports (a button press, a temperature reading, a door opening), the rule checks its conditions with the latest known state of every device involved.',
+      example:
+        'When the button is pressed → turn on the room light. One condition, one action.',
+    },
+    basic: {
+      title: 'Basic information',
+      typeName: 'Type',
+      typeDesc:
+        'Recurrent rules run every time their conditions are met. One-time rules run once and turn themselves off.',
+      waitName: 'Wait for conditions to stay true',
+      waitDesc:
+        'The conditions must remain true for this long before the actions run. If they stop being true during the wait, the run is cancelled. 0 = run immediately.',
+      waitExample:
+        'Motion stops + wait 10 minutes → the light only turns off after 10 minutes without movement.',
+      activeName: 'Active',
+      activeDesc: 'Turns the whole rule on or off without deleting it.',
+      allName: 'All / Any',
+      allDesc:
+        '"All" requires every condition to be true at the same time (AND). "Any" runs the rule when a single condition is met (OR).',
+      offlineName: 'Run offline',
+      offlineDesc:
+        'Keeps the rule working in your home even without internet (edge-enabled homes, device actions only).',
+    },
+    conditions: {
+      title: 'Conditions',
+      p1: 'Each row compares one device attribute against a value: pick the device, the attribute to watch (e.g. temperature), how to compare (=, >, <…) and the value.',
+      absenceName: '"Inactive for" / "No report for"',
+      absenceDesc:
+        'Absence conditions fire when something does NOT happen: no movement for 8 hours, or a sensor silent for a day. Useful for care and health checks.',
+      triggerName: 'Trigger switch (All mode)',
+      triggerDesc:
+        'With "All" enabled, each condition shows a Trigger switch. On: new data from this condition starts the rule check. Off: the condition still counts, but only with its last known value — its own data never starts the check.',
+      triggerExample:
+        'Door opens (trigger ON) + brightness > 100 (trigger OFF) → the rule runs only at the moment the door opens, if it is bright enough. Brightness changes alone never run it.',
+    },
+    window: {
+      title: 'When to run',
+      p1: 'Limits the days and time range when the rule may act, in your home’s timezone. Outside the window the rule stays armed but silent.',
+      example:
+        'From 22:00 to 06:00 crosses midnight: the rule may act at 23:30 and at 05:00, but not at noon.',
+    },
+    results: {
+      title: 'Results / Actions',
+      commandName: 'Send action',
+      commandDesc:
+        'Controls a device: turn on a light, switch a plug, set a state. Pick the device, the attribute and the value to set.',
+      notificationName: 'Notification',
+      notificationDesc:
+        'Sends you a message through your enabled channels (email, Telegram). Care rules can also notify external people by email.',
+    },
+    example: {
+      title: 'Full example',
+      step1: 'Name the rule "Button turns on light" and pick your home.',
+      step2:
+        'Add a condition: device "Button Switch", attribute "action", = Equal, value "single".',
+      step3:
+        'Add a result: Send action → device "LED bulb", attribute "state", value "ON".',
+      step4: 'Leave "Active" on and save. Press the button to try it.',
+      tipLabel: 'Tip',
+      tip: 'Start simple — one condition, one action — and add conditions once it works.',
+    },
   },
 };
 

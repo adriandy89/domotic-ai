@@ -1,7 +1,15 @@
 name: web
 
+# Rotación de logs para que el json-file no crezca sin límite en el host.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '5'
+
 services:
   domotic-web:
+    logging: *default-logging
     container_name: domotic-web
     build:
       dockerfile: Dockerfile

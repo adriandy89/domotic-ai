@@ -249,6 +249,7 @@ export class RuleService {
             attribute: true,
             operation: true,
             data: true,
+            trigger: true,
           },
         },
         results: {

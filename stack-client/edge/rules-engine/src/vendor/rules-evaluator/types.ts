@@ -13,6 +13,13 @@ export interface EvaluatorCondition {
   operation: Operation;
   /** JSON payload. Typically `{ value: any, forSeconds?: number }`. */
   data: any;
+  /**
+   * AND-mode ("all") rules only: when false, incoming data for this condition never
+   * initiates rule evaluation — it only participates as an evaluator against its
+   * last-known state. Missing = true (back-compat with old bundles/rows). The pure
+   * evaluator ignores this field; engines gate on it before evaluating.
+   */
+  trigger?: boolean;
 }
 
 export interface EvaluatorResult {
