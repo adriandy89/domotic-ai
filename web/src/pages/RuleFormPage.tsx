@@ -667,7 +667,7 @@ export default function RuleFormPage() {
         }),
     };
 
-    let success = false;
+    let success: boolean;
     if (isEditMode && id) {
       success = await updateRule(id, data);
       if (success) toast.success(t('rules.form.toast.updated'));

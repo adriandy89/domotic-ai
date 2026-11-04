@@ -281,7 +281,7 @@ export default function ScheduleFormPage() {
       })),
     };
 
-    let success = false;
+    let success: boolean;
     if (isEditMode && id) {
       success = await updateSchedule(id, payload);
       if (success) toast.success(t('schedules.form.toast.updated'));
