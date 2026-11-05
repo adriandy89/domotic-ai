@@ -35,6 +35,8 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
   private readonly definitions = new Map<string, DeviceDefinition>();
   private readonly stateCache = new Map<string, Record<string, unknown>>();
   private readonly capsCache = new Map<string, Partial<DriverCapabilities>>();
+  /** Devices that rejected our credentials: pairable again until re-paired. */
+  private readonly needsPairing = new Set<string>();
   /** The bridge's own device id (org-unique via the home id). */
   readonly bridgeId: string;
 
@@ -54,9 +56,21 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
     this.pairing.bind({
       isManaged: (id, ip) =>
         id === this.bridgeId ||
-        this.deviceStore.has(id) ||
-        this.deviceStore.hasIp(ip),
+        this.deviceStore
+          .all()
+          .some(
+            (d) => (d.id === id || d.ip === ip) && !this.needsPairing.has(d.id),
+          ),
+      repairTarget: (type, ip) =>
+        this.deviceStore
+          .all()
+          .find(
+            (d) => d.type === type && d.ip === ip && this.needsPairing.has(d.id),
+          ),
       onPaired: (def) => {
+        // A re-paired device restarts with its new credentials.
+        this.detachDevice(def.id);
+        this.needsPairing.delete(def.id);
         this.deviceStore.add(def);
         this.attachDevice(def);
       },
@@ -91,15 +105,42 @@ export class BridgeService implements OnModuleInit, OnModuleDestroy {
       publishState: (partial) => this.publishState(def.id, partial),
       publishAvailability: (online) => this.publishAvailability(def.id, online),
       capabilitiesChanged: (caps) => this.onCapabilities(def.id, caps),
+      // Ignore a late report from a driver already replaced by a re-pairing.
+      unpaired: () => {
+        if (this.drivers.get(def.id) === driver) this.onUnpaired(def.id);
+      },
     };
     const driver = createDriver(def, host, this.config.dataDir);
     this.definitions.set(def.id, def);
     this.drivers.set(def.id, driver);
     this.publishDiscoveryConfig(def.id);
-    driver.start();
+    // Online first: start() may synchronously report the device offline/unpaired.
     this.publishAvailability(def.id, true);
+    driver.start();
     this.publishState(this.bridgeId, { devices: this.drivers.size });
     this.logger.log(`Driver ${def.type} started for ${def.id} (${def.ip})`);
+  }
+
+  private detachDevice(deviceId: string): void {
+    const driver = this.drivers.get(deviceId);
+    if (!driver) return;
+    this.drivers.delete(deviceId);
+    try {
+      driver.stop();
+    } catch (err: any) {
+      this.logger.warn(`Driver ${deviceId} stop failed: ${err?.message}`);
+    }
+  }
+
+  /** Surface it on the bridge card: the fix is turning Pairing on again. */
+  private onUnpaired(deviceId: string): void {
+    this.needsPairing.add(deviceId);
+    const def = this.definitions.get(deviceId);
+    const label = def ? `${def.name} (${def.ip})` : deviceId;
+    this.logger.warn(`${label} rejected our credentials — it must be paired again.`);
+    this.publishState(this.bridgeId, {
+      discovered: `${label} must be paired again — turn on Pairing and type the code shown on the TV`,
+    });
   }
 
   private baseTopic(deviceId: string): string {

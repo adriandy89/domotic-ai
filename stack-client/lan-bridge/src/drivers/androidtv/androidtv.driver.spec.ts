@@ -45,6 +45,7 @@ function makeDriver() {
     publishState: jest.fn(),
     publishAvailability: jest.fn(),
     capabilitiesChanged: jest.fn(),
+    unpaired: jest.fn(),
   };
   const driver = new AndroidTvDriver(def, host, '/data', () => remote as any);
   return { driver, remote, host };
@@ -126,14 +127,52 @@ describe('AndroidTvDriver', () => {
     expect(remote.keys).toHaveLength(0);
   });
 
-  it('warns and stays inert without a pairing certificate', async () => {
-    const { loadCert } = jest.requireMock('./cert-store');
-    loadCert.mockReturnValueOnce(undefined);
-    const { driver, remote } = makeDriver();
+  it('when the TV rejects our certificate: stops, goes offline and asks to re-pair', async () => {
+    const { driver, remote, host } = makeDriver();
     driver.start();
-    expect(remote.start).not.toHaveBeenCalled();
+
+    remote.emit('unpaired');
+    remote.emit('unpaired'); // reported once
+
+    expect(remote.stopped).toBe(true);
+    expect(host.publishAvailability).toHaveBeenCalledTimes(1);
+    expect(host.publishAvailability).toHaveBeenCalledWith(false);
+    expect(host.unpaired).toHaveBeenCalledTimes(1);
     await expect(driver.handleCommand('power', 'ON')).rejects.toThrow(
       'not paired',
     );
+  });
+
+  it('warns and stays inert without a pairing certificate', async () => {
+    const { loadCert } = jest.requireMock('./cert-store');
+    loadCert.mockReturnValueOnce(undefined);
+    const { driver, remote, host } = makeDriver();
+    driver.start();
+    expect(remote.start).not.toHaveBeenCalled();
+    // Offered for pairing again, like a TV that rejected its certificate.
+    expect(host.publishAvailability).toHaveBeenCalledWith(false);
+    expect(host.unpaired).toHaveBeenCalledTimes(1);
+    await expect(driver.handleCommand('power', 'ON')).rejects.toThrow(
+      'not paired',
+    );
+  });
+
+  it('a volume ramp stops quietly if the driver is stopped mid-way', async () => {
+    jest.useFakeTimers();
+    try {
+      const { driver, remote } = makeDriver();
+      driver.start();
+      remote.emit('volume', { level: 0, maximum: 20, muted: false });
+
+      const ramp = driver.handleCommand('volume', '100'); // 20 paced steps
+      await jest.advanceTimersByTimeAsync(300);
+      driver.stop();
+      await jest.advanceTimersByTimeAsync(5_000);
+
+      await expect(ramp).resolves.toBeUndefined();
+      expect(remote.keys.length).toBeLessThan(20);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

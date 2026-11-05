@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  androidtv-remote@1.0.10:
+    hash: 6bedc21f7907c929c31246108cbcb2011c9df0cfc34ffc6e0136bbac4d3aaac5
+    path: patches/androidtv-remote@1.0.10.patch
+
 importers:
 
   .:
@@ -16,7 +21,7 @@ importers:
         version: 12.3.2(@nestjs/common@12.3.2(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2)
       androidtv-remote:
         specifier: ^1.0.10
-        version: 1.0.10
+        version: 1.0.10(patch_hash=6bedc21f7907c929c31246108cbcb2011c9df0cfc34ffc6e0136bbac4d3aaac5)
       bonjour-service:
         specifier: ^1.4.4
         version: 1.4.4
@@ -2609,7 +2614,7 @@ snapshots:
 
   acorn@8.17.0: {}
 
-  androidtv-remote@1.0.10:
+  androidtv-remote@1.0.10(patch_hash=6bedc21f7907c929c31246108cbcb2011c9df0cfc34ffc6e0136bbac4d3aaac5):
     dependencies:
       core-js: 3.49.0
       crypto-js: 4.2.0

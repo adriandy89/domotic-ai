@@ -37,6 +37,7 @@ export class AndroidTvDriver implements DeviceDriver {
   private lastLevel?: number;
   private maximum = 100;
   private muted = false;
+  private rejected = false;
 
   constructor(
     readonly definition: DeviceDefinition,
@@ -50,8 +51,8 @@ export class AndroidTvDriver implements DeviceDriver {
   start(): void {
     const cert = loadCert(this.dataDir, this.definition.id);
     if (!cert) {
-      this.logger.warn(
-        'No pairing certificate found — re-pair the TV (Pairing mode + code).',
+      this.requestPairing(
+        'No pairing certificate found — turn on Pairing on the LAN Bridge card and type the code shown on the TV.',
       );
       return;
     }
@@ -82,9 +83,7 @@ export class AndroidTvDriver implements DeviceDriver {
     this.remote.on('current_app', (app: string) => {
       if (app) this.host.publishState({ app });
     });
-    this.remote.on('unpaired', () =>
-      this.logger.warn('TV unpaired us — run Pairing mode again.'),
-    );
+    this.remote.on('unpaired', () => this.onUnpaired());
     this.remote.on('error', (err: any) =>
       this.logger.debug(`Remote: ${err?.message ?? err}`),
     );
@@ -100,6 +99,28 @@ export class AndroidTvDriver implements DeviceDriver {
     } catch {
       // socket already gone
     }
+    this.remote = undefined;
+  }
+
+  /**
+   * The TV refused our client certificate (pairing forgotten after a reset /
+   * update, or removed from its remotes list). Retrying can't work: go offline
+   * and let the bridge offer the TV for pairing again.
+   */
+  private onUnpaired(): void {
+    this.requestPairing(
+      'The TV no longer trusts this bridge (pairing certificate rejected) — turn on Pairing on the LAN Bridge card and type the code shown on the TV.',
+    );
+  }
+
+  /** Offline + offered for pairing again (once). */
+  private requestPairing(reason: string): void {
+    if (this.rejected) return;
+    this.rejected = true;
+    this.logger.warn(reason);
+    this.stop();
+    this.host.publishAvailability(false);
+    this.host.unpaired();
   }
 
   async handleCommand(property: string, value: string): Promise<void> {
@@ -143,8 +164,11 @@ export class AndroidTvDriver implements DeviceDriver {
         ? RemoteKeyCode.KEYCODE_VOLUME_UP
         : RemoteKeyCode.KEYCODE_VOLUME_DOWN;
     const steps = Math.min(Math.abs(delta), VOLUME_MAX_STEPS);
+    const remote = this.remote;
     for (let i = 0; i < steps; i++) {
-      this.remote!.sendKey(key, RemoteDirection.SHORT);
+      // Stopped mid-ramp (unpaired, re-paired, shutdown): give up quietly.
+      if (!remote || this.remote !== remote) return;
+      remote.sendKey(key, RemoteDirection.SHORT);
       await new Promise((r) => setTimeout(r, VOLUME_STEP_MS));
     }
   }
