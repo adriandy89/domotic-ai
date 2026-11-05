@@ -160,4 +160,69 @@ describe('Edge SchedulesService', () => {
     jest.advanceTimersByTime(24 * 60 * 60 * 1000);
     expect(send).not.toHaveBeenCalled();
   });
+
+  // ── Recurring (cron) path: next occurrence + re-arm after each fire ─────────
+  const SECOND = 1000;
+  const HOUR = 60 * 60 * SECOND;
+
+  it('fires a CUSTOM schedule only on the selected weekdays (local time) and re-arms', () => {
+    // Monday 2026-07-06 09:00 Madrid (UTC+2).
+    jest.setSystemTime(new Date('2026-07-06T07:00:00Z'));
+    const custom: EdgeSchedule = {
+      id: 's-custom-days',
+      name: 'Wed + Fri TV',
+      active: true,
+      // 08:00 Madrid encoded as the absolute instant 06:00Z.
+      date: '2026-07-06T06:00:00Z',
+      frequency: ScheduleFrequency.CUSTOM,
+      days: [ScheduleDays.FRIDAY, ScheduleDays.WEDNESDAY],
+      actions: powerOn,
+    };
+    const { service, send } = makeService([custom]);
+    service.reload();
+
+    // Mon 07:00Z → Wed 2026-07-08 06:00Z (08:00 Madrid) is 47h away.
+    jest.advanceTimersByTime(47 * HOUR - SECOND);
+    expect(send).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(SECOND);
+    expect(send).toHaveBeenCalledTimes(1);
+
+    // Thursday is skipped; next is Fri 2026-07-10 06:00Z (48h later).
+    jest.advanceTimersByTime(48 * HOUR - SECOND);
+    expect(send).toHaveBeenCalledTimes(1);
+    jest.advanceTimersByTime(SECOND);
+    expect(send).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a DAILY schedule at 08:00 local across the DST change (re-arms each day)', () => {
+    // Sat 2026-10-24 07:00 Madrid (CEST, UTC+2). DST ends Sun 2026-10-25 03:00 → 02:00.
+    jest.setSystemTime(new Date('2026-10-24T05:00:00Z'));
+    const daily: EdgeSchedule = {
+      id: 's-daily-dst',
+      name: 'Morning TV',
+      active: true,
+      // Created in summer: 08:00 Madrid encoded as 06:00Z.
+      date: '2026-07-06T06:00:00Z',
+      frequency: ScheduleFrequency.DAILY,
+      days: [],
+      actions: powerOn,
+    };
+    const { service, send } = makeService([daily]);
+    service.reload();
+
+    jest.advanceTimersByTime(HOUR); // Sat 06:00Z = 08:00 CEST
+    expect(send).toHaveBeenCalledTimes(1);
+
+    // Sun 08:00 CET = 07:00Z → 25h after the previous fire, not 24h.
+    jest.advanceTimersByTime(24 * HOUR);
+    expect(send).toHaveBeenCalledTimes(1);
+    jest.advanceTimersByTime(HOUR);
+    expect(send).toHaveBeenCalledTimes(2);
+
+    // Mon 08:00 CET = 07:00Z → back to a plain 24h step.
+    jest.advanceTimersByTime(24 * HOUR - SECOND);
+    expect(send).toHaveBeenCalledTimes(2);
+    jest.advanceTimersByTime(SECOND);
+    expect(send).toHaveBeenCalledTimes(3);
+  });
 });

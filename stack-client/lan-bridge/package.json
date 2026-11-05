@@ -6,30 +6,31 @@
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.25.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.12"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
     "dev": "ts-node src/main.ts",
-    "test": "jest"
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "dependencies": {
-    "@nestjs/common": "^11.0.1",
-    "@nestjs/core": "^11.0.1",
+    "@nestjs/common": "^12.3.2",
+    "@nestjs/core": "^12.3.2",
     "androidtv-remote": "^1.0.10",
-    "bonjour-service": "^1.4.2",
+    "bonjour-service": "^1.4.4",
     "lgtv2": "^1.6.0",
-    "mqtt": "^5.10.1",
+    "mqtt": "^5.16.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.19.2",
-    "jest": "^30.0.0",
-    "ts-jest": "^29.2.5",
+    "jest": "^30.5.2",
+    "ts-jest": "^29.4.15",
     "ts-node": "^10.9.2",
-    "typescript": "^5.7.3"
+    "typescript": "~6.0.3"
   },
   "jest": {
     "moduleFileExtensions": [
