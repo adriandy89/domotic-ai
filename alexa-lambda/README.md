@@ -13,6 +13,8 @@ function should almost never need redeploying.
    Region: `eu-west-1` for European skill languages, `us-east-1` for en-US.
 2. Paste `index.mjs` as the function code and *Deploy*.
 3. Environment variable: `PUBLIC_APP_URL = https://<your-domain>`.
+   General configuration → **Timeout = 8 s** (the 3 s default is shorter than
+   the proxy's 7 s budget).
 4. Add trigger → Alexa → Smart Home → your Skill ID.
 5. Copy the Function ARN into the skill's *Default endpoint*.
 

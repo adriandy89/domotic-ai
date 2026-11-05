@@ -7,15 +7,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as crypto from 'crypto';
 import type { AlexaAuthContext } from '../alexa-token.service';
 import {
+  acceptGrantErrorResponse,
   acceptGrantResponse,
   alexaResponse,
   discoverResponse,
   errorResponse,
   stateReport,
 } from '../mapping/alexa-response';
-import {
-  projectProperties,
-} from '../mapping/alexa-state';
+import { projectProperties } from '../mapping/alexa-state';
 import {
   decodeEndpointId,
   encodeEndpointId,
@@ -69,6 +68,9 @@ export class AlexaDirectiveService {
       this.logger.error(
         `alexa directive failed ${header.namespace}.${header.name}: ${(err as Error).message}`,
       );
+      if (header.namespace === 'Alexa.Authorization') {
+        return acceptGrantErrorResponse('Unexpected error');
+      }
       return errorResponse(body, 'INTERNAL_ERROR', 'Unexpected error');
     }
   }
@@ -96,8 +98,10 @@ export class AlexaDirectiveService {
         endpointId: encodeEndpointId({ kind: 'device', id: device.id }),
         manufacturerName: 'Domotic-AI',
         friendlyName: friendlyName(device.name),
-        description:
-          device.description ?? `${device.model ?? 'Device'} via Domotic-AI`,
+        // Alexa caps description at 128 chars (Device.description allows 512).
+        description: (
+          device.description ?? `${device.model ?? 'Device'} via Domotic-AI`
+        ).slice(0, 128),
         displayCategories: mapping.displayCategories,
         capabilities: mapping.capabilities,
       });
@@ -181,7 +185,10 @@ export class AlexaDirectiveService {
       ...currentData,
       ...(result.commandSent ?? converted.command),
     };
-    if (header.namespace === 'Alexa.ColorController' && mapping.features.color) {
+    if (
+      header.namespace === 'Alexa.ColorController' &&
+      mapping.features.color
+    ) {
       echoed[mapping.features.color.property] = payload?.color;
     }
     const properties = projectProperties(
@@ -272,11 +279,7 @@ export class AlexaDirectiveService {
   private async acceptGrant(body: AlexaDirective, ctx: AlexaAuthContext) {
     const code = body.directive.payload?.grant?.code;
     if (typeof code !== 'string' || !code) {
-      return errorResponse(
-        body,
-        'ACCEPT_GRANT_FAILED',
-        'Missing grant code',
-      );
+      return acceptGrantErrorResponse('Missing grant code');
     }
     await this.db.alexaEventGrant.upsert({
       where: { user_id: ctx.userId },
@@ -301,7 +304,10 @@ export class AlexaDirectiveService {
     };
   }
 
-  private async loadEndpointDevice(body: AlexaDirective, ctx: AlexaAuthContext) {
+  private async loadEndpointDevice(
+    body: AlexaDirective,
+    ctx: AlexaAuthContext,
+  ) {
     const ref = decodeEndpointId(body.directive.endpoint?.endpointId ?? '');
     if (!ref || ref.kind !== 'device') {
       return {

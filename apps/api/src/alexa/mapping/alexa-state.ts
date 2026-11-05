@@ -1,5 +1,5 @@
 import type { AlexaProperty } from './alexa.types';
-import type { MappedFeatures } from './capability-mapper';
+import { THERMOSTAT_MODES, type MappedFeatures } from './capability-mapper';
 import { makeProperty } from './alexa-response';
 import { xyToHsb } from './color-convert';
 
@@ -64,13 +64,12 @@ export function projectProperties(
 
   if (features.thermostatMode && features.setpoint) {
     const mode = data[features.thermostatMode.property];
-    if (typeof mode === 'string' && mode) {
+    // Alexa rejects StateReports with modes outside its enum (e.g. FAN_ONLY,
+    // HEAT_COOL, DRY), so only report the ones discovery advertised.
+    const upper = typeof mode === 'string' ? mode.toUpperCase() : '';
+    if (THERMOSTAT_MODES.includes(upper)) {
       props.push(
-        makeProperty(
-          'Alexa.ThermostatController',
-          'thermostatMode',
-          mode.toUpperCase(),
-        ),
+        makeProperty('Alexa.ThermostatController', 'thermostatMode', upper),
       );
     }
     const setpoint = asNumber(data[features.setpoint.property]);

@@ -105,6 +105,24 @@ export function discoverResponse(endpoints: AlexaDiscoveryEndpoint[]) {
   };
 }
 
+/**
+ * AcceptGrant failures must use the `Alexa.Authorization` namespace (not the
+ * generic `Alexa` ErrorResponse) or Alexa rejects the reply.
+ */
+export function acceptGrantErrorResponse(message: string) {
+  return {
+    event: {
+      header: {
+        namespace: 'Alexa.Authorization',
+        name: 'ErrorResponse',
+        payloadVersion: '3',
+        messageId: crypto.randomUUID(),
+      },
+      payload: { type: 'ACCEPT_GRANT_FAILED', message },
+    },
+  };
+}
+
 export function acceptGrantResponse() {
   return {
     event: {

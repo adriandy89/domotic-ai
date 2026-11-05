@@ -1,5 +1,9 @@
 import * as crypto from 'crypto';
-import { AlexaOAuthService, OAuthGrantError } from './alexa-oauth.service';
+import {
+  AlexaOAuthService,
+  OAuthGrantError,
+  REFRESH_ROTATION_GRACE_MS,
+} from './alexa-oauth.service';
 
 /** Minimal DbService stub covering the methods the service touches. */
 function makeDb() {
@@ -18,8 +22,18 @@ function makeDb() {
       create: jest.fn().mockReturnValue(Promise.resolve({})),
       findUnique: jest.fn(),
       findFirst: jest.fn(),
-      update: jest.fn().mockResolvedValue({}),
       updateMany: jest.fn().mockReturnValue(Promise.resolve({ count: 0 })),
+      deleteMany: jest.fn().mockReturnValue(Promise.resolve({ count: 0 })),
+    },
+    user: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ is_active: true, organization_id: 'org1' }),
+    },
+    alexaOAuthClient: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ organization_id: 'org1', disabled: false }),
     },
     $transaction: jest.fn((ops: unknown[]) => Promise.all(ops)),
   };
@@ -126,44 +140,87 @@ describe('AlexaOAuthService', () => {
           redirectUri: baseRow.redirect_uri,
         }),
       ).rejects.toThrow('already used');
-      expect(db.alexaRefreshToken.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ user_id: 'u1', client_id: 'c1' }),
-        }),
-      );
+      // Explicit revocation DELETES (rotated rows stay usable in the grace window).
+      expect(db.alexaRefreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { user_id: 'u1', client_id: 'c1' },
+      });
     });
   });
 
   describe('refresh', () => {
+    const liveRow = (revoked_at: Date | null = null) => ({
+      token_hash: 'rh',
+      client_id: 'c1',
+      user_id: 'u1',
+      scope: null,
+      revoked_at,
+    });
+
     it('rotates the refresh token', async () => {
-      db.alexaRefreshToken.findUnique.mockResolvedValue({
-        token_hash: 'rh',
-        client_id: 'c1',
-        user_id: 'u1',
-        scope: null,
-        revoked_at: null,
-      });
+      db.alexaRefreshToken.findUnique.mockResolvedValue(liveRow());
       const pair = await svc.refresh({ clientId: 'c1', refreshToken: 'raw' });
       expect(pair.refresh_token).toMatch(/^alexart_/);
-      expect(db.alexaRefreshToken.update).toHaveBeenCalledWith(
+      expect(db.alexaRefreshToken.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { token_hash: 'rh' },
+          where: { token_hash: 'rh', revoked_at: null },
           data: expect.objectContaining({ revoked_at: expect.any(Date) }),
         }),
       );
     });
 
-    it('rejects a revoked refresh token', async () => {
-      db.alexaRefreshToken.findUnique.mockResolvedValue({
-        token_hash: 'rh',
-        client_id: 'c1',
-        user_id: 'u1',
-        scope: null,
-        revoked_at: new Date(),
+    it('accepts a just-rotated token inside the grace window (Alexa retry)', async () => {
+      db.alexaRefreshToken.findUnique.mockResolvedValue(
+        liveRow(new Date(Date.now() - (REFRESH_ROTATION_GRACE_MS - 5_000))),
+      );
+      const pair = await svc.refresh({ clientId: 'c1', refreshToken: 'raw' });
+      expect(pair.access_token).toMatch(/^alexaat_/);
+    });
+
+    it('rejects a token rotated longer ago than the grace window', async () => {
+      db.alexaRefreshToken.findUnique.mockResolvedValue(
+        liveRow(new Date(Date.now() - (REFRESH_ROTATION_GRACE_MS + 5_000))),
+      );
+      await expect(
+        svc.refresh({ clientId: 'c1', refreshToken: 'raw' }),
+      ).rejects.toThrow(OAuthGrantError);
+      expect(db.alexaAccessToken.create).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the user was deactivated', async () => {
+      db.alexaRefreshToken.findUnique.mockResolvedValue(liveRow());
+      db.user.findUnique.mockResolvedValueOnce({
+        is_active: false,
+        organization_id: 'org1',
       });
       await expect(
         svc.refresh({ clientId: 'c1', refreshToken: 'raw' }),
       ).rejects.toThrow(OAuthGrantError);
     });
+
+    it("rejects when the client no longer belongs to the user's organization", async () => {
+      db.alexaRefreshToken.findUnique.mockResolvedValue(liveRow());
+      db.alexaOAuthClient.findUnique.mockResolvedValueOnce({
+        organization_id: 'org2',
+        disabled: false,
+      });
+      await expect(
+        svc.refresh({ clientId: 'c1', refreshToken: 'raw' }),
+      ).rejects.toThrow(OAuthGrantError);
+    });
+
+    it('rejects a token issued to another client', async () => {
+      db.alexaRefreshToken.findUnique.mockResolvedValue(liveRow());
+      await expect(
+        svc.refresh({ clientId: 'other', refreshToken: 'raw' }),
+      ).rejects.toThrow(OAuthGrantError);
+    });
+  });
+
+  it('unlinking deletes every refresh token of the user (no grace reuse)', async () => {
+    await svc.revokeAllForUser('u1');
+    expect(db.alexaRefreshToken.deleteMany).toHaveBeenCalledWith({
+      where: { user_id: 'u1' },
+    });
+    expect(db.alexaRefreshToken.updateMany).not.toHaveBeenCalled();
   });
 });

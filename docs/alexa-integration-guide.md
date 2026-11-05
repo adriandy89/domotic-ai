@@ -70,6 +70,9 @@ Smart Home skills only accept an AWS Lambda as endpoint; the Lambda here is a
    [`alexa-lambda/index.mjs`](../alexa-lambda/index.mjs) and *Deploy*.
 3. Configuration → Environment variables → add
    `PUBLIC_APP_URL = https://<your-domain>`.
+   Configuration → General configuration → **Timeout = 8 s**. The AWS default
+   (3 s) is shorter than the proxy's own 7 s budget, so slow cloud replies would
+   be killed by Lambda before the proxy can answer with a proper ErrorResponse.
 4. Add trigger → **Alexa** → *Smart Home* → paste the **Skill ID** from
    Step 2.
 5. Copy the **Function ARN** (top right) and paste it into the skill's
@@ -134,8 +137,9 @@ other members use it:
 State queries are answered from the platform's last reported state
 (`SensorDataLast`); commands respond synchronously and are audited in
 `command_executions` with `source = 'alexa'`. Proactive state push (Alexa app
-updating in real time) is a planned v2; the skill already stores the
-`AcceptGrant` credentials for it.
+updating in real time) is a planned v2. The skill answers `AcceptGrant` and
+stores the grant code, but does not yet exchange it with Login with Amazon;
+those codes expire within minutes, so enabling v2 will require users to re-link.
 
 ## Troubleshooting
 

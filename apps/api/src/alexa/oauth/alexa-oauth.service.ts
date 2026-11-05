@@ -4,6 +4,14 @@ import * as crypto from 'crypto';
 
 const CODE_TTL_MS = 10 * 60 * 1000;
 export const ACCESS_TOKEN_TTL_S = 3600;
+/**
+ * A rotated refresh token stays usable this long (Amazon account-linking
+ * requirement: keep old tokens valid for a while after issuing new ones, so a
+ * retried/concurrent refresh doesn't unlink the user). Explicit revocations
+ * (unlink, code replay, client deletion) DELETE rows instead, so `revoked_at`
+ * only ever means "rotated".
+ */
+export const REFRESH_ROTATION_GRACE_MS = 60 * 1000;
 
 export interface TokenPair {
   access_token: string;
@@ -97,11 +105,40 @@ export class AlexaOAuthService {
     const row = await this.db.alexaRefreshToken.findUnique({
       where: { token_hash: sha256(input.refreshToken ?? '') },
     });
-    if (!row || row.client_id !== input.clientId || row.revoked_at) {
+    const graceCutoff = Date.now() - REFRESH_ROTATION_GRACE_MS;
+    if (
+      !row ||
+      row.client_id !== input.clientId ||
+      (row.revoked_at && row.revoked_at.getTime() < graceCutoff)
+    ) {
       throw new OAuthGrantError('invalid_grant', 'Invalid refresh token');
     }
-    await this.db.alexaRefreshToken.update({
-      where: { token_hash: row.token_hash },
+
+    // The link is only valid while the user is active and the client still
+    // belongs to the user's organization.
+    const [owner, client] = await Promise.all([
+      this.db.user.findUnique({
+        where: { id: row.user_id },
+        select: { is_active: true, organization_id: true },
+      }),
+      this.db.alexaOAuthClient.findUnique({
+        where: { client_id: row.client_id },
+        select: { organization_id: true, disabled: true },
+      }),
+    ]);
+    if (
+      !owner?.is_active ||
+      !client ||
+      client.disabled ||
+      client.organization_id !== owner.organization_id
+    ) {
+      throw new OAuthGrantError('invalid_grant', 'Invalid refresh token');
+    }
+
+    // Rotate: mark as rotated (idempotent — a retry inside the grace window
+    // finds it already rotated and still gets a fresh pair).
+    await this.db.alexaRefreshToken.updateMany({
+      where: { token_hash: row.token_hash, revoked_at: null },
       data: { revoked_at: new Date(), last_used_at: new Date() },
     });
     return this.issueTokenPair(row.user_id, row.client_id, row.scope);
@@ -120,10 +157,8 @@ export class AlexaOAuthService {
   /** Unlink: drop every credential the user holds. */
   async revokeAllForUser(userId: string) {
     await this.db.$transaction([
-      this.db.alexaRefreshToken.updateMany({
-        where: { user_id: userId, revoked_at: null },
-        data: { revoked_at: new Date() },
-      }),
+      // Delete (not mark): marked rows would still be usable in the grace window.
+      this.db.alexaRefreshToken.deleteMany({ where: { user_id: userId } }),
       this.db.alexaAccessToken.deleteMany({ where: { user_id: userId } }),
       this.db.alexaAuthCode.deleteMany({ where: { user_id: userId } }),
     ]);
@@ -132,9 +167,8 @@ export class AlexaOAuthService {
 
   private async revokeAllForUserClient(userId: string, clientId: string) {
     await this.db.$transaction([
-      this.db.alexaRefreshToken.updateMany({
-        where: { user_id: userId, client_id: clientId, revoked_at: null },
-        data: { revoked_at: new Date() },
+      this.db.alexaRefreshToken.deleteMany({
+        where: { user_id: userId, client_id: clientId },
       }),
       this.db.alexaAccessToken.deleteMany({
         where: { user_id: userId, client_id: clientId },
@@ -167,7 +201,13 @@ export class AlexaOAuthService {
           scope,
         },
       }),
-      // Opportunistic cleanup so expired rows don't pile up.
+      // Opportunistic cleanup so expired/rotated rows don't pile up.
+      this.db.alexaRefreshToken.deleteMany({
+        where: {
+          user_id: userId,
+          revoked_at: { lt: new Date(Date.now() - REFRESH_ROTATION_GRACE_MS) },
+        },
+      }),
       this.db.alexaAccessToken.deleteMany({
         where: { user_id: userId, expires_at: { lt: new Date() } },
       }),

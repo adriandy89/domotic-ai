@@ -166,10 +166,12 @@ describe('sceneCapabilities', () => {
 
 describe('endpointId codec', () => {
   it('round-trips device and ir refs', () => {
-    expect(decodeEndpointId(encodeEndpointId({ kind: 'device', id: 'abc' })))
-      .toEqual({ kind: 'device', id: 'abc' });
-    expect(decodeEndpointId(encodeEndpointId({ kind: 'ir', id: 'xyz' })))
-      .toEqual({ kind: 'ir', id: 'xyz' });
+    expect(
+      decodeEndpointId(encodeEndpointId({ kind: 'device', id: 'abc' })),
+    ).toEqual({ kind: 'device', id: 'abc' });
+    expect(
+      decodeEndpointId(encodeEndpointId({ kind: 'ir', id: 'xyz' })),
+    ).toEqual({ kind: 'ir', id: 'xyz' });
   });
 
   it('rejects malformed ids', () => {

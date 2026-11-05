@@ -23,6 +23,10 @@ export function directiveToCommand(input: {
   switch (namespace) {
     case 'Alexa.PowerController': {
       if (!features.onOff) return unsupported(namespace);
+      // Explicit allowlist: an unknown name must never fall through to "off".
+      if (name !== 'TurnOn' && name !== 'TurnOff') {
+        return unsupported(`${namespace}.${name}`);
+      }
       const value =
         name === 'TurnOn' ? features.onOff.valueOn : features.onOff.valueOff;
       if (value === undefined) return unsupported(namespace);
@@ -117,6 +121,10 @@ export function directiveToCommand(input: {
 
     case 'Alexa.LockController': {
       if (!features.lock) return unsupported(namespace);
+      // Explicit allowlist: an unknown name must never fall through to "unlock".
+      if (name !== 'Lock' && name !== 'Unlock') {
+        return unsupported(`${namespace}.${name}`);
+      }
       const value =
         name === 'Lock' ? features.lock.valueOn : features.lock.valueOff;
       if (value === undefined) return unsupported(namespace);
@@ -135,7 +143,7 @@ function toCelsius(
   if (value === null) return null;
   switch (target?.scale) {
     case 'FAHRENHEIT':
-      return Math.round(((value - 32) * 5) / 9 * 10) / 10;
+      return Math.round((((value - 32) * 5) / 9) * 10) / 10;
     case 'KELVIN':
       return Math.round((value - 273.15) * 10) / 10;
     default:

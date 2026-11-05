@@ -2,6 +2,10 @@ import { Injectable, Logger, NestMiddleware } from '@nestjs/common';
 import * as crypto from 'crypto';
 import type { NextFunction, Request, Response } from 'express';
 import { AlexaAuthContext, AlexaTokenService } from './alexa-token.service';
+import {
+  acceptGrantErrorResponse,
+  discoverResponse,
+} from './mapping/alexa-response';
 
 export type AlexaRequest = Request & { alexa?: AlexaAuthContext };
 
@@ -16,6 +20,18 @@ export class AlexaAuthMiddleware implements NestMiddleware {
     const ctx = raw ? await this.tokens.authenticate(raw) : null;
     if (!ctx) {
       this.logger.warn(`alexa auth failed ip=${req.ip}`);
+      // Discovery spec: on token errors answer with an empty endpoint list,
+      // never an ErrorResponse.
+      const namespace = (req.body as any)?.directive?.header?.namespace;
+      if (namespace === 'Alexa.Discovery') {
+        return res.status(200).json(discoverResponse([]));
+      }
+      // AcceptGrant failures must use the Alexa.Authorization namespace.
+      if (namespace === 'Alexa.Authorization') {
+        return res
+          .status(401)
+          .json(acceptGrantErrorResponse('Invalid or expired access token'));
+      }
       // Alexa expects an ErrorResponse event, not a bare HTTP error.
       return res.status(401).json({
         event: {

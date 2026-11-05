@@ -34,7 +34,14 @@ export class AlexaOAuthController {
    */
   @Get('authorize')
   async authorize(@Req() req: Request, @Res() res: Response) {
-    const q = req.query as Record<string, string | undefined>;
+    // Repeated query params arrive as arrays; treat anything non-string as absent.
+    const q = {
+      client_id: str(req.query.client_id),
+      redirect_uri: str(req.query.redirect_uri),
+      response_type: str(req.query.response_type),
+      state: str(req.query.state),
+      scope: str(req.query.scope),
+    };
     const clientId = q.client_id ?? '';
     const redirectUri = q.redirect_uri ?? '';
 
@@ -63,21 +70,30 @@ export class AlexaOAuthController {
       return res.redirect(loginUrl.toString());
     }
 
+    // One skill per organization: a client may only link users of its own org,
+    // otherwise another org's admin could phish users through their skill.
+    if (client.organization_id !== req.user?.organization_id) {
+      return this.errorPage(
+        res,
+        'This Alexa skill belongs to a different organization',
+      );
+    }
+
     const nonce = crypto.randomBytes(16).toString('base64url');
     req.session.alexaConsentNonce = nonce;
-    res
-      .type('html')
-      .send(
-        consentPage({
-          clientName: client.name,
-          userEmail: req.user?.email ?? '',
-          clientId,
-          redirectUri,
-          state: q.state,
-          scope: q.scope,
-          nonce,
-        }),
-      );
+    sendHtml(
+      res,
+      200,
+      consentPage({
+        clientName: client.name,
+        userEmail: req.user?.email ?? '',
+        clientId,
+        redirectUri,
+        state: q.state,
+        scope: q.scope,
+        nonce,
+      }),
+    );
   }
 
   @Post('authorize/decision')
@@ -100,9 +116,20 @@ export class AlexaOAuthController {
     if (!client.redirect_uris.includes(dto.redirect_uri)) {
       return this.errorPage(res, 'redirect_uri is not in the allowlist');
     }
+    if (client.organization_id !== req.user?.organization_id) {
+      return this.errorPage(
+        res,
+        'This Alexa skill belongs to a different organization',
+      );
+    }
 
     if (dto.decision !== 'allow') {
-      return redirectWithError(res, dto.redirect_uri, 'access_denied', dto.state);
+      return redirectWithError(
+        res,
+        dto.redirect_uri,
+        'access_denied',
+        dto.state,
+      );
     }
 
     const code = await this.oauth.issueAuthCode({
@@ -133,25 +160,23 @@ export class AlexaOAuthController {
       : null;
     if (!client) {
       res.setHeader('WWW-Authenticate', 'Basic realm="alexa"');
-      return res
-        .status(401)
-        .json({ error: 'invalid_client' as const });
+      return res.status(401).json({ error: 'invalid_client' as const });
     }
 
     try {
-      switch (body.grant_type) {
+      switch (str(body.grant_type)) {
         case 'authorization_code': {
           const pair = await this.oauth.exchangeAuthCode({
             clientId: client.client_id,
-            code: body.code ?? '',
-            redirectUri: body.redirect_uri ?? '',
+            code: str(body.code) ?? '',
+            redirectUri: str(body.redirect_uri) ?? '',
           });
           return res.json(pair);
         }
         case 'refresh_token': {
           const pair = await this.oauth.refresh({
             clientId: client.client_id,
-            refreshToken: body.refresh_token ?? '',
+            refreshToken: str(body.refresh_token) ?? '',
           });
           return res.json(pair);
         }
@@ -170,17 +195,31 @@ export class AlexaOAuthController {
   }
 
   private errorPage(res: Response, message: string) {
-    res
-      .status(400)
-      .type('html')
-      .send(
-        page(
-          'Account linking error',
-          `<p class="error">${escapeHtml(message)}</p>
-           <p>Close this window and check the skill's account linking configuration.</p>`,
-        ),
-      );
+    sendHtml(
+      res,
+      400,
+      page(
+        'Account linking error',
+        `<p class="error">${escapeHtml(message)}</p>
+         <p>Close this window and check the skill's account linking configuration.</p>`,
+      ),
+    );
   }
+}
+
+/** HTML pages of the linking flow: never framed (clickjacking), never cached. */
+function sendHtml(res: Response, status: number, html: string) {
+  res
+    .status(status)
+    .setHeader('X-Frame-Options', 'DENY')
+    .setHeader('Content-Security-Policy', "frame-ancestors 'none'")
+    .setHeader('Cache-Control', 'no-store')
+    .type('html')
+    .send(html);
+}
+
+function str(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined;
 }
 
 function clientCredentials(
@@ -194,16 +233,20 @@ function clientCredentials(
     );
     const sep = decoded.indexOf(':');
     if (sep > 0) {
-      return {
-        id: decodeURIComponent(decoded.slice(0, sep)),
-        secret: decodeURIComponent(decoded.slice(sep + 1)),
-      };
+      try {
+        return {
+          id: decodeURIComponent(decoded.slice(0, sep)),
+          secret: decodeURIComponent(decoded.slice(sep + 1)),
+        };
+      } catch {
+        return null; // malformed %-encoding → invalid_client, not a 500
+      }
     }
     return null;
   }
-  if (body.client_id && body.client_secret) {
-    return { id: body.client_id, secret: body.client_secret };
-  }
+  const id = str(body.client_id);
+  const secret = str(body.client_secret);
+  if (id && secret) return { id, secret };
   return null;
 }
 

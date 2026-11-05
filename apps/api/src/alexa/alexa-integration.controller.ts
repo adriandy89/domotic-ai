@@ -53,7 +53,11 @@ export class AlexaIntegrationController {
     @Body() dto: CreateAlexaClientDto,
   ) {
     this.assertOrgAdmin(user);
-    return this.clients.create(user.organization_id, dto.name, dto.redirect_uris);
+    return this.clients.create(
+      user.organization_id,
+      dto.name,
+      dto.redirect_uris,
+    );
   }
 
   @Patch('client')

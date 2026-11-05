@@ -1,4 +1,4 @@
-import { Controller, Post, Req } from '@nestjs/common';
+import { Controller, Post, Req, UnauthorizedException } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { AlexaRequest } from '../alexa-auth.middleware';
 import type { AlexaDirective } from '../mapping/alexa.types';
@@ -17,6 +17,10 @@ export class AlexaDirectiveController {
 
   @Post('directives')
   handle(@Req() req: AlexaRequest) {
-    return this.directives.handle(req.body as AlexaDirective, req.alexa!);
+    // Fail closed if the auth middleware was not applied for any reason.
+    if (!req.alexa) {
+      throw new UnauthorizedException('Alexa bearer authentication required');
+    }
+    return this.directives.handle(req.body as AlexaDirective, req.alexa);
   }
 }

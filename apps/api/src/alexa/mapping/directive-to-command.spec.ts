@@ -25,7 +25,13 @@ function run(
   features: MappedFeatures = light,
   currentData: Record<string, unknown> = {},
 ) {
-  return directiveToCommand({ namespace, name, payload, features, currentData });
+  return directiveToCommand({
+    namespace,
+    name,
+    payload,
+    features,
+    currentData,
+  });
 }
 
 describe('directiveToCommand', () => {
@@ -41,10 +47,12 @@ describe('directiveToCommand', () => {
   });
 
   it('SetBrightness scales 0–100 to the device range', () => {
-    expect(run('Alexa.BrightnessController', 'SetBrightness', { brightness: 50 }))
-      .toEqual({ ok: true, command: { brightness: 127 } });
-    expect(run('Alexa.BrightnessController', 'SetBrightness', { brightness: 100 }))
-      .toEqual({ ok: true, command: { brightness: 254 } });
+    expect(
+      run('Alexa.BrightnessController', 'SetBrightness', { brightness: 50 }),
+    ).toEqual({ ok: true, command: { brightness: 127 } });
+    expect(
+      run('Alexa.BrightnessController', 'SetBrightness', { brightness: 100 }),
+    ).toEqual({ ok: true, command: { brightness: 254 } });
     const invalid = run('Alexa.BrightnessController', 'SetBrightness', {
       brightness: 150,
     });
@@ -73,7 +81,10 @@ describe('directiveToCommand', () => {
     const result = run('Alexa.ColorController', 'SetColor', {
       color: { hue: 0, saturation: 1, brightness: 1 },
     });
-    expect(result).toEqual({ ok: true, command: { color: { hex: '#ff0000' } } });
+    expect(result).toEqual({
+      ok: true,
+      command: { color: { hex: '#ff0000' } },
+    });
   });
 
   it('SetColorTemperature passes Kelvin through untouched', () => {
@@ -98,14 +109,24 @@ describe('directiveToCommand', () => {
       },
     };
     expect(
-      run('Alexa.ThermostatController', 'SetThermostatMode', {
-        thermostatMode: { value: 'HEAT' },
-      }, thermostat),
+      run(
+        'Alexa.ThermostatController',
+        'SetThermostatMode',
+        {
+          thermostatMode: { value: 'HEAT' },
+        },
+        thermostat,
+      ),
     ).toEqual({ ok: true, command: { system_mode: 'heat' } });
     expect(
-      run('Alexa.ThermostatController', 'SetThermostatMode', {
-        thermostatMode: { value: 'COOL' },
-      }, thermostat),
+      run(
+        'Alexa.ThermostatController',
+        'SetThermostatMode',
+        {
+          thermostatMode: { value: 'COOL' },
+        },
+        thermostat,
+      ),
     ).toMatchObject({ ok: false, errorType: 'INVALID_VALUE' });
   });
 
@@ -114,14 +135,24 @@ describe('directiveToCommand', () => {
       setpoint: { property: 'occupied_heating_setpoint', type: 'numeric' },
     };
     expect(
-      run('Alexa.ThermostatController', 'SetTargetTemperature', {
-        targetSetpoint: { value: 71.6, scale: 'FAHRENHEIT' },
-      }, thermostat),
+      run(
+        'Alexa.ThermostatController',
+        'SetTargetTemperature',
+        {
+          targetSetpoint: { value: 71.6, scale: 'FAHRENHEIT' },
+        },
+        thermostat,
+      ),
     ).toEqual({ ok: true, command: { occupied_heating_setpoint: 22 } });
     expect(
-      run('Alexa.ThermostatController', 'SetTargetTemperature', {
-        targetSetpoint: { value: 21.5, scale: 'CELSIUS' },
-      }, thermostat),
+      run(
+        'Alexa.ThermostatController',
+        'SetTargetTemperature',
+        {
+          targetSetpoint: { value: 21.5, scale: 'CELSIUS' },
+        },
+        thermostat,
+      ),
     ).toEqual({ ok: true, command: { occupied_heating_setpoint: 21.5 } });
   });
 
@@ -147,5 +178,26 @@ describe('directiveToCommand', () => {
   it('rejects directives the endpoint does not support', () => {
     const result = run('Alexa.PowerController', 'TurnOn', {}, {});
     expect(result).toMatchObject({ ok: false, errorType: 'INVALID_DIRECTIVE' });
+  });
+
+  it('never maps an unknown PowerController name to "off" (fail closed)', () => {
+    expect(run('Alexa.PowerController', 'Toggle')).toMatchObject({
+      ok: false,
+      errorType: 'INVALID_DIRECTIVE',
+    });
+  });
+
+  it('never maps an unknown LockController name to "unlock" (fail closed)', () => {
+    const lockFeatures: MappedFeatures = {
+      lock: {
+        property: 'state',
+        type: 'binary',
+        valueOn: 'LOCK',
+        valueOff: 'UNLOCK',
+      },
+    };
+    expect(
+      run('Alexa.LockController', 'SomethingElse', {}, lockFeatures),
+    ).toMatchObject({ ok: false, errorType: 'INVALID_DIRECTIVE' });
   });
 });

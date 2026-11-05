@@ -21,6 +21,7 @@ export class AlexaTokenService {
       where: { token_hash },
       select: {
         expires_at: true,
+        client_id: true,
         user: {
           select: {
             id: true,
@@ -32,6 +33,20 @@ export class AlexaTokenService {
       },
     });
     if (!row || row.expires_at.getTime() < Date.now() || !row.user.is_active) {
+      return null;
+    }
+    // Disabling (or deleting) the org's client must cut access immediately,
+    // not when the 1h access token expires; and a token may only act inside
+    // the client's own organization.
+    const client = await this.db.alexaOAuthClient.findUnique({
+      where: { client_id: row.client_id },
+      select: { disabled: true, organization_id: true },
+    });
+    if (
+      !client ||
+      client.disabled ||
+      client.organization_id !== row.user.organization_id
+    ) {
       return null;
     }
     return {

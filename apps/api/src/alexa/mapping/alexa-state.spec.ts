@@ -19,7 +19,11 @@ function byName(props: { namespace: string; name: string; value: unknown }[]) {
 describe('projectProperties', () => {
   it('projects power, brightness (0–100) and Kelvin from mireds', () => {
     const props = byName(
-      projectProperties(light, { state: 'ON', brightness: 127, color_temp: 370 }, true),
+      projectProperties(
+        light,
+        { state: 'ON', brightness: 127, color_temp: 370 },
+        true,
+      ),
     );
     expect(props.powerState).toBe('ON');
     expect(props.brightness).toBe(50);
@@ -44,7 +48,8 @@ describe('projectProperties', () => {
       byName(projectProperties(sensor, { contact: true }, true)).detectionState,
     ).toBe('NOT_DETECTED');
     expect(
-      byName(projectProperties(sensor, { contact: false }, true)).detectionState,
+      byName(projectProperties(sensor, { contact: false }, true))
+        .detectionState,
     ).toBe('DETECTED');
   });
 
@@ -89,10 +94,46 @@ describe('projectProperties', () => {
         true,
       ),
     );
-    const color = props.color as { hue: number; saturation: number; brightness: number };
+    const color = props.color as {
+      hue: number;
+      saturation: number;
+      brightness: number;
+    };
     expect(color.brightness).toBe(1);
     expect(color.saturation).toBeGreaterThan(0.9);
     expect(color.hue).toBeGreaterThanOrEqual(0);
     expect(color.hue).toBeLessThan(30); // red-ish
+  });
+
+  it('reports only thermostat modes that Alexa accepts', () => {
+    const thermostat: MappedFeatures = {
+      setpoint: {
+        property: 'occupied_heating_setpoint',
+        type: 'numeric',
+      },
+      thermostatMode: {
+        property: 'system_mode',
+        type: 'enum',
+        values: ['off', 'heat', 'fan_only'],
+      },
+    } as MappedFeatures;
+    const heat = byName(
+      projectProperties(
+        thermostat,
+        { system_mode: 'heat', occupied_heating_setpoint: 21 },
+        true,
+      ),
+    );
+    expect(heat.thermostatMode).toBe('HEAT');
+
+    const fanOnly = byName(
+      projectProperties(
+        thermostat,
+        { system_mode: 'fan_only', occupied_heating_setpoint: 21 },
+        true,
+      ),
+    );
+    expect(fanOnly.thermostatMode).toBeUndefined();
+    expect(fanOnly.targetSetpoint).toEqual({ value: 21, scale: 'CELSIUS' });
   });
 });

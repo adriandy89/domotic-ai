@@ -40,6 +40,16 @@ export const handler = async (event) => {
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     const body = await res.json();
+    // Only pass through real Alexa events. A non-event body (e.g. a Nest
+    // exception `{statusCode, message}`) is not a valid skill response.
+    if (!body?.event?.header) {
+      console.error(`unexpected cloud response status=${res.status}`);
+      return errorResponse(
+        directive,
+        'INTERNAL_ERROR',
+        `Unexpected response from the Domotic-AI cloud (HTTP ${res.status})`,
+      );
+    }
     return body;
   } catch (err) {
     console.error('proxy error:', err);
@@ -52,10 +62,12 @@ export const handler = async (event) => {
 };
 
 function errorResponse(directive, type, message) {
+  // AcceptGrant errors must use the Alexa.Authorization namespace.
+  const isGrant = directive?.header?.namespace === 'Alexa.Authorization';
   return {
     event: {
       header: {
-        namespace: 'Alexa',
+        namespace: isGrant ? 'Alexa.Authorization' : 'Alexa',
         name: 'ErrorResponse',
         payloadVersion: '3',
         messageId: globalThis.crypto.randomUUID(),
@@ -66,7 +78,7 @@ function errorResponse(directive, type, message) {
       ...(directive?.endpoint?.endpointId && {
         endpoint: { endpointId: directive.endpoint.endpointId },
       }),
-      payload: { type, message },
+      payload: { type: isGrant ? 'ACCEPT_GRANT_FAILED' : type, message },
     },
   };
 }

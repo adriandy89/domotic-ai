@@ -35,7 +35,7 @@ const ALEXA_BASE: AlexaCapability = {
 };
 
 /** Zigbee `system_mode` values ↔ Alexa thermostat modes (upper-cased match). */
-const THERMOSTAT_MODES = ['HEAT', 'COOL', 'AUTO', 'OFF', 'ECO'];
+export const THERMOSTAT_MODES = ['HEAT', 'COOL', 'AUTO', 'OFF', 'ECO'];
 
 /**
  * Maps a device's actions/readable attributes to its Alexa endpoint shape.
@@ -121,9 +121,7 @@ export function mapCapabilities(
 }
 
 export function supportedThermostatModes(modeAction: DeviceAction): string[] {
-  const values = (modeAction.values ?? []).map((v) =>
-    String(v).toUpperCase(),
-  );
+  const values = (modeAction.values ?? []).map((v) => String(v).toUpperCase());
   return THERMOSTAT_MODES.filter((m) => values.includes(m));
 }
 
