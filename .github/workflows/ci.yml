@@ -1,0 +1,97 @@
+name: ci
+
+# Puertas de calidad de la metodología (Spec → Plan → TDD → Review → Verify).
+# Bloqueantes: typecheck, tests y build. Lint: informativo (hay deuda histórica;
+# ver docs/status) hasta que el número de errores baje a 0.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # prisma generate / prisma.config.ts necesitan una URL aunque no se conecte.
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4 # versión desde packageManager de package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      - name: Typecheck (apps + libs)
+        run: pnpm exec tsc --noEmit -p tsconfig.json
+      - name: Tests
+        run: pnpm exec jest --ci
+      - name: Build de todas las apps
+        run: |
+          for app in api init mqtt-core rules-engine appliance-monitor ai-service integrations; do
+            echo "::group::nest build $app"
+            pnpm exec nest build "$app"
+            echo "::endgroup::"
+          done
+      - name: Lint (informativo)
+        continue-on-error: true
+        run: pnpm exec eslint "{apps,libs}/**/*.ts"
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm exec tsc -b
+      - name: Build
+        run: pnpm exec vite build
+      - name: Lint (informativo)
+        continue-on-error: true
+        run: pnpm exec eslint .
+
+  stack-client:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [stack-client/edge/rules-engine, stack-client/lan-bridge]
+    defaults:
+      run:
+        working-directory: ${{ matrix.project }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.project }}/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm exec tsc --noEmit -p tsconfig.json
+      - name: Tests
+        # `pnpm test -- --ci` pasaría "--" a jest como patrón y no ejecutaría nada.
+        run: pnpm exec jest --ci

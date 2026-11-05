@@ -1,0 +1,33 @@
+# Overlay de PRUEBA LOCAL de las imágenes del backend (no usar en servidor).
+#
+#   make docker-env && make docker-build && make docker-up
+#
+# - Usa .env.docker.dev (generado desde .env.dev: BD *_dev, Redis/NATS/Mosquitto
+#   del stack local) en lugar de .env.local → nunca toca producción.
+# - Requiere la infra local levantada (make dev-up), que crea domotic-network.
+# - Solo la API se publica, y solo en 127.0.0.1:3003.
+# - restart "no": si algo falla en la prueba, se ve en vez de entrar en bucle.
+x-dev: &dev
+  env_file: !override
+    - ./.env.docker.dev
+  restart: 'no'
+
+services:
+  prisma-migrate:
+    <<: *dev
+  init:
+    <<: *dev
+  api:
+    <<: *dev
+    ports:
+      - '127.0.0.1:3003:3003'
+  mqtt-core:
+    <<: *dev
+  rules-engine:
+    <<: *dev
+  appliance-monitor:
+    <<: *dev
+  ai-service:
+    <<: *dev
+  integrations:
+    <<: *dev

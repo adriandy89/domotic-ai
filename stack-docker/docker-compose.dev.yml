@@ -1,0 +1,73 @@
+# Overlay de DESARROLLO LOCAL sobre docker-compose.yml (no usar en servidor).
+#
+#   make dev-up      (o: scripts/dev/dc.sh up -d)
+#
+# Cambios respecto al stack base:
+#  - Todos los puertos se publican SOLO en 127.0.0.1 (no en la LAN).
+#  - Redis en el host 6380 (el 6379 suele estar ocupado por otros proyectos y
+#    `init` borra claves de Redis al arrancar: nunca debe apuntar a otro Redis).
+#  - Añade un Mosquitto local anónimo para que mqtt-core / appliance-monitor
+#    NUNCA hablen con el broker de producción (TBMQ).
+#  - Las configs de NATS/Mosquitto van inline (`configs.content`), sin bind
+#    mounts del host: funciona aunque la integración WSL de Docker Desktop
+#    esté rota. Las credenciales de NATS salen de .env.dev (las exporta dc.sh).
+# Los volúmenes son los del stack base (stack-domotic_*): los datos se conservan.
+services:
+  redis:
+    restart: unless-stopped
+    ports: !override
+      - '127.0.0.1:${DEV_REDIS_PORT:-6380}:6379'
+
+  timescaledb:
+    restart: unless-stopped
+    ports: !override
+      - '127.0.0.1:${DEV_PG_PORT:-5433}:5432'
+    # Las imágenes PG18+ guardan los datos en /var/lib/postgresql/18/docker y se
+    # niegan a arrancar si el volumen se monta en /var/lib/postgresql/data (lo
+    # que hace el compose base). Montarlo en /var/lib/postgresql es lo correcto
+    # para pg18 y es donde ya están los datos del volumen local.
+    volumes: !override
+      - timescaledb:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  nats:
+    restart: unless-stopped
+    ports: !override
+      - '127.0.0.1:${DEV_NATS_PORT:-4222}:4222'
+    volumes: !reset []
+    configs:
+      - source: nats_dev_conf
+        target: /etc/nats/nats.conf
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.22
+    container_name: domotic-mosquitto
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${DEV_MQTT_PORT:-1883}:1883'
+    configs:
+      - source: mosquitto_dev_conf
+        target: /mosquitto/config/mosquitto.conf
+
+configs:
+  nats_dev_conf:
+    content: |
+      authorization {
+        users = [
+          { user: "${DEV_NATS_USER:-admin}", password: "${DEV_NATS_PASS:?export DEV_NATS_PASS or use scripts/dev/dc.sh}" }
+        ]
+      }
+      max_payload = 16777216
+  mosquitto_dev_conf:
+    content: |
+      listener 1883
+      allow_anonymous true
+      persistence false
+      log_dest stdout
+      log_type error
+      log_type warning
+      log_type notice

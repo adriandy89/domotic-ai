@@ -43,5 +43,7 @@
       "@app/edge-bundle": ["libs/edge-bundle/src"],
       "@app/edge-bundle/*": ["libs/edge-bundle/src/*"]
     }
-  }
+  },
+  "include": ["apps/**/*", "libs/**/*"],
+  "exclude": ["node_modules", "dist", "libs/cache/example-*.ts"]
 }
