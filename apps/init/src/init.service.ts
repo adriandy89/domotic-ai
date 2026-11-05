@@ -20,6 +20,18 @@ import { Cron } from '@nestjs/schedule';
 import { AxiosError } from 'axios';
 import { catchError, firstValueFrom } from 'rxjs';
 
+/**
+ * Redis key prefixes that are state, not cache: never wiped on init.
+ * - `sess:`          express-session store (connect-redis)
+ * - `user-session:`  per-user session index used by "log out other sessions"
+ * - `bull:`          BullMQ queues (schedules, delayed rules, watchdog)
+ */
+export const PRESERVED_REDIS_PREFIXES = [
+  'sess:',
+  'user-session:',
+  'bull:',
+] as const;
+
 @Injectable()
 export class InitService implements OnModuleInit {
   private readonly logger = new Logger(InitService.name);
@@ -257,9 +269,15 @@ export class InitService implements OnModuleInit {
   }
 
   async initializeCache() {
-    this.logger.log('Clear All Redis caches ...');
-    await this.cacheService.flushAll();
-    this.logger.log('All Redis caches cleared OK!');
+    // NOT flushAll: the same Redis holds the API's login sessions (`sess:`,
+    // indexed by `user-session:`) and the rules-engine BullMQ queues (`bull:` —
+    // schedules, delayed rules, watchdog). Wiping them on every init (re)start logged everyone out and
+    // silently dropped scheduled/delayed jobs until rules-engine restarted.
+    this.logger.log('Clear Redis caches (keeping sessions and queues) ...');
+    const deleted = await this.cacheService.flushAllExcept(
+      PRESERVED_REDIS_PREFIXES,
+    );
+    this.logger.log(`Redis caches cleared OK! (${deleted} keys)`);
 
     await this.initializeHomesCache();
 

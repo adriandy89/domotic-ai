@@ -69,6 +69,43 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Deletes every key of the current DB EXCEPT those starting with one of
+   * `preservePrefixes`. Use it instead of FLUSHALL when the Redis instance is
+   * shared with state that is not cache (express sessions, BullMQ queues).
+   * Returns the number of deleted keys.
+   */
+  async flushAllExcept(preservePrefixes: readonly string[]): Promise<number> {
+    if (!this.client?.isReady) {
+      this.logger.error(
+        `Redis client [${this.serviceName}] is not ready for flushAllExcept.`,
+      );
+      return 0;
+    }
+    let deleted = 0;
+    try {
+      // node-redis v5 yields batches (string[]) per SCAN cursor step.
+      for await (const batch of this.client.scanIterator({
+        MATCH: '*',
+        COUNT: 500,
+      })) {
+        const keys = (Array.isArray(batch) ? batch : [batch])
+          .map(String)
+          .filter((k) => !preservePrefixes.some((p) => k.startsWith(p)));
+        if (keys.length > 0) deleted += await this.client.unlink(keys);
+      }
+      this.logger.verbose(
+        `flushAllExcept(${preservePrefixes.join(',')}) deleted ${deleted} keys on Redis [${this.serviceName}]`,
+      );
+    } catch (error: any) {
+      console.error(
+        `Error in flushAllExcept on Redis [${this.serviceName}]:`,
+        error,
+      );
+    }
+    return deleted;
+  }
+
   async ttl(key: string): Promise<number> {
     if (!this.client?.isReady) {
       this.logger.error(
