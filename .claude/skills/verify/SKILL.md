@@ -12,7 +12,7 @@ verificar (hardware real, producción, Alexa real), dilo explícitamente.
 
 | Tocado | Comandos |
 |---|---|
-| Cualquier TS de `apps/` o `libs/` | `pnpm exec tsc --noEmit -p tsconfig.json` y `pnpm exec jest --silent` |
+| Cualquier TS de `apps/` o `libs/` | `pnpm exec tsc --noEmit -p tsconfig.json` y `pnpm test --silent` |
 | Una app concreta | además `pnpm exec nest build <app>` |
 | `prisma/schema.prisma` | `pnpm exec prisma validate && pnpm exec prisma generate` + `make dev-db` (aplica en `domotic_dev`) |
 | `web/` | `pnpm -C web exec tsc -b && pnpm -C web exec vite build` y `pnpm -C web exec eslint <ficheros>` |

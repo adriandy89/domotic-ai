@@ -34,7 +34,9 @@ jobs:
       - name: Typecheck (apps + libs)
         run: pnpm exec tsc --noEmit -p tsconfig.json
       - name: Tests
-        run: pnpm exec jest --ci
+        # `pnpm test` = node --experimental-vm-modules jest (NestJS 12 es solo ESM;
+        # requiere Node >= 24.9). Los argumentos tras el script llegan a jest.
+        run: pnpm test --ci
       - name: Build de todas las apps
         run: |
           for app in api init mqtt-core rules-engine appliance-monitor ai-service integrations; do
@@ -93,5 +95,5 @@ jobs:
       - name: Typecheck
         run: pnpm exec tsc --noEmit -p tsconfig.json
       - name: Tests
-        # `pnpm test -- --ci` pasaría "--" a jest como patrón y no ejecutaría nada.
-        run: pnpm exec jest --ci
+        # Sin "--": `pnpm test -- --ci` pasaría "--" a jest como patrón.
+        run: pnpm test --ci

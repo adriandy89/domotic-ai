@@ -19,7 +19,7 @@ Docker sea autocontenido).
 
 1. Edita SOLO los originales en `libs/` (nunca `src/vendor/`). Mantén esas libs puras:
    sin Prisma, sin Nest, sin imports `@app/*` fuera de ellas mismas.
-2. Tests del monorepo: `pnpm exec jest libs/rules-evaluator libs/models`.
+2. Tests del monorepo: `pnpm test libs/rules-evaluator libs/models`.
 3. Re-vendoriza y comprueba:
    ```bash
    cd stack-client/edge/rules-engine

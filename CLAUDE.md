@@ -29,7 +29,8 @@ Redis + NATS + MQTT (TBMQ en producción) + React 19 (web/) + stacks de cliente
 make verify                 # rápido: typecheck backend + jest + typecheck web + vendor drift
 make verify-full            # = CI: además build de las 7 apps, build web, tsc+tests de stack-client
 pnpm exec tsc --noEmit -p tsconfig.json   # typecheck de todo apps/ + libs/
-pnpm exec jest <ruta>       # tests (ts-jest NO tipa: ejecuta también tsc)
+pnpm test <ruta>            # tests: jest con --experimental-vm-modules (NestJS 12 es ESM,
+                            # Node >= 24.9). ts-jest NO tipa: ejecuta también tsc
 pnpm exec nest build <app>  # build webpack de una app
 pnpm -C web exec tsc -b && pnpm -C web exec vite build
 pnpm exec prisma generate   # tras cambiar schema.prisma o al clonar (generated/ está en .gitignore)

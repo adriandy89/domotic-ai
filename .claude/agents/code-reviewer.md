@@ -34,7 +34,7 @@ los llamadores relevantes (Grep) — no revises solo las líneas del diff.
 ## Verificación de cada hallazgo
 
 Antes de reportar, intenta refutarlo: lee el código real, busca guardas en llamadores,
-ejecuta un test o `tsc` si ayuda (`pnpm exec jest <ruta>`, `pnpm exec tsc --noEmit -p tsconfig.json`).
+ejecuta un test o `tsc` si ayuda (`pnpm test <ruta>`, `pnpm exec tsc --noEmit -p tsconfig.json`).
 Descarta lo que no puedas sostener.
 
 ## Formato de salida

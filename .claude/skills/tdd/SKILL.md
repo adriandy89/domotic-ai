@@ -8,7 +8,7 @@ description: Fase 3 de la metodología. Úsala al implementar cualquier tarea de
 ## Ciclo por tarea
 
 1. **Rojo**: escribe/extiende el spec y ejecútalo → debe fallar por la razón correcta.
-   `pnpm exec jest <ruta-del-spec>`
+   `pnpm test <ruta-del-spec>`
 2. **Verde**: el cambio mínimo que lo hace pasar.
 3. **Refactor** con los tests en verde.
 4. **Tipos**: ts-jest NO comprueba tipos. Ejecuta siempre

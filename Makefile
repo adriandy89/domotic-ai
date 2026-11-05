@@ -106,7 +106,7 @@ docker-down: ## Para y elimina los contenedores de prueba (sin volúmenes)
 # Verificación rápida (bucle de desarrollo)
 verify: ## typecheck backend + web, tests backend, vendor drift del edge
 	pnpm exec tsc --noEmit -p tsconfig.json
-	pnpm exec jest --silent
+	pnpm test --silent
 	pnpm -C web exec tsc --noEmit -p tsconfig.app.json
 	cd stack-client/edge/rules-engine && bash scripts/check-vendor-drift.sh
 
@@ -116,7 +116,7 @@ verify-full: verify ## + build de las 7 apps, build web, typecheck/tests de stac
 	  pnpm exec nest build $$app >/dev/null || exit 1; echo "build $$app OK"; done
 	pnpm -C web exec tsc -b && pnpm -C web exec vite build >/dev/null && echo "web build OK"
 	for p in stack-client/edge/rules-engine stack-client/lan-bridge; do \
-	  (cd $$p && pnpm exec tsc --noEmit -p tsconfig.json && pnpm exec jest --ci --silent); done
+	  (cd $$p && pnpm exec tsc --noEmit -p tsconfig.json && pnpm test --ci --silent); done
 
 .PHONY: verify verify-full
 .PHONY: dev-up dev-down dev-ps dev-logs dev-db dev-session dev-alexa-e2e dev-api dev-init dev-core dev-rules dev-appliance dev-ai dev-integrations dev-all

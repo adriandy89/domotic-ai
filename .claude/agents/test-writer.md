@@ -27,7 +27,7 @@ nunca cambias código de producción (si encuentras un bug, descríbelo en tu re
 
 ## Al terminar
 
-Ejecuta `pnpm exec jest <ruta>` y `pnpm exec tsc --noEmit -p tsconfig.json`. Si un
+Ejecuta `pnpm test <ruta>` y `pnpm exec tsc --noEmit -p tsconfig.json`. Si un
 test "debería fallar sin el cambio", compruébalo comentando temporalmente la línea
 clave y restáurala. Reporta: ficheros creados, nº de tests, salida resumida, y
 cualquier bug detectado en el código bajo prueba.

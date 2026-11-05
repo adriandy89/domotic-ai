@@ -152,7 +152,7 @@ para recargarlo:
       "Bash(make verify)",
       "Bash(make dev-*)",
       "Bash(pnpm exec tsc *)",
-      "Bash(pnpm exec jest *)",
+      "Bash(pnpm test *)",
       "Bash(pnpm exec nest build *)",
       "Bash(pnpm -C web exec tsc *)"
     ],
