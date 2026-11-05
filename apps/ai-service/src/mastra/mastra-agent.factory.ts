@@ -40,6 +40,10 @@ import {
 @Injectable()
 export class MastraAgentFactory {
   private readonly logger = new Logger(MastraAgentFactory.name);
+  private readonly disposables = new WeakMap<
+    Mastra,
+    Array<() => Promise<void>>
+  >();
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -80,6 +84,7 @@ export class MastraAgentFactory {
     try {
       await storage.init();
     } catch (error: any) {
+      await storage.close().catch(() => undefined);
       this.logger.error(
         `Failed to initialize PostgresStore for org=${organizationId}`,
         error,
@@ -91,6 +96,10 @@ export class MastraAgentFactory {
 
     const model = this.buildModel(config);
     const embedder = this.buildEmbedder();
+    const vector = new PgVector({
+      id: `org-${organizationId}-vector`,
+      connectionString: databaseUrl,
+    });
 
     const agent = new Agent({
       id: `org-${organizationId}-agent`,
@@ -120,10 +129,7 @@ export class MastraAgentFactory {
       },
       model,
       memory: new Memory({
-        vector: new PgVector({
-          id: `org-${organizationId}-vector`,
-          connectionString: databaseUrl,
-        }),
+        vector,
         embedder,
         options: {
           lastMessages: 5,
@@ -150,10 +156,24 @@ export class MastraAgentFactory {
       }),
     });
 
-    return new Mastra({
+    const mastra = new Mastra({
       agents: { [`org-${organizationId}-agent`]: agent },
       storage,
     });
+    // Mastra 1.x shutdown() does not close storage/vector pools, so keep our
+    // own handles and release them in dispose() when the instance is evicted.
+    this.disposables.set(mastra, [
+      () => storage.close(),
+      () => vector.disconnect(),
+    ]);
+    return mastra;
+  }
+
+  /** Closes the Postgres pools (store + vector) owned by a Mastra instance. */
+  async dispose(mastra: Mastra): Promise<void> {
+    const closers = this.disposables.get(mastra) ?? [];
+    this.disposables.delete(mastra);
+    await Promise.allSettled([mastra.shutdown(), ...closers.map((c) => c())]);
   }
 
   /**

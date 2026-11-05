@@ -13,8 +13,13 @@ import { MastraAgentFactory } from './mastra-agent.factory';
 import { AIProviderConfig } from './types';
 
 interface CachedInstance {
-  mastra: Mastra;
+  /** Creation promise: concurrent first requests share one instance. */
+  mastra: Promise<Mastra>;
   lastUsed: number;
+  /** Requests currently using this instance. */
+  inFlight: number;
+  /** Evicted/invalidated: dispose once the last in-flight request ends. */
+  retired: boolean;
 }
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
@@ -44,8 +49,8 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     if (this.sweepTimer) clearInterval(this.sweepTimer);
     for (const [orgId, entry] of this.cache.entries()) {
-      await this.closeMastraConnections(entry.mastra);
       this.cache.delete(orgId);
+      await this.disposeEntry(entry);
     }
   }
 
@@ -73,16 +78,68 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async getOrCreateMastra(
+  /**
+   * Returns the org's cache entry with `inFlight` incremented; callers MUST
+   * call `release(entry)` in a `finally`. Throws on invalid/disabled config.
+   */
+  private acquire(
+    organizationId: string,
+    aiConfig: Record<string, any>,
+  ): CachedInstance {
+    let entry = this.cache.get(organizationId);
+    if (!entry) {
+      const creating = this.createMastra(organizationId, aiConfig);
+      const created: CachedInstance = {
+        mastra: creating,
+        lastUsed: Date.now(),
+        inFlight: 0,
+        retired: false,
+      };
+      // A failed creation must not stay cached (next request retries).
+      creating.catch(() => {
+        if (this.cache.get(organizationId) === created) {
+          this.cache.delete(organizationId);
+        }
+      });
+      this.cache.set(organizationId, created);
+      entry = created;
+    }
+    entry.inFlight++;
+    entry.lastUsed = Date.now();
+    return entry;
+  }
+
+  private release(entry: CachedInstance) {
+    entry.inFlight--;
+    entry.lastUsed = Date.now();
+    if (entry.retired && entry.inFlight === 0) {
+      void this.disposeEntry(entry);
+    }
+  }
+
+  /** Removes the entry from the cache; pools close when no request uses it. */
+  private retire(organizationId: string, entry: CachedInstance) {
+    if (this.cache.get(organizationId) === entry) {
+      this.cache.delete(organizationId);
+    }
+    entry.retired = true;
+    if (entry.inFlight === 0) {
+      void this.disposeEntry(entry);
+    }
+  }
+
+  private async disposeEntry(entry: CachedInstance) {
+    try {
+      await this.closeMastraConnections(await entry.mastra);
+    } catch {
+      // creation failed: nothing to close
+    }
+  }
+
+  private async createMastra(
     organizationId: string,
     aiConfig: Record<string, any>,
   ): Promise<Mastra> {
-    const cached = this.cache.get(organizationId);
-    if (cached) {
-      cached.lastUsed = Date.now();
-      return cached.mastra;
-    }
-
     const config = this.getAIProviderConfig(aiConfig);
     if (!config) {
       throw new Error(
@@ -96,9 +153,8 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
     }
 
     const mastra = await this.agentFactory.createMastra(organizationId, config);
-    this.cache.set(organizationId, { mastra, lastUsed: Date.now() });
     this.logger.log(
-      `Cached Mastra instance for org ${organizationId} (cache size=${this.cache.size})`,
+      `Created Mastra instance for org ${organizationId} (cache size=${this.cache.size})`,
     );
     return mastra;
   }
@@ -106,10 +162,9 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
   private async sweepStaleInstances() {
     const now = Date.now();
     for (const [orgId, entry] of this.cache.entries()) {
-      if (now - entry.lastUsed > CACHE_TTL_MS) {
-        this.cache.delete(orgId);
+      if (entry.inFlight === 0 && now - entry.lastUsed > CACHE_TTL_MS) {
         this.logger.log(`Evicted stale Mastra instance for org ${orgId}`);
-        await this.closeMastraConnections(entry.mastra);
+        this.retire(orgId, entry);
       }
     }
   }
@@ -140,93 +195,100 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
       return 'AI configuration is invalid. Please contact your administrator.';
     }
 
-    const mastra = await this.getOrCreateMastra(organizationId, rawAiConfig);
-    const agentName = `org-${organizationId}-agent`;
-
+    const entry = this.acquire(organizationId, rawAiConfig);
     try {
-      const agent = mastra.getAgent(agentName);
-      if (!agent) {
-        throw new Error(`Agent not found for organization: ${organizationId}`);
-      }
+      const mastra = await entry.mastra;
+      const agentName = `org-${organizationId}-agent`;
 
-      this.logger.log(
-        `📨 [user=${userId}] [conv=${conversationId}] "${message.substring(0, 100)}"`,
-      );
-
-      const requestContext = new RequestContext();
-      requestContext.set('userId', userId);
-      requestContext.set('organizationId', organizationId);
-      requestContext.set('userRole', user.role);
-      requestContext.set('timeZone', timeZone);
-      requestContext.set('dbService', this.dbService);
-      requestContext.set('natsClient', this.natsClient);
-
-      const t0 = Date.now();
       try {
-        const result = await agent.generate(message, {
-          maxSteps: 8,
-          memory: { thread: conversationId, resource: userId },
-          requestContext,
-          modelSettings: {
-            temperature: aiConfig.temperature ?? 0.4,
-            ...(aiConfig.maxTokens
-              ? { maxOutputTokens: aiConfig.maxTokens }
-              : {}),
-            ...(aiConfig.topP !== undefined ? { topP: aiConfig.topP } : {}),
-            ...(aiConfig.topK !== undefined ? { topK: aiConfig.topK } : {}),
-            ...(aiConfig.presencePenalty !== undefined
-              ? { presencePenalty: aiConfig.presencePenalty }
-              : {}),
-            ...(aiConfig.frequencyPenalty !== undefined
-              ? { frequencyPenalty: aiConfig.frequencyPenalty }
-              : {}),
-            ...(aiConfig.seed !== undefined ? { seed: aiConfig.seed } : {}),
-            ...(aiConfig.stopSequences
-              ? { stopSequences: aiConfig.stopSequences }
-              : {}),
-            ...(aiConfig.maxRetries !== undefined
-              ? { maxRetries: aiConfig.maxRetries }
-              : {}),
-          },
-          providerOptions: this.buildRuntimeProviderOptions(aiConfig),
-          system: `Current date/time: ${new Date().toISOString()}${timeZone ? ` (user timezone: ${timeZone})` : ''}. Wait for all tool calls to complete before drafting your final reply.`,
-        });
+        const agent = mastra.getAgent(agentName);
+        if (!agent) {
+          throw new Error(
+            `Agent not found for organization: ${organizationId}`,
+          );
+        }
 
-        await this.recordAiUsage({
-          organizationId,
-          userId,
-          conversationId,
-          provider: aiConfig.provider,
-          model: aiConfig.model,
-          usage: this.extractUsage(result),
-          toolCalls: this.extractToolCalls(result),
-          latencyMs: Date.now() - t0,
-        });
+        this.logger.log(
+          `📨 [user=${userId}] [conv=${conversationId}] "${message.substring(0, 100)}"`,
+        );
 
-        return result.text;
+        const requestContext = new RequestContext();
+        requestContext.set('userId', userId);
+        requestContext.set('organizationId', organizationId);
+        requestContext.set('userRole', user.role);
+        requestContext.set('timeZone', timeZone);
+        requestContext.set('dbService', this.dbService);
+        requestContext.set('natsClient', this.natsClient);
+
+        const t0 = Date.now();
+        try {
+          const result = await agent.generate(message, {
+            maxSteps: 8,
+            memory: { thread: conversationId, resource: userId },
+            requestContext,
+            modelSettings: {
+              temperature: aiConfig.temperature ?? 0.4,
+              ...(aiConfig.maxTokens
+                ? { maxOutputTokens: aiConfig.maxTokens }
+                : {}),
+              ...(aiConfig.topP !== undefined ? { topP: aiConfig.topP } : {}),
+              ...(aiConfig.topK !== undefined ? { topK: aiConfig.topK } : {}),
+              ...(aiConfig.presencePenalty !== undefined
+                ? { presencePenalty: aiConfig.presencePenalty }
+                : {}),
+              ...(aiConfig.frequencyPenalty !== undefined
+                ? { frequencyPenalty: aiConfig.frequencyPenalty }
+                : {}),
+              ...(aiConfig.seed !== undefined ? { seed: aiConfig.seed } : {}),
+              ...(aiConfig.stopSequences
+                ? { stopSequences: aiConfig.stopSequences }
+                : {}),
+              ...(aiConfig.maxRetries !== undefined
+                ? { maxRetries: aiConfig.maxRetries }
+                : {}),
+            },
+            providerOptions: this.buildRuntimeProviderOptions(aiConfig),
+            system: `Current date/time: ${new Date().toISOString()}${timeZone ? ` (user timezone: ${timeZone})` : ''}. Wait for all tool calls to complete before drafting your final reply.`,
+          });
+
+          await this.recordAiUsage({
+            organizationId,
+            userId,
+            conversationId,
+            provider: aiConfig.provider,
+            model: aiConfig.model,
+            usage: this.extractUsage(result),
+            toolCalls: this.extractToolCalls(result),
+            latencyMs: Date.now() - t0,
+          });
+
+          return result.text;
+        } catch (error: any) {
+          await this.recordAiUsage({
+            organizationId,
+            userId,
+            conversationId,
+            provider: aiConfig.provider,
+            model: aiConfig.model,
+            usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+            toolCalls: 0,
+            latencyMs: Date.now() - t0,
+            error:
+              error instanceof Error
+                ? error.message.slice(0, 500)
+                : 'Unknown error',
+          });
+          throw error;
+        }
       } catch (error: any) {
-        await this.recordAiUsage({
-          organizationId,
-          userId,
-          conversationId,
-          provider: aiConfig.provider,
-          model: aiConfig.model,
-          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-          toolCalls: 0,
-          latencyMs: Date.now() - t0,
-          error:
-            error instanceof Error
-              ? error.message.slice(0, 500)
-              : 'Unknown error',
-        });
-        throw error;
+        this.logger.error(
+          `Failed to generate response for user ${userId}`,
+          error,
+        );
+        return error?.message || 'Failed to generate response.';
       }
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to generate response for user ${userId}`,
-        error,
-      );
-      return error?.message || 'Failed to generate response.';
+    } finally {
+      this.release(entry);
     }
   }
 
@@ -336,14 +398,9 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
 
   private async closeMastraConnections(mastra: Mastra) {
     try {
-      const stores = (mastra as any).stores;
-      if (stores && Array.isArray(stores)) {
-        for (const store of stores) {
-          if (store && typeof store.close === 'function') {
-            await store.close();
-          }
-        }
-      }
+      // Previously read `(mastra as any).stores`, which Mastra 1.x doesn't
+      // have, so every eviction leaked a PostgresStore + PgVector pool.
+      await this.agentFactory.dispose(mastra);
     } catch (error: any) {
       this.logger.warn('Error closing Mastra connections:', error);
     }
@@ -372,8 +429,7 @@ export class MastraService implements OnModuleInit, OnModuleDestroy {
       );
       return;
     }
-    this.cache.delete(organizationId);
-    await this.closeMastraConnections(entry.mastra);
+    this.retire(organizationId, entry);
     this.logger.log(
       `Invalidated Mastra cache for org ${organizationId} (cache size=${this.cache.size})`,
     );
