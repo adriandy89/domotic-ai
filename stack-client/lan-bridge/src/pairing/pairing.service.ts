@@ -23,6 +23,11 @@ const SCAN_BURST_MS = 5_000;
 export interface PairingEvents {
   /** True when the candidate is already managed (by id or ip). */
   isManaged(id: string, ip: string): boolean;
+  /**
+   * A managed device of this type at `ip` whose credentials the device
+   * rejected: pair it again keeping its id/name (the platform keeps the device).
+   */
+  repairTarget(type: DeviceDefinition['type'], ip: string): DeviceDefinition | undefined;
   /** A TV accepted the pairing prompt — persist and attach it. */
   onPaired(def: DeviceDefinition): void;
   /** Publish the bridge device's `pairing` / `discovered` state. */
@@ -54,6 +59,8 @@ export class PairingService implements OnModuleDestroy {
   private awaitingCode?: {
     remote: AndroidRemote;
     def: DeviceDefinition;
+    /** The TV accepted the code: wait for 'ready' even if a first connect fails. */
+    codeAccepted?: boolean;
   };
 
   // Injection points for tests.
@@ -140,13 +147,35 @@ export class PairingService implements OnModuleDestroy {
     const trimmed = code.trim().toUpperCase();
     if (!pending || !trimmed) return;
     this.logger.log(`Submitting pairing code for ${pending.def.ip}…`);
+    let accepted = false;
     try {
-      pending.remote.sendCode(trimmed);
+      // false = wrong code; the library has already closed that pairing session.
+      accepted = pending.remote.sendCode(trimmed) !== false;
     } catch (err: any) {
       this.logger.warn(`Pairing code rejected: ${err?.message ?? err}`);
-      this.events?.onStateChange({
-        discovered: `${pending.def.name} (${pending.def.ip}): wrong code — check the TV and type it again`,
-      });
+    }
+    if (accepted) {
+      pending.codeAccepted = true;
+      return;
+    }
+    this.releaseAndroid(pending.remote);
+    this.events?.onStateChange({
+      discovered: `${pending.def.name} (${pending.def.ip}): wrong code — wait a few seconds for a new code on the TV and type it`,
+      pairing_code: '',
+    });
+  }
+
+  /**
+   * Frees the single Android slot when that pairing can no longer complete
+   * (wrong code, cancelled on the TV, rejected) so the next scan shows a new code.
+   */
+  private releaseAndroid(remote: AndroidRemote): void {
+    if (this.awaitingCode?.remote !== remote) return;
+    this.awaitingCode = undefined;
+    try {
+      remote.stop();
+    } catch {
+      // best effort
     }
   }
 
@@ -168,22 +197,30 @@ export class PairingService implements OnModuleDestroy {
   private probeAndroid(candidate: MdnsCandidate): void {
     if (!this.active || !this.events || this.awaitingCode) return;
     const { ip } = candidate;
-    const id = `androidtv_${ip.replace(/[^0-9]/g, '_')}`;
+    const stale = this.events.repairTarget('androidtv', ip);
+    const id = stale?.id ?? `androidtv_${ip.replace(/[^0-9]/g, '_')}`;
     if (this.events.isManaged(id, ip)) return;
 
-    const name = candidate.name || `Android TV ${ip}`;
-    const def: DeviceDefinition = { type: 'androidtv', id, name, ip };
+    const name = stale?.name ?? (candidate.name || `Android TV ${ip}`);
+    const def: DeviceDefinition = stale
+      ? { ...stale }
+      : { type: 'androidtv', id, name, ip };
     const remote = this.androidFn(ip, 'domotic-lan-bridge');
     this.awaitingCode = { remote, def };
 
+    // Re-pairing: say which TV answered and which device it will replace.
+    const label = stale
+      ? `${candidate.name || 'Android TV'} (${ip}), re-pairing "${stale.name}",`
+      : `${name} (${ip})`;
     remote.on('secret', () => {
       this.logger.log(
-        `"${name}" (${ip}) is showing a pairing code — write it to "Pairing code" on the LAN Bridge card.`,
+        `${label} is showing a pairing code — write it to "Pairing code" on the LAN Bridge card.`,
       );
       this.events?.onStateChange({
-        discovered: `${name} (${ip}) is showing a code on screen — type it in "Pairing code"`,
+        discovered: `${label} is showing a code on screen — type it in "Pairing code"`,
       });
     });
+    remote.on('unpaired', () => this.releaseAndroid(remote));
     remote.on('ready', () => {
       if (this.awaitingCode?.remote !== remote) return;
       this.awaitingCode = undefined;
@@ -195,7 +232,7 @@ export class PairingService implements OnModuleDestroy {
       }
       saveCert(this.config.dataDir, id, cert);
       void (async () => {
-        const mac = await this.macFn(ip);
+        const mac = (await this.macFn(ip)) ?? def.mac;
         const paired: DeviceDefinition = { ...def, mac };
         this.results.push(`${name} (${ip}) paired`);
         this.logger.log(`Paired "${name}" (${ip}) as ${id}.`);
@@ -210,10 +247,18 @@ export class PairingService implements OnModuleDestroy {
       this.logger.debug(`Android pairing (${ip}): ${err?.message ?? err}`),
     );
 
-    remote.start().catch((err: any) => {
-      this.logger.debug(`Android pairing start failed (${ip}): ${err?.message ?? err}`);
-      if (this.awaitingCode?.remote === remote) this.awaitingCode = undefined;
-    });
+    remote
+      .start()
+      .then((ok) => {
+        // Falsy = pairing did not complete (cancelled on the TV, wrong code).
+        // After an accepted code it can also mean "first connect failed" while
+        // the library retries: keep waiting for 'ready' (or the window end).
+        if (!ok && !this.awaitingCode?.codeAccepted) this.releaseAndroid(remote);
+      })
+      .catch((err: any) => {
+        this.logger.debug(`Android pairing start failed (${ip}): ${err?.message ?? err}`);
+        this.releaseAndroid(remote);
+      });
   }
 
   private async probe(candidate: SsdpCandidate): Promise<void> {

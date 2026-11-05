@@ -1,0 +1,2 @@
+patchedDependencies:
+  androidtv-remote@1.0.10: patches/androidtv-remote@1.0.10.patch

@@ -13,7 +13,10 @@ WORKDIR /app
 # sin versión: hoy instalaría pnpm 12 con un lockfile de pnpm 10). El build es
 # `tsc`, no hace falta @nestjs/cli global.
 RUN corepack enable
-COPY package.json pnpm-lock.yaml ./
+# pnpm-workspace.yaml + patches/: parche de androidtv-remote (pnpm patch), que
+# se aplica durante el install.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY patches ./patches
 RUN pnpm install --frozen-lockfile
 COPY . .
 RUN pnpm run build

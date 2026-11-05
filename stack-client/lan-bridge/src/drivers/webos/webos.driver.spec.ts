@@ -47,6 +47,7 @@ function makeDriver(definition: DeviceDefinition = def) {
     publishState: jest.fn(),
     publishAvailability: jest.fn(),
     capabilitiesChanged: jest.fn(),
+    unpaired: jest.fn(),
   };
   const connectFn = jest.fn().mockReturnValue(tv);
   const driver = new WebosDriver(definition, host, '/data', connectFn as any);

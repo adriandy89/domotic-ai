@@ -1,0 +1,136 @@
+diff --git a/dist/index.js b/dist/index.js
+index 00cd054224ae4cf61947b5158f62d3bfeb6410d9..83761cfa9fccbc8611ca5cd1f167695350aa5233 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -42,6 +42,8 @@ class AndroidRemote extends _events.default {
+     var _this = this;
+ 
+     return _asyncToGenerator(function* () {
++      if (_this.stopped) return false; // domotic-ai patch: stop() is final
++
+       if (!_this.cert.key || !_this.cert.cert) {
+         _this.cert = _CertificateGenerator.CertificateGenerator.generateFull(_this.service_name, 'CNT', 'ST', 'LOC', 'O', 'OU');
+         _this.pairingManager = new _PairingManager.PairingManager(_this.host, _this.pairing_port, _this.cert, _this.service_name);
+@@ -55,6 +57,9 @@ class AndroidRemote extends _events.default {
+         if (!paired) {
+           return;
+         }
++
++        if (_this.stopped) return false; // domotic-ai patch
++
+       }
+ 
+       _this.remoteManager = new _RemoteManager.RemoteManager(_this.host, _this.remote_port, _this.cert);
+@@ -69,6 +74,10 @@ class AndroidRemote extends _events.default {
+ 
+       _this.remoteManager.on('unpaired', () => _this.emit('unpaired'));
+ 
++      // domotic-ai patch: a RemoteError frame was emitted on remoteManager with
++      // no listener → ERR_UNHANDLED_ERROR thrown from the socket data handler.
++      _this.remoteManager.on('error', error => _this.emit('error', error));
++
+       yield new Promise(resolve => setTimeout(resolve, 1000));
+       var started = yield _this.remoteManager.start().catch(error => {
+         console.error(error);
+@@ -101,7 +110,10 @@ class AndroidRemote extends _events.default {
+   }
+ 
+   stop() {
+-    this.remoteManager.stop();
++    // domotic-ai patch: also valid while pairing / before the first connection.
++    this.stopped = true;
++    if (this.pairingManager && this.pairingManager.client) this.pairingManager.client.destroy();
++    if (this.remoteManager) this.remoteManager.stop();
+   }
+ 
+ }
+diff --git a/dist/remote/RemoteManager.js b/dist/remote/RemoteManager.js
+index 5de733c3238b32da84e0c0e474be8e8949126879..93122dc651a77cb3e13b9044a445c848d7776427 100644
+--- a/dist/remote/RemoteManager.js
++++ b/dist/remote/RemoteManager.js
+@@ -17,6 +17,12 @@ var _RemoteMessageManager = require("./RemoteMessageManager.js");
+ 
+ var _events = _interopRequireDefault(require("events"));
+ 
++// domotic-ai patch: TLS alerts by which the TV refuses our client certificate
++// (forgotten pairing). Retrying cannot succeed; the user has to pair again.
++var CERT_REJECTION = /^ERR_SSL_.*ALERT_(CERTIFICATE_UNKNOWN|BAD_CERTIFICATE|CERTIFICATE_REQUIRED|UNKNOWN_CA|CERTIFICATE_REVOKED|CERTIFICATE_EXPIRED|UNSUPPORTED_CERTIFICATE)$/;
++
++function isCertificateRejection(error) { return !!error && CERT_REJECTION.test(String(error.code)); }
++
+ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+ 
+ function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { Promise.resolve(value).then(_next, _throw); } }
+@@ -31,6 +37,7 @@ class RemoteManager extends _events.default {
+     this.certs = certs;
+     this.chunks = Buffer.from([]);
+     this.error = null;
++    this.stopped = false;
+   }
+ 
+   start() {
+@@ -38,6 +45,15 @@ class RemoteManager extends _events.default {
+ 
+     return _asyncToGenerator(function* () {
+       return new Promise((resolve, reject) => {
++        if (_this.stopped) {
++          // domotic-ai patch: stop() is final, never dial again.
++          resolve(false);
++          return;
++        }
++
++        _this.error = null;
++        _this.chunks = Buffer.from([]); // a partial frame from a dead socket would break framing
++        _this.accepted = false; // set once the TV configures the session
+         var options = {
+           key: _this.certs.key,
+           cert: _this.certs.cert,
+@@ -78,6 +94,8 @@ class RemoteManager extends _events.default {
+             if (message.remoteConfigure) {
+               _this.client.write(_RemoteMessageManager.remoteMessageManager.createRemoteConfigure(622, "Build.MODEL", "Build.MANUFACTURER", 1, "Build.VERSION.RELEASE"));
+ 
++              _this.accepted = true; // domotic-ai patch
++
+               _this.emit('ready');
+             } else if (message.remoteSetActive) {
+               _this.client.write(_RemoteMessageManager.remoteMessageManager.createRemoteSetActive(622));
+@@ -119,10 +137,28 @@ class RemoteManager extends _events.default {
+           var _ref = _asyncToGenerator(function* (hasError) {
+             console.info(_this.host + " Remote Connection closed ", hasError);
+ 
++            if (_this.stopped) return; // domotic-ai patch: stop() is final.
++
++            if (isCertificateRejection(_this.error)) {
++              // domotic-ai patch: Node closes these with hadError=false, so the
++              // original code reconnected every second forever.
++              _this.stopped = true;
++              reject(_this.error.code);
++
++              _this.emit('unpaired');
++
++              return;
++            }
++
+             if (hasError) {
+               reject(_this.error.code);
+ 
+-              if (_this.error.code === "ECONNRESET") {
++              if (_this.error.code === "ECONNRESET" && !_this.accepted) {
++                // domotic-ai patch: only a reset before the TV accepted us means
++                // "unpaired"; after that it is transient and the else-branch
++                // below reconnects.
++                _this.stopped = true;
++
+                 _this.emit('unpaired');
+               } else if (_this.error.code === "ECONNREFUSED") {
+                 // L'appareil n'est pas encore prêt : on relance
+@@ -173,7 +209,8 @@ class RemoteManager extends _events.default {
+   }
+ 
+   stop() {
+-    this.client.destroy();
++    this.stopped = true;
++    if (this.client) this.client.destroy();
+   }
+ 
+ }

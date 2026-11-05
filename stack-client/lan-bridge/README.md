@@ -53,6 +53,16 @@ logs unpaired TVs every 10 min (`DISCOVERY_ENABLED`).
   Controls: power, volume 0-100 (paced key steps — the protocol has no absolute
   set), mute; the foreground app is exposed read-only. Power works from standby
   (the remote service stays up), no Wake-on-LAN needed.
+  **If the TV forgets the pairing** (factory reset, update, removed from its
+  remotes list) it rejects our certificate (TLS alert `certificate unknown`):
+  the TV goes offline, the bridge card says "… must be paired again", and
+  turning **Pairing** on re-pairs it *in place* (same device id, so platform
+  rules keep working) — just type the new code.
+  `androidtv-remote@1.0.10` (unmaintained since 2022) is patched with
+  `pnpm patch` (`patches/`, `pnpm-workspace.yaml`): it used to reconnect every
+  second forever on that alert, and `stop()` reconnected too.
+  `src/drivers/androidtv/androidtv-remote.patch.spec.ts` fails if a reinstall
+  or upgrade loses the patch.
 
 Planned: `tizen` (Samsung), `broadlink` (IR).
 

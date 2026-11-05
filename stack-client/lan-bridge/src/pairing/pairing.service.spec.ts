@@ -30,6 +30,7 @@ function makeService(candidates: Array<{ ip: string; usn?: string; location?: st
   const probes = new Map<string, FakeProbe>();
   const events: PairingEvents = {
     isManaged: jest.fn().mockReturnValue(false),
+    repairTarget: jest.fn().mockReturnValue(undefined),
     onPaired: jest.fn(),
     onStateChange: jest.fn(),
   };
@@ -164,6 +165,154 @@ describe('PairingService', () => {
       }),
     );
     expect(androidRemote.stopped).toBe(true);
+  });
+
+  it('re-pairs in place a managed Android TV that rejected our certificate', async () => {
+    const { saveCert } = jest.requireMock('../drivers/androidtv/cert-store');
+    const { service, events } = makeService([]);
+    const stale = {
+      type: 'androidtv' as const,
+      id: 'tv_salon',
+      name: 'Salón',
+      ip: '192.168.1.65',
+      mac: '11:22:33:44:55:66',
+    };
+    (events.repairTarget as jest.Mock).mockImplementation((type, ip) =>
+      type === 'androidtv' && ip === stale.ip ? stale : undefined,
+    );
+    class FakeAndroidRemote extends EventEmitter {
+      start = jest.fn().mockResolvedValue(true);
+      sendCode() {
+        this.emit('ready');
+        return true;
+      }
+      getCertificate() {
+        return { key: 'NEWK', cert: 'NEWC' };
+      }
+      stop() {}
+    }
+    const androidRemote = new FakeAndroidRemote();
+    (service as any).mdnsFn = jest
+      .fn()
+      .mockResolvedValue([{ ip: '192.168.1.65', name: 'Google TV 4K', port: 6466 }]);
+    (service as any).androidFn = jest.fn().mockReturnValue(androidRemote);
+    (service as any).macFn = jest.fn().mockResolvedValue(undefined);
+
+    service.setPairing(true);
+    await jest.advanceTimersByTimeAsync(10);
+    expect(androidRemote.start).toHaveBeenCalled();
+    androidRemote.emit('secret');
+    // The user sees which TV answered and which device it will replace.
+    const shown = (events.onStateChange as jest.Mock).mock.calls.at(-1)![0];
+    expect(shown.discovered).toContain('Google TV 4K');
+    expect(shown.discovered).toContain('Salón');
+    service.submitCode('ABC123');
+    await jest.advanceTimersByTimeAsync(10);
+
+    // Same id/name (the platform keeps the device and its rules), new cert.
+    expect(saveCert).toHaveBeenCalledWith('/data', 'tv_salon', {
+      key: 'NEWK',
+      cert: 'NEWC',
+    });
+    expect(events.onPaired).toHaveBeenCalledWith({
+      type: 'androidtv',
+      id: 'tv_salon',
+      name: 'Salón',
+      ip: '192.168.1.65',
+      mac: '11:22:33:44:55:66', // ARP miss keeps the known MAC
+    });
+  });
+
+  describe('Android TV pairing that does not complete', () => {
+    /** Mirrors androidtv-remote: a wrong code destroys the pairing session. */
+    class FailingAndroidRemote extends EventEmitter {
+      private finish!: (v: boolean | undefined) => void;
+      start = jest.fn(
+        () => new Promise<boolean | undefined>((r) => (this.finish = r)),
+      );
+      sendCode = jest.fn(() => {
+        this.finish(undefined);
+        return false;
+      });
+      cancelOnTv() {
+        this.finish(undefined);
+      }
+      getCertificate() {
+        return { key: 'K', cert: 'C' };
+      }
+      stop() {}
+    }
+
+    function setup() {
+      const { service, events } = makeService([]);
+      const remotes: FailingAndroidRemote[] = [];
+      (service as any).mdnsFn = jest
+        .fn()
+        .mockResolvedValue([{ ip: '192.168.1.60', name: 'Salón Google TV', port: 6466 }]);
+      (service as any).androidFn = jest.fn(() => {
+        const r = new FailingAndroidRemote();
+        remotes.push(r);
+        return r;
+      });
+      return { service, events, remotes };
+    }
+
+    it('a wrong code is reported and the next scan shows a new code', async () => {
+      const { service, events, remotes } = setup();
+      service.setPairing(true);
+      await jest.advanceTimersByTimeAsync(10);
+      remotes[0].emit('secret');
+
+      service.submitCode('ZZZZZZ');
+      await jest.advanceTimersByTimeAsync(10);
+      const state = (events.onStateChange as jest.Mock).mock.calls.at(-1)![0];
+      expect(state.discovered).toContain('wrong code');
+      expect(events.onPaired).not.toHaveBeenCalled();
+
+      await jest.advanceTimersByTimeAsync(10_000); // next scan
+      expect(remotes).toHaveLength(2);
+    });
+
+    it('a pairing cancelled on the TV frees the slot for the next scan', async () => {
+      const { service, remotes } = setup();
+      service.setPairing(true);
+      await jest.advanceTimersByTimeAsync(10);
+
+      remotes[0].cancelOnTv();
+      await jest.advanceTimersByTimeAsync(10_000);
+      expect(remotes).toHaveLength(2);
+    });
+
+    it('an accepted code keeps waiting even if the first remote connect fails', async () => {
+      const { service, events, remotes } = setup();
+      service.setPairing(true);
+      await jest.advanceTimersByTimeAsync(10);
+      const remote = remotes[0];
+      remote.sendCode.mockImplementationOnce(() => true); // right code
+
+      service.submitCode('ABC123');
+      // Pairing done, but the remote port refused the first try: start()
+      // resolves falsy while the library keeps retrying in the background…
+      remote.cancelOnTv();
+      await jest.advanceTimersByTimeAsync(10);
+      // …and the retry connects.
+      remote.emit('ready');
+      await jest.advanceTimersByTimeAsync(10);
+
+      expect(events.onPaired).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'androidtv_192_168_1_60' }),
+      );
+    });
+
+    it('a TV that rejects us right after pairing frees the slot too', async () => {
+      const { service, remotes } = setup();
+      service.setPairing(true);
+      await jest.advanceTimersByTimeAsync(10);
+
+      remotes[0].emit('unpaired');
+      await jest.advanceTimersByTimeAsync(10_000);
+      expect(remotes).toHaveLength(2);
+    });
   });
 
   it('setPairing(false) closes the window early', async () => {

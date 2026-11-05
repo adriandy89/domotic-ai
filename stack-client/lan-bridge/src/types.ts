@@ -28,6 +28,11 @@ export interface DriverHost {
   publishAvailability(online: boolean): void;
   /** New select options known → the bridge republishes the discovery config. */
   capabilitiesChanged(caps: Partial<DriverCapabilities>): void;
+  /**
+   * The device rejected our stored credentials (e.g. the TV forgot the pairing
+   * after a reset): the driver has stopped and the device must be paired again.
+   */
+  unpaired(): void;
 }
 
 /** A running protocol driver bound to one device. */
