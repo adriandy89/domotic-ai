@@ -1,56 +1,63 @@
-# Dependencies
-node_modules
-npm-debug.log
-yarn-error.log
-pnpm-debug.log
+# Contexto de build de las imágenes del BACKEND (Dockerfile raíz).
+# Solo necesita: apps/ libs/ prisma/ prisma.config.ts package.json pnpm-lock.yaml
+# nest-cli.json tsconfig*.json webpack.config.js. Todo lo demás se excluye para que
+# el contexto sea pequeño y no se cuelen secretos ni artefactos del host.
 
-# Build outputs (keep generated for Prisma)
-dist
+# Dependencias y salidas de build (en cualquier nivel)
+**/node_modules
+**/dist
 build
 .next
 out
-
-# Environment files
-.env
-.env.*
-
-# IDE
-.vscode
-.idea
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Testing
 coverage
 .nyc_output
+# El cliente Prisma se regenera dentro de la imagen (evita copiar uno desfasado)
+generated
 
-# Logs
-logs
-*.log
+# Secretos / entorno (nunca dentro de la imagen)
+.env
+.env.*
+**/.env
+**/.env.*
 
-# Temporary files
-tmp
-temp
-*.tmp
+# Otros proyectos con su propio contexto/Dockerfile
+web
+web-zigbee2mqtt
+stack-client
+stack-docker
+stack-tbmq
+alexa-lambda
 
-# Git
+# Herramientas, documentación y scripts de desarrollo
+.claude
+.github
+.gitlab-ci.yml
+.vscode
+.idea
 .git
 .gitignore
-
-# Docker
 .dockerignore
 Dockerfile*
 docker-compose*.yml
-
-# CI/CD
-.github
-.gitlab-ci.yml
-
-# Documentation (keep prisma docs)
-README.md
+*.md
 docs
+assets
+scripts
+Makefile
+deploy-batched.sh
+start-ngrok.sh
+
+# Logs / temporales / SO
+logs
+*.log
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+tmp
+temp
+*.tmp
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

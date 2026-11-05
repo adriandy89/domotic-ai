@@ -1,83 +1,73 @@
-FROM node:22.15-bullseye-slim AS base
-RUN apt-get update -y && \
-    apt-get install -y openssl && \
-    npm install -g pnpm @nestjs/cli
+# syntax=docker/dockerfile:1.7
+#
+# Imágenes del BACKEND (monorepo NestJS). Una imagen por servicio:
+#   docker compose build <servicio>      (SERVICE_NAME = api | init | mqtt-core |
+#   rules-engine | appliance-monitor | ai-service | integrations)
+#
+# Targets (los usa docker-compose.yml, no renombrar):
+#   prisma-migrate  → `prisma migrate deploy` y termina
+#   production      → runtime de un servicio (node dist/apps/$SERVICE_NAME/main)
+#
+# Node 24 LTS sobre Debian bookworm. (Antes: node 22 sobre bullseye, que está EOL:
+# su mirror de seguridad devuelve 404 y `apt-get install openssl` ya fallaba.)
+ARG NODE_VERSION=24.22.2
 
-# prisma-migrate target
-FROM base AS prisma-migrate
+# ── base: Node + pnpm fijado ─────────────────────────────────────────────────
+FROM node:${NODE_VERSION}-bookworm-slim AS base
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /usr/src/app
-COPY package*.json ./
-COPY pnpm-lock.yaml ./
+# pnpm = la versión exacta (con hash) de "packageManager" en package.json.
+RUN corepack enable
+ENV npm_config_store_dir=/pnpm/store
+COPY package.json pnpm-lock.yaml ./
+RUN corepack install
+
+# ── deps: TODAS las dependencias (prisma CLI, nest CLI, webpack, typescript) ──
+# Solo depende de package.json + lockfile → la capa se comparte entre los 7
+# servicios y entre builds mientras no cambien las dependencias.
+FROM base AS deps
+RUN --mount=type=cache,id=domotic-pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile
+
+# ── prisma-migrate ───────────────────────────────────────────────────────────
+FROM deps AS prisma-migrate
 COPY prisma.config.ts ./
-COPY ./prisma ./prisma
-RUN pnpm install
+COPY prisma ./prisma
 CMD ["pnpm", "exec", "prisma", "migrate", "deploy"]
 
-# production stage
-FROM base AS production
-ARG SERVICE_NAME
-ARG NODE_ENV=production
-ARG DATABASE_URL="postgresql://dummy:dummy@dummy:5432/dummy?schema=public"
-ENV NODE_ENV=${NODE_ENV}
-ENV DATABASE_URL=${DATABASE_URL}
-WORKDIR /usr/src/app
+# ── build: compila UN servicio ───────────────────────────────────────────────
+FROM deps AS build
 COPY . .
-COPY package*.json ./
-COPY pnpm-lock.yaml ./
-COPY prisma.config.ts ./
-COPY ./prisma ./
-RUN pnpm install
-RUN pnpm exec prisma generate
-RUN pnpm run build ${SERVICE_NAME}
+# generate no conecta a la BD, pero prisma.config.ts exige una URL.
+RUN DATABASE_URL="postgresql://build:build@localhost:5432/build" \
+    pnpm exec prisma generate
+ARG SERVICE_NAME
+RUN test -n "$SERVICE_NAME" || (echo "Falta --build-arg SERVICE_NAME" >&2 && exit 1)
+RUN pnpm exec nest build "$SERVICE_NAME"
+
+# ── prod-deps: solo dependencias de producción (compartido entre servicios) ──
+# Los bundles de webpack externalizan node_modules; todos los módulos que
+# cargan están en "dependencies" (el cliente Prisma generado va dentro del
+# bundle y su runtime/WASM sale de @prisma/client).
+FROM base AS prod-deps
+RUN --mount=type=cache,id=domotic-pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile --prod
+
+# ── production: runtime ──────────────────────────────────────────────────────
+FROM node:${NODE_VERSION}-bookworm-slim AS production
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl ca-certificates tini \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /usr/src/app
+ARG SERVICE_NAME
+ENV NODE_ENV=production
 ENV APP_MAIN_FILE=dist/apps/${SERVICE_NAME}/main
-CMD node ${APP_MAIN_FILE}
-
-
-# # Base with Playwright dependencies
-# FROM node:22.15-bullseye AS playwright-base
-# RUN apt-get update -y && \
-#     apt-get install -y openssl && \
-#     npm install -g pnpm @nestjs/cli && \
-#     apt-get install -y \
-#     libnss3 \
-#     libnspr4 \
-#     libatk1.0-0 \
-#     libatk-bridge2.0-0 \
-#     libcups2 \
-#     libdrm2 \
-#     libxkbcommon0 \
-#     libatspi2.0-0 \
-#     libxcomposite1 \
-#     libxdamage1 \
-#     libxfixes3 \
-#     libxrandr2 \
-#     libgbm1 \
-#     libasound2 \
-#     build-essential \
-#     libcairo2-dev \
-#     libpango1.0-dev \
-#     libjpeg-dev \
-#     libgif-dev \
-#     librsvg2-dev \
-#     && rm -rf /var/lib/apt/lists/*
-
-# # production stage with Playwright
-# FROM playwright-base AS production-playwright
-# ARG SERVICE_NAME
-# ARG NODE_ENV=production
-# ENV NODE_ENV=${NODE_ENV}
-# WORKDIR /usr/src/app
-# COPY . .
-# COPY package*.json ./
-# COPY pnpm-lock.yaml ./
-# COPY ./prisma ./
-# # Install all dependencies with pnpm using shamefully-hoist for better native module support
-# RUN pnpm install --frozen-lockfile --shamefully-hoist
-# # Ensure canvas native module is properly built 
-# RUN find node_modules -name "canvas" -type d -exec test -f {}/package.json \; -print | head -1 | xargs -I {} sh -c 'cd {} && npm rebuild'
-# ENV PLAYWRIGHT_BROWSERS_PATH=0
-# RUN npx playwright install --with-deps
-# RUN pnpm exec prisma generate
-# RUN pnpm run build ${SERVICE_NAME}
-# ENV APP_MAIN_FILE=dist/apps/${SERVICE_NAME}/main
-# CMD node ${APP_MAIN_FILE}
+COPY --from=prod-deps --chown=node:node /usr/src/app/node_modules ./node_modules
+COPY --from=prod-deps --chown=node:node /usr/src/app/package.json ./package.json
+COPY --from=build --chown=node:node /usr/src/app/dist/apps/${SERVICE_NAME} ./dist/apps/${SERVICE_NAME}
+USER node
+# tini como PID 1: reenvía SIGTERM a node (parada limpia en `docker stop`).
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["sh", "-c", "exec node ${APP_MAIN_FILE}"]

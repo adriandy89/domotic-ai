@@ -22,6 +22,13 @@ services:
   timescaledb:
     logging: *default-logging
     container_name: timescaledb
+    # OJO (PG18): estas imágenes guardan los datos en /var/lib/postgresql/18/docker
+    # y el volumen debería montarse en /var/lib/postgresql (ver
+    # docker-compose.dev.yml). NO cambiar el montaje ni la etiqueta en un servidor
+    # sin comprobar antes dónde están los datos reales:
+    #   docker inspect timescaledb --format '{{json .Mounts}}'
+    # Tampoco fijar una versión inferior a la de la extensión ya instalada
+    # (SELECT extversion FROM pg_extension WHERE extname='timescaledb').
     image: timescale/timescaledb:latest-pg18
     restart: always
     environment:
@@ -37,7 +44,9 @@ services:
   nats:
     logging: *default-logging
     container_name: nats
-    image: nats:latest
+    # Fijado (antes :latest). 2.15.2 es la versión probada con los clientes
+    # NATS v2 (Nest 11) y v3 (@nats-io/transport-node, Nest 12).
+    image: nats:2.15.2
     restart: always
     ports:
       - '4222:4222'

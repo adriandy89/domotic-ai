@@ -1,0 +1,10 @@
+# Contexto de build de la web. node_modules del host NO debe entrar: COPY . .
+# lo pisaría sobre el instalado en Alpine (binarios nativos glibc ≠ musl).
+node_modules
+dist
+old-example
+*.log
+.vscode
+.idea
+.DS_Store
+# OJO: .env SÍ se incluye a propósito: Vite lee VITE_API_URL en build.

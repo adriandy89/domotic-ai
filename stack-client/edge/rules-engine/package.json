@@ -6,7 +6,7 @@
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.25.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.14"
   },
   "scripts": {
     "vendor": "bash scripts/vendor-libs.sh",
@@ -21,25 +21,31 @@
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/schedule": "^6.0.0",
-    "better-sqlite3": "^11.10.0",
+    "better-sqlite3": "^13.0.3",
     "cron-parser": "^4.9.0",
     "mqtt": "^5.10.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11",
-    "@types/node": "^22.10.0",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^24.19.2",
     "jest": "^30.0.0",
     "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3"]
+    "onlyBuiltDependencies": [
+      "better-sqlite3"
+    ]
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
