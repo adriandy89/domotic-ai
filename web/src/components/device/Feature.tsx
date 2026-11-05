@@ -5,7 +5,7 @@ import type { DeviceExpose } from '../../store/useDevicesStore';
 import { ScheduleFeature } from './ScheduleFeature';
 
 // Feature access modes (bitmask)
-export const FeatureAccessMode = {
+const FeatureAccessMode = {
   STATE: 1, // Can read
   SET: 2, // Can write
   GET: 4, // Can request value
